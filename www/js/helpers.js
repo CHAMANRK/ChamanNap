@@ -9,14 +9,16 @@ $('#chat').addEventListener('click',e=>{
   copyTxt(c.textContent).then(()=>{b.innerHTML=ICO_OK;setTimeout(()=>{b.innerHTML=ICO_COPY},1500)});
 });
 
-const NP=(m,o)=>{
+const NPx=(pl,m,o)=>{
   const C=window.Capacitor;
   if(!C||!(C.nativePromise||C.Plugins))return Promise.reject(new Error('Ye command sirf Android app me chalta hai.'));
-  if(C.nativePromise)return C.nativePromise('PhoneControl',m,o||{});
-  const p=C.Plugins&&C.Plugins.PhoneControl;
+  if(C.nativePromise)return C.nativePromise(pl,m,o||{});
+  const p=C.Plugins&&C.Plugins[pl];
   if(p&&p[m])return p[m](o||{});
-  return Promise.reject(new Error('Phone control plugin load nahi hua.'));
+  return Promise.reject(new Error('Native plugin load nahi hua.'));
 };
+const NP=(m,o)=>NPx('PhoneControl',m,o);
+const NS=(m,o)=>NPx('ScreenControl',m,o);
 const errMsg=e=>(e&&(e.message||e.errorMessage))||String(e);
 function persist(){sv('nap_h',H.map(m=>m.role==='user'?Object.assign({},m,{imgs:undefined,files:(m.files||[]).map(a=>({name:a.name,size:a.size,kind:a.kind}))}):m))}
 function aiText(m){

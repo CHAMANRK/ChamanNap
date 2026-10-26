@@ -3,5 +3,5 @@
   "appName": "Chaman",
   "webDir": "www",
   "plugins": { "CapacitorHttp": { "enabled": true } },
-  "android": { "backgroundColor": "#0f1614" }
+  "android": { "backgroundColor": "#0f1614", "useLegacyBridge": true }
 }

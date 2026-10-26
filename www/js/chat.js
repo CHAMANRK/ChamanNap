@@ -1,7 +1,13 @@
 async function runWithTools(p){
+  const r=await runLoop(p);
+  if(r&&r.steps&&r.steps.length)NS('pill',{text:'Done',ttl:1500}).catch(()=>{});
+  return r;
+}
+async function runLoop(p){
   const msgs=apiMsgs(false),steps=[],by=p.name.replace(' (optional)','');
   let tools=TOOLS;
-  for(let n=0;n<6;n++){
+  SCR_STOP=false;NS('reset').catch(()=>{});
+  for(let n=0;n<20;n++){
     let out;
     try{out=await callOpenAI(p,msgs,undefined,tools)}
     catch(e){if(e.noTools&&tools){tools=null;n--;continue}throw e}
@@ -14,8 +20,9 @@ async function runWithTools(p){
       let args={};try{args=JSON.parse(c.function.arguments||'{}')}catch(e){}
       msgs.push({role:'tool',tool_call_id:c.id,content:await execTool(c.function.name,args,steps)});
     }
+    if(SCR_STOP)return{content:'Stop dabaya gaya, kaam rok diya.',by,steps};
   }
-  return{content:'Tool steps ki limit (6) ho gayi, kaam adhura ho sakta hai.',by,steps};
+  return{content:'Tool steps ki limit (20) ho gayi, kaam adhura ho sakta hai.',by,steps};
 }
 async function ask(){
   const lm=H[H.length-1];

@@ -6,9 +6,13 @@ function sheet(){
   h+='<div class="sec"><h2>Vision (photo samajhne wala model)</h2><label>Provider</label><select id="v_p">'+['nvidia','openrouter','groq','mistral'].map(id=>'<option value="'+id+'">'+P.find(p=>p.id===id).name.replace(' (optional)','')+'</option>').join('')+'</select><label>Model</label><input id="v_m" value="'+esc(S.vision.model)+'" autocapitalize="off"><p class="hint">Photo bhejne par sirf yahi model jawab deta hai. Us provider ki key upar uske section me daalo.</p></div>';
   h+='<div class="sec"><h2>System prompt</h2><textarea id="sys" style="min-height:130px">'+esc(S.system)+'</textarea><button class="btn ghost" id="rs">Default prompt wapas lao</button></div>';
   h+='<div class="sec"><h2>Theme</h2><select id="th"><option value="auto">System ke hisaab se</option><option value="dark">Dark</option><option value="light">Light</option></select><p class="hint">Provider upar header se badlo ya /provider groq likho. Auto me: Groq, Cerebras, OpenRouter, NVIDIA, Mistral. Key fail ho to agli key, saari fail ho to agla provider.</p></div>';
+  h+='<div class="sec"><h2>Screen control</h2><p class="hint" id="a11s" style="margin:0 0 10px">Check ho raha hai...</p><button type="button" class="btn ghost" style="margin-top:0" id="a11b">Accessibility settings kholo</button><button type="button" class="btn ghost" id="ovb">Display over other apps allow karo</button><p class="hint">Android 13+ pe pehle Settings > Apps > Chaman > teen dot > Allow restricted settings karo, tab Accessibility on hoti hai. Overlay permission sirf status pill ke liye hai.</p></div>';
   h+='<button class="btn" id="save">Save</button>';
   b.innerHTML=h;$('#th').value=S.theme;$('#v_p').value=S.vision.provider;$('#imp').onclick=()=>{kiMode='sheet';$('#ki').click()};
   $('#rs').onclick=()=>{$('#sys').value=DEF_SYS};
+  $('#a11b').onclick=()=>NS('openA11ySettings').catch(()=>{});
+  $('#ovb').onclick=()=>NS('requestOverlay').catch(()=>{});
+  NS('status').then(r=>{$('#a11s').textContent='Accessibility: '+(r.a11y?'on':'off')+'. Overlay pill: '+(r.overlay?'on':'off (tab accessibility overlay use hoga)')+'.'}).catch(()=>{$('#a11s').textContent='Ye sirf Android app me chalta hai.'});
   $('#save').onclick=()=>{
     S.ch={url:$('#c_url').value.trim(),key:$('#c_key').value.trim(),hf:$('#c_hf').value.trim()};
     P.filter(p=>!p.g).forEach(p=>{S.keys[p.id]=$('#k_'+p.id).value.trim();const m=$('#m_'+p.id).value.trim();S.models[p.id]=m||p.model});
