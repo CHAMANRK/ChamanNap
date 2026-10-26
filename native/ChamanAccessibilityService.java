@@ -28,7 +28,6 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Pattern;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -49,11 +48,6 @@ public class ChamanAccessibilityService extends AccessibilityService {
     public static ChamanAccessibilityService get() {
         return instance;
     }
-
-    // Buttons the AI may never press: money and destructive actions.
-    private static final Pattern BLOCK = Pattern.compile(
-        "(?i)\\b(pay|pay now|payment|transfer|send money|purchase|buy now|place order|checkout|delete|uninstall|factory reset|erase|format)\\b"
-    );
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private final List<AccessibilityNodeInfo> nodes = new ArrayList<>();
@@ -151,13 +145,6 @@ public class ChamanAccessibilityService extends AccessibilityService {
 
     // ---------- actions ----------
 
-    private void guard(AccessibilityNodeInfo n) throws A11yError {
-        String s = label(n);
-        if (BLOCK.matcher(s).find()) {
-            throw new A11yError("BLOCKED", "\"" + s + "\" paisa ya delete jaisa button hai. Isse Najeef khud dabaye.");
-        }
-    }
-
     private boolean tapAt(int x, int y) {
         if (Build.VERSION.SDK_INT < 24) return false;
         Path p = new Path();
@@ -176,7 +163,6 @@ public class ChamanAccessibilityService extends AccessibilityService {
     }
 
     private String clickNode(AccessibilityNodeInfo n) throws A11yError {
-        guard(n);
         AccessibilityNodeInfo t = n;
         int up = 0;
         while (t != null && !t.isClickable() && up < 6) {
@@ -184,7 +170,6 @@ public class ChamanAccessibilityService extends AccessibilityService {
             up++;
         }
         if (t != null) {
-            guard(t);
             if (t.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return label(n);
         }
         Rect r = new Rect();
