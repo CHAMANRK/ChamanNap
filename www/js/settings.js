@@ -1,0 +1,21 @@
+function sheet(){
+  const b=$('#sbody');
+  const ch=S.ch;
+  let h='<div class="sec"><h2>Keys import</h2><p class="hint" style="margin:0 0 10px">.json ya .txt file se keys form me bhar jayengi. Save dabane par hi set hongi.</p><button type="button" class="btn ghost" style="margin-top:0" id="imp"><svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>File se keys import karo</button><p class="hint" id="imsg"></p></div><div class="sec"><h2>Chaman (apna model)</h2><label>Space URL</label><input id="c_url" value="'+esc(ch.url)+'" autocapitalize="off"><label>CHAMAN_API_KEY</label><input id="c_key" value="'+esc(ch.key)+'" autocapitalize="off"><label>HF read token</label><input id="c_hf" value="'+esc(ch.hf)+'" autocapitalize="off"></div>';
+  P.filter(p=>!p.g).forEach(p=>{h+='<div class="sec"><h2>'+p.name+'</h2><label>Keys (comma se alag)</label><textarea id="k_'+p.id+'" autocapitalize="off" spellcheck="false">'+esc(S.keys[p.id]||'')+'</textarea><label>Model</label><input id="m_'+p.id+'" value="'+esc(S.models[p.id]||p.model)+'" autocapitalize="off"></div>'});
+  h+='<div class="sec"><h2>Vision (photo samajhne wala model)</h2><label>Provider</label><select id="v_p">'+['nvidia','openrouter','groq','mistral'].map(id=>'<option value="'+id+'">'+P.find(p=>p.id===id).name.replace(' (optional)','')+'</option>').join('')+'</select><label>Model</label><input id="v_m" value="'+esc(S.vision.model)+'" autocapitalize="off"><p class="hint">Photo bhejne par sirf yahi model jawab deta hai. Us provider ki key upar uske section me daalo.</p></div>';
+  h+='<div class="sec"><h2>System prompt</h2><textarea id="sys" style="min-height:130px">'+esc(S.system)+'</textarea><button class="btn ghost" id="rs">Default prompt wapas lao</button></div>';
+  h+='<div class="sec"><h2>Theme</h2><select id="th"><option value="auto">System ke hisaab se</option><option value="dark">Dark</option><option value="light">Light</option></select><p class="hint">Provider upar header se badlo ya /provider groq likho. Auto me: Groq, Cerebras, OpenRouter, NVIDIA, Mistral. Key fail ho to agli key, saari fail ho to agla provider.</p></div>';
+  h+='<button class="btn" id="save">Save</button>';
+  b.innerHTML=h;$('#th').value=S.theme;$('#v_p').value=S.vision.provider;$('#imp').onclick=()=>{kiMode='sheet';$('#ki').click()};
+  $('#rs').onclick=()=>{$('#sys').value=DEF_SYS};
+  $('#save').onclick=()=>{
+    S.ch={url:$('#c_url').value.trim(),key:$('#c_key').value.trim(),hf:$('#c_hf').value.trim()};
+    P.filter(p=>!p.g).forEach(p=>{S.keys[p.id]=$('#k_'+p.id).value.trim();const m=$('#m_'+p.id).value.trim();S.models[p.id]=m||p.model});
+    S.system=$('#sys').value.trim()||DEF_SYS;S.theme=$('#th').value;S.ptr={};S.vision={provider:$('#v_p').value,model:$('#v_m').value.trim()||'openrouter/free'};
+    sv('nap_s',S);theme();$('#sheet').classList.remove('open');
+  };
+}
+$('#setb').onclick=()=>{sheet();$('#sheet').classList.add('open')};
+$('#closeb').onclick=()=>$('#sheet').classList.remove('open');
+let PEND=[];
