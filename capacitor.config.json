@@ -1,0 +1,7 @@
+{
+  "appId": "com.chaman.nap",
+  "appName": "Chaman",
+  "webDir": "www",
+  "plugins": { "CapacitorHttp": { "enabled": true } },
+  "android": { "backgroundColor": "#0f1614" }
+}

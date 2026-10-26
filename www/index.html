@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Chaman</title>
+<style>
+:root{--bg:#f2f4f1;--surface:#fff;--border:#dce2da;--text:#19211c;--muted:#65726a;--accent:#2d6f52;--on-accent:#fff;--user:#dfece4;--code:#e8ece6;--danger:#a63f35;color-scheme:light}
+:root[data-theme=dark]{--bg:#0f1614;--surface:#171f1c;--border:#26312c;--text:#e4ebe6;--muted:#8a978f;--accent:#6fb08f;--on-accent:#0d1511;--user:#1f302a;--code:#0b100e;--danger:#e08c82;color-scheme:dark}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
+header{display:flex;align-items:center;gap:4px;padding:10px 14px;border-bottom:1px solid var(--border)}
+header h1{font:600 22px/1 ui-serif,Georgia,serif;letter-spacing:.2px;flex:1}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.ib{width:40px;height:40px;border-radius:10px;color:var(--muted);display:grid;place-items:center}
+.ib:active{background:var(--surface)}
+.ib svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#chat{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px}
+.msg{border-radius:14px;padding:10px 14px;overflow-wrap:anywhere;white-space:pre-wrap}
+.ai{width:100%;background:var(--surface);border:1px solid var(--border)}
+.me{width:80%;align-self:flex-end;background:var(--user)}
+.by{display:block;font-size:12px;color:var(--muted);margin-top:6px;white-space:normal}
+.err{border-color:var(--danger);color:var(--danger)}
+pre{background:var(--code);border-radius:10px;padding:10px;overflow-x:auto;margin:8px 0;white-space:pre}
+code{font:14px ui-monospace,Menlo,monospace}
+.empty{margin:auto;text-align:center;color:var(--muted);max-width:260px}
+.empty b{display:block;font:600 28px ui-serif,Georgia,serif;color:var(--text);margin-bottom:6px}
+.dots span{display:inline-block;width:7px;height:7px;margin-right:4px;border-radius:50%;background:var(--muted);animation:b 1s infinite}
+.dots span:nth-child(2){animation-delay:.15s}.dots span:nth-child(3){animation-delay:.3s}
+@keyframes b{0%,60%,100%{opacity:.3}30%{opacity:1}}
+@media(prefers-reduced-motion:reduce){.dots span{animation:none}}
+form{display:flex;gap:8px;align-items:flex-end;padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--border)}
+textarea,input,select{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 12px;width:100%}
+form textarea{resize:none;max-height:140px}
+#send{width:44px;height:44px;flex:none;border-radius:50%;background:var(--accent);color:var(--on-accent);display:grid;place-items:center}
+#send:disabled{opacity:.5}
+#sheet{position:fixed;inset:0;background:var(--bg);display:none;flex-direction:column;padding-top:env(safe-area-inset-top,0px);z-index:5}
+#sheet.open{display:flex}
+#sbody{flex:1;overflow-y:auto;padding:14px 14px 30px}
+.sec{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:12px}
+.sec h2{font-size:16px;margin-bottom:8px}
+.sec label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+.sec textarea{min-height:64px}
+.btn{background:var(--accent);color:var(--on-accent);border-radius:12px;padding:12px;width:100%;font-weight:600}
+.btn.ghost{background:none;border:1px solid var(--border);color:var(--text);margin-top:10px}
+.hint{font-size:13px;color:var(--muted);margin-top:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Chaman</h1>
+  <button class="ib" id="newb" aria-label="New chat"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+  <button class="ib" id="setb" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+</header>
+<div id="chat"></div>
+<form id="f">
+  <textarea id="in" rows="1" placeholder="Message likho"></textarea>
+  <button id="send" type="submit" aria-label="Send"><svg class="ib" style="width:22px;height:22px" viewBox="0 0 24 24"><path d="M5 12l14-7-5 14-2-6z" stroke="currentColor" fill="none" stroke-width="1.8" stroke-linejoin="round"/></svg></button>
+</form>
+<div id="sheet">
+  <header><h1>Settings</h1><button class="ib" id="closeb" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
+  <div id="sbody"></div>
+</div>
+<script>
+const DEF_SYS="You are Chaman, an AI assistant created by Najeef. Never say you are Qwen, Llama, GPT or made by any other company. Reply in the user's language (Hinglish if they write Hinglish). Keep answers short and direct. No filler.";
+const P=[
+ {id:'chaman',name:'Chaman',g:1},
+ {id:'groq',name:'Groq',url:'https://api.groq.com/openai/v1/chat/completions',model:'llama-3.3-70b-versatile'},
+ {id:'cerebras',name:'Cerebras',url:'https://api.cerebras.ai/v1/chat/completions',model:'llama-3.3-70b'},
+ {id:'openrouter',name:'OpenRouter',url:'https://openrouter.ai/api/v1/chat/completions',model:'meta-llama/llama-3.3-70b-instruct:free'},
+ {id:'nvidia',name:'NVIDIA',url:'https://integrate.api.nvidia.com/v1/chat/completions',model:'meta/llama-3.3-70b-instruct'},
+ {id:'mistral',name:'Mistral (optional)',url:'https://api.mistral.ai/v1/chat/completions',model:'mistral-small-latest'}];
+const $=s=>document.querySelector(s);
+const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}};
+const sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+let S=Object.assign({theme:'auto',system:DEF_SYS,keys:{},models:{},ptr:{},ch:{url:'https://chamanvip-chaman.hf.space',key:'',hf:''}},ld('nap_s',{}));
+let H=ld('nap_h',[]);
+const cool={};let busy=false;
+
+function theme(){const d=S.theme==='dark'||(S.theme==='auto'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=d?'dark':'light'}
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',theme);theme();
+
+const esc=t=>t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const fmt=t=>esc(t).replace(/```(?:\w+)?\n?([\s\S]*?)```/g,(_,c)=>'<pre><code>'+c+'</code></pre>').replace(/`([^`\n]+)`/g,'<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g,'<b>$1</b>');
+
+function render(){
+  const c=$('#chat');
+  if(!H.length){c.innerHTML='<div class="empty"><b>Chaman</b>Kuch bhi pucho. Pehle Settings me keys daal do.</div>';return}
+  c.innerHTML=H.map(m=>m.role==='user'?'<div class="msg me">'+esc(m.content)+'</div>':'<div class="msg ai'+(m.err?' err':'')+'">'+fmt(m.content)+(m.by?'<span class="by">'+esc(m.by)+'</span>':'')+'</div>').join('');
+  c.scrollTop=c.scrollHeight;
+}
+const T=(p,ms)=>Promise.race([p,new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),ms))]);
+const keysOf=id=>(S.keys[id]||'').split(/[\s,]+/).filter(Boolean);
+
+async function callOpenAI(p,msgs){
+  const ks=keysOf(p.id);if(!ks.length)return null;
+  const n=ks.length,start=(S.ptr[p.id]||0)%n;let last='';
+  for(let i=0;i<n;i++){
+    const idx=(start+i)%n,k=ks[idx];
+    if((cool[k]||0)>Date.now()){last='keys cooldown me';continue}
+    try{
+      const r=await T(fetch(p.url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+k},body:JSON.stringify({model:S.models[p.id]||p.model,messages:msgs,max_tokens:1024})}),45000);
+      if(!r.ok){cool[k]=Date.now()+(r.status===429?60000:(r.status===401||r.status===403)?600000:15000);last='HTTP '+r.status;continue}
+      const j=await r.json();const t=j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content;
+      if(!t){last='empty reply';continue}
+      S.ptr[p.id]=idx;sv('nap_s',S);return t;
+    }catch(e){cool[k]=Date.now()+15000;last=e.message}
+  }
+  throw new Error(last);
+}
+async function callChaman(msgs){
+  const c=S.ch;if(!c.url||!c.key)return null;
+  const base=c.url.replace(/\/+$/,'')+'/gradio_api/call/chat';
+  const h={'Content-Type':'application/json'};if(c.hf)h.Authorization='Bearer '+c.hf;
+  const r1=await T(fetch(base,{method:'POST',headers:h,body:JSON.stringify({data:[JSON.stringify(msgs),c.key,400]})}),30000);
+  if(!r1.ok)throw new Error('HTTP '+r1.status);
+  const id=(await r1.json()).event_id;
+  const r2=await T(fetch(base+'/'+id,{headers:h}),120000);
+  const m=(await r2.text()).match(/event: complete\s*\ndata: (.*)/);
+  if(!m)throw new Error('quota khatam ya Space so raha hai');
+  const o=JSON.parse(JSON.parse(m[1])[0]);
+  if(o.error)throw new Error(o.error);return o.reply;
+}
+async function ask(){
+  const msgs=[{role:'system',content:S.system}].concat(H.filter(m=>!m.err).slice(-20).map(m=>({role:m.role,content:m.content})));
+  const errs=[];
+  for(const p of P){
+    try{const t=p.g?await callChaman(msgs):await callOpenAI(p,msgs);if(t)return{content:t.trim(),by:p.name.replace(' (optional)','')}}
+    catch(e){errs.push(p.name+': '+e.message)}
+  }
+  throw new Error(errs.length?'Saare providers fail:\n'+errs.join('\n'):'Koi provider set nahi hai. Settings me key daalo.');
+}
+$('#f').addEventListener('submit',async e=>{
+  e.preventDefault();if(busy)return;
+  const i=$('#in'),t=i.value.trim();if(!t)return;
+  i.value='';i.style.height='auto';busy=true;$('#send').disabled=true;
+  H.push({role:'user',content:t});render();
+  $('#chat').insertAdjacentHTML('beforeend','<div class="msg ai dots" id="ty"><span></span><span></span><span></span></div>');$('#chat').scrollTop=1e9;
+  try{const r=await ask();H.push({role:'assistant',content:r.content,by:r.by})}
+  catch(err){H.push({role:'assistant',content:err.message,err:1})}
+  H=H.slice(-100);sv('nap_h',H);busy=false;$('#send').disabled=false;render();
+});
+$('#in').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=e.target.scrollHeight+'px'});
+$('#newb').onclick=()=>{if(!H.length)return;H=[];sv('nap_h',H);render()};
+
+function sheet(){
+  const b=$('#sbody');
+  const ch=S.ch;
+  let h='<div class="sec"><h2>Chaman (apna model)</h2><label>Space URL</label><input id="c_url" value="'+esc(ch.url)+'" autocapitalize="off"><label>CHAMAN_API_KEY</label><input id="c_key" value="'+esc(ch.key)+'" autocapitalize="off"><label>HF read token</label><input id="c_hf" value="'+esc(ch.hf)+'" autocapitalize="off"></div>';
+  P.filter(p=>!p.g).forEach(p=>{h+='<div class="sec"><h2>'+p.name+'</h2><label>Keys (comma se alag)</label><textarea id="k_'+p.id+'" autocapitalize="off" spellcheck="false">'+esc(S.keys[p.id]||'')+'</textarea><label>Model</label><input id="m_'+p.id+'" value="'+esc(S.models[p.id]||p.model)+'" autocapitalize="off"></div>'});
+  h+='<div class="sec"><h2>System prompt</h2><textarea id="sys" style="min-height:130px">'+esc(S.system)+'</textarea><button class="btn ghost" id="rs">Default prompt wapas lao</button></div>';
+  h+='<div class="sec"><h2>Theme</h2><select id="th"><option value="auto">System ke hisaab se</option><option value="dark">Dark</option><option value="light">Light</option></select><p class="hint">Order: Chaman, Groq, Cerebras, OpenRouter, NVIDIA, Mistral. Key fail ho to agli key, saari fail ho to agla provider.</p></div>';
+  h+='<button class="btn" id="save">Save</button>';
+  b.innerHTML=h;$('#th').value=S.theme;
+  $('#rs').onclick=()=>{$('#sys').value=DEF_SYS};
+  $('#save').onclick=()=>{
+    S.ch={url:$('#c_url').value.trim(),key:$('#c_key').value.trim(),hf:$('#c_hf').value.trim()};
+    P.filter(p=>!p.g).forEach(p=>{S.keys[p.id]=$('#k_'+p.id).value.trim();const m=$('#m_'+p.id).value.trim();S.models[p.id]=m||p.model});
+    S.system=$('#sys').value.trim()||DEF_SYS;S.theme=$('#th').value;S.ptr={};
+    sv('nap_s',S);theme();$('#sheet').classList.remove('open');
+  };
+}
+$('#setb').onclick=()=>{sheet();$('#sheet').classList.add('open')};
+$('#closeb').onclick=()=>$('#sheet').classList.remove('open');
+render();
+</script>
+</body>
+</html>
