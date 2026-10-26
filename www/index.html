@@ -65,6 +65,9 @@ form textarea{resize:none;max-height:140px}
 #mcard ul{margin:0 0 14px 18px;color:var(--text);font-size:15px}
 .btn{display:flex;align-items:center;justify-content:center;gap:8px}
 .btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.abtn{background:var(--accent);color:var(--on-accent);border-radius:10px;padding:9px 14px;font-weight:600;font-size:14px}
+.abtn.x{background:none;border:1px solid var(--border);color:var(--text)}
 </style>
 </head>
 <body>
@@ -144,7 +147,7 @@ RULES
 
 STYLE
 Najeef prefers direct, no-fluff answers. Reply in Hinglish (Hindi in English letters) by default. If he writes in English, reply in English. Keep answers short unless he asks for detail.`;
-const DEF_SYS=`You are Chaman, the personal AI assistant of Najeef. Najeef built you and you belong to him. You are not a public chatbot.
+const PREV3_SYS=`You are Chaman, the personal AI assistant of Najeef. Najeef built you and you belong to him. You are not a public chatbot.
 
 WHERE YOU RUN
 You live inside a native Android app called Chaman, on Najeef's phone (Oppo K13 Turbo Pro). He talks to you through the chat screen of that app.
@@ -173,6 +176,36 @@ RULES
 
 STYLE
 Najeef prefers direct, no-fluff answers. Reply in Hinglish (Hindi in English letters) by default. If he writes in English, reply in English. Keep answers short unless he asks for detail. Never use emojis or emoticons.`;
+const DEF_SYS=`You are Chaman, the personal AI assistant of Najeef. Najeef built you and you belong to him. You are not a public chatbot.
+
+WHERE YOU RUN
+You live inside a native Android app called Chaman, on Najeef's phone (Oppo K13 Turbo Pro). He talks to you through the chat screen of that app.
+
+PURPOSE
+Help Najeef with questions, writing, coding, ideas and daily tasks. The long-term goal is a smart phone assistant that can also control his phone and work with files on it. That part is still being built.
+
+WHAT YOU CAN DO RIGHT NOW
+- Text chat: answer, explain, write, translate, brainstorm, help with code.
+- Najeef can attach files with the paperclip button. Text-based files (text, code, json, csv, md, logs and similar) are read by the app and given to you as text inside his message.
+- Images: only a vision-capable model can see them. If an image is mentioned but you cannot see it, say so. Never guess what is in an image.
+- The app itself runs phone commands that Najeef types, without asking you: torch on/off, volume (set, up, down, mute), brightness, open <app name>, call <name or number>, read SMS (for example 'sms padho' or 'Ali ke sms padho'), and send SMS (for example 'sms Ali: kal milte hain'). Sending an SMS or making a call always needs his confirm tap. Lines marked [Phone] in the chat are what the app did, so you know what happened. You do not run these commands yourself. If he asks for one and the app did not run it, tell him the exact phrase to use and never say it is done. SMS contents are shown only to him and are not given to you.
+- You only see the current chat (last 20 messages). You do not remember older chats.
+- Behind the scenes, different AI models can answer you (the Chaman model first, then Groq, Cerebras, OpenRouter, NVIDIA, Mistral if one fails). To Najeef you are always Chaman. Do not say you are Qwen, Llama, GPT or made by any other company.
+
+WHAT YOU CANNOT DO YET (the app does not have these)
+- Other files (PDF, docx, zip, audio, video, apps): the app only tells you the file name and size. You cannot read their content. Say so plainly.
+- Creating, saving or editing files on the phone: you cannot. You can write text or code in your reply for him to copy.
+- Other phone control: wifi, bluetooth, mobile data, screen taps, settings and the content of other apps are not available.
+- Internet and live data: you cannot browse, search or check news, prices or weather. You do not know today's date or time unless he tells you.
+- Actions: you cannot run code or do tasks outside this chat. You only write text.
+
+RULES
+- Never pretend to do something from the list above, and never say a task is done unless the answer is in your reply. If a request needs something you cannot do, say plainly that it is not available in the app yet, and offer what you can do instead.
+- If you are not sure whether you can do something, say you are not sure. Do not assume.
+- If you do not know a fact, say so. Never invent facts.
+
+STYLE
+Najeef prefers direct, no-fluff answers. Reply in Hinglish (Hindi in English letters) by default. If he writes in English, reply in English. Keep answers short unless he asks for detail. Never use emojis or emoticons.`;
 const P=[
  {id:'chaman',name:'Chaman',g:1},
  {id:'groq',name:'Groq',url:'https://api.groq.com/openai/v1/chat/completions',model:'openai/gpt-oss-120b'},
@@ -184,11 +217,12 @@ const $=s=>document.querySelector(s);
 const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}};
 const sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
 let S=Object.assign({theme:'auto',system:DEF_SYS,keys:{},models:{},ptr:{},vision:{provider:'openrouter',model:'openrouter/free'},ch:{url:'https://chamanvip-chaman.hf.space',key:'',hf:''}},ld('nap_s',{}));
-if([OLD_SYS,PREV_SYS,PREV2_SYS].includes(S.system)){S.system=DEF_SYS;sv('nap_s',S)}
+if([OLD_SYS,PREV_SYS,PREV2_SYS,PREV3_SYS].includes(S.system)){S.system=DEF_SYS;sv('nap_s',S)}
 const OLDM={groq:'llama-3.3-70b-versatile',cerebras:'llama-3.3-70b',openrouter:'meta-llama/llama-3.3-70b-instruct:free',nvidia:'meta/llama-3.3-70b-instruct'};
 Object.keys(OLDM).forEach(k=>{if(S.models&&S.models[k]===OLDM[k]){delete S.models[k];sv('nap_s',S)}});
 if(S.vision&&S.vision.provider==='nvidia'&&['nvidia/nemotron-3-ultra-550b-a55b','google/gemma-3-27b-it'].includes(S.vision.model)){S.vision={provider:'openrouter',model:'openrouter/free'};sv('nap_s',S)}
 let H=ld('nap_h',[]);
+H.forEach(m=>{if(m.confirm&&m.confirm.state==='pending')m.confirm.state='expired'});
 const cool={};let busy=false;
 
 function theme(){const d=S.theme==='dark'||(S.theme==='auto'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=d?'dark':'light'}
@@ -203,7 +237,7 @@ const att=m=>{let h='';const hi=m.imgs&&m.imgs.length;if(hi)h+='<div class="chip
 function render(){
   const c=$('#chat');
   if(!H.length){c.innerHTML='<div class="empty"><b>Chaman</b>Kuch bhi pucho. Pehle Settings me keys daal do.</div>';return}
-  c.innerHTML=H.map(m=>m.role==='user'?'<div class="msg me">'+esc(m.content||'')+att(m)+'</div>':'<div class="msg ai'+(m.err?' err':'')+'">'+fmt(m.content)+(m.by?'<span class="by">'+esc(m.by)+'</span>':'')+'</div>').join('');
+  c.innerHTML=H.map((m,hi)=>m.role==='user'?'<div class="msg me">'+esc(m.content||'')+att(m)+'</div>':'<div class="msg ai'+(m.err?' err':'')+'">'+fmt(m.content)+acts(m,hi)+(m.by?'<span class="by">'+esc(m.by)+'</span>':'')+'</div>').join('');
   c.scrollTop=c.scrollHeight;
 }
 const T=(p,ms)=>Promise.race([p,new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),ms))]);
@@ -253,7 +287,7 @@ function apiMsgs(vision){
   const hist=H.filter(m=>!m.err).slice(-20);let li=-1;
   hist.forEach((m,i)=>{if(m.role==='user')li=i});
   return [{role:'system',content:S.system}].concat(hist.map((m,i)=>{
-    if(m.role!=='user')return{role:m.role,content:m.content};
+    if(m.role!=='user')return{role:m.role,content:aiText(m)};
     const t=userText(m,vision,i===li);
     if(vision&&i===li&&m.imgs&&m.imgs.length)return{role:'user',content:[{type:'text',text:t}].concat(m.imgs.map(u=>({type:'image_url',image_url:{url:u}})))};
     return{role:'user',content:t};
@@ -282,10 +316,15 @@ $('#f').addEventListener('submit',async e=>{
   i.value='';i.style.height='auto';busy=true;$('#send').disabled=true;
   H.push({role:'user',content:t,files:PEND.map(a=>({name:a.name,size:a.size,kind:a.kind,body:a.body,cut:a.cut})),imgs:PEND.filter(a=>a.kind==='img').map(a=>a.img)});
   PEND=[];rendP();render();
+  if(!H[H.length-1].files.length){
+    let hd=false;
+    try{hd=await localFlow(t)}catch(err){H.push({role:'assistant',content:'Phone command fail: '+errMsg(err),by:'Phone',local:1,err:1});hd=true}
+    if(hd){H=H.slice(-100);persist();busy=false;$('#send').disabled=false;render();return}
+  }
   $('#chat').insertAdjacentHTML('beforeend','<div class="msg ai dots" id="ty"><span></span><span></span><span></span></div>');$('#chat').scrollTop=1e9;
   try{const r=await ask();H.push({role:'assistant',content:r.content,by:r.by})}
   catch(err){H.push({role:'assistant',content:err.message,err:1})}
-  H=H.slice(-100);sv('nap_h',H.map(m=>m.role==='user'?Object.assign({},m,{imgs:undefined,files:(m.files||[]).map(a=>({name:a.name,size:a.size,kind:a.kind}))}):m));busy=false;$('#send').disabled=false;render();
+  H=H.slice(-100);persist();busy=false;$('#send').disabled=false;render();
 });
 $('#in').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=e.target.scrollHeight+'px'});
 $('#newb').onclick=()=>{if(!H.length)return;H=[];sv('nap_h',H);render()};
@@ -433,6 +472,143 @@ $('#chat').addEventListener('click',e=>{
   const b=e.target.closest('.cp');if(!b)return;
   const c=b.closest('.code').querySelector('code');
   copyTxt(c.textContent).then(()=>{b.innerHTML=ICO_OK;setTimeout(()=>{b.innerHTML=ICO_COPY},1500)});
+});
+
+let AWAIT=null;
+const NP=(m,o)=>{
+  const C=window.Capacitor;
+  if(!C||!(C.nativePromise||C.Plugins))return Promise.reject(new Error('Ye command sirf Android app me chalta hai.'));
+  if(C.nativePromise)return C.nativePromise('PhoneControl',m,o||{});
+  const p=C.Plugins&&C.Plugins.PhoneControl;
+  if(p&&p[m])return p[m](o||{});
+  return Promise.reject(new Error('Phone control plugin load nahi hua.'));
+};
+const errMsg=e=>(e&&(e.message||e.errorMessage))||String(e);
+function persist(){sv('nap_h',H.map(m=>m.role==='user'?Object.assign({},m,{imgs:undefined,files:(m.files||[]).map(a=>({name:a.name,size:a.size,kind:a.kind}))}):m))}
+function aiText(m){
+  if(m.confirm)return'[Phone] '+(m.confirm.type==='sms'?'SMS bhejne ka confirm':'Call karne ka confirm')+' - '+m.confirm.state;
+  if(m.local)return'[Phone] '+(m.aiNote||m.content);
+  return m.content;
+}
+function acts(m,hi){
+  if(!m.confirm||m.confirm.state!=='pending')return'';
+  const c=m.confirm,lab=c.type==='sms'?'Bhejo':'Call karo';
+  return'<div class="acts">'+c.opts.map((o,i)=>'<button type="button" class="abtn" data-m="'+hi+'" data-o="'+i+'">'+esc(c.opts.length>1?lab+': '+o.name:lab)+'</button>').join('')+'<button type="button" class="abtn x" data-m="'+hi+'" data-o="x">Cancel</button></div>';
+}
+function parseCmd(t){
+  const s=t.trim(),n=s.toLowerCase().replace(/\s+/g,' '),wc=n.split(' ').length;
+  let m;
+  if(wc<=5&&/\b(torch|flashlight|flash light|tourch)\b/.test(n)){
+    if(/\b(off|band|bandh|bujha|bujhao|stop)\b/.test(n))return{c:'torch',on:false};
+    if(/\b(on|chalu|jala|jalao|start|chala|chalao)\b/.test(n))return{c:'torch',on:true};
+    return{c:'torch'};
+  }
+  if(wc<=6&&/\b(volume|awaz|awaaz)\b/.test(n)){
+    const st=/\b(ring|ringtone|ringer)\b/.test(n)?'ring':/\balarm\b/.test(n)?'alarm':'media';
+    const num=n.match(/\b(\d{1,3})\b/);
+    if(num)return{c:'vol',st,v:Math.min(100,+num[1])};
+    if(/\b(mute|silent|zero|band|bandh)\b/.test(n))return{c:'vol',st,v:0};
+    if(/\b(max|full)\b/.test(n))return{c:'vol',st,v:100};
+    if(/\b(up|badha|badhao|zyada|jyada|increase|high|tez)\b/.test(n))return{c:'vol',st,d:1};
+    if(/\b(down|kam|ghata|ghatao|decrease|low|dheema|dheere)\b/.test(n))return{c:'vol',st,d:-1};
+    return{c:'vol',st};
+  }
+  if(wc<=6&&/\b(brightness|roshni)\b/.test(n)){
+    if(/\bauto\b/.test(n))return{c:'bri',auto:true};
+    const num=n.match(/\b(\d{1,3})\b/);
+    if(num)return{c:'bri',v:Math.min(100,+num[1])};
+    if(/\b(max|full)\b/.test(n))return{c:'bri',v:100};
+    if(/\b(up|badha|badhao|zyada|jyada|increase|high|tez)\b/.test(n))return{c:'bri',d:1};
+    if(/\b(down|kam|ghata|ghatao|decrease|low|dim)\b/.test(n))return{c:'bri',d:-1};
+    return{c:'bri'};
+  }
+  m=s.match(/^(?:send\s+)?(?:sms|message|msg|text)\s+(?:to\s+)?(.+?)(?:\s*[:,]\s*|\s+-\s+)([\s\S]+)$/i)||s.match(/^(.+?)\s+ko\s+(?:sms|message|msg|text)(?:\s+(?:bhejo|bhej|send|karo|kar do|kardo))?(?:\s*[:,]\s*|\s+-\s+)([\s\S]+)$/i);
+  if(m&&m[1].trim().split(' ').length<=3)return{c:'sms',who:m[1].trim(),text:m[2].trim()};
+  if(wc<=8&&/\b(sms|messages?|msgs?|inbox)\b/.test(n)&&/\b(read|padh|padho|dikhao|dikha|show|check|last|latest|naye|new|aaye)\b/.test(n)&&!/\b(send|bhej|bhejo)\b/.test(n)){
+    const num=n.match(/\b(\d{1,2})\b/);
+    const w=s.match(/(?:^|\s)(.+?)\s+(?:ke|ka|ki)\s+(?:last\s+\d+\s+|latest\s+|naye\s+)?(?:sms|messages?|msgs?)/i)||s.match(/(?:sms|messages?|msgs?)\s+from\s+(.+)$/i);
+    let who=w?w[1].replace(/\b(last|latest|read|padho|padh|show|dikhao|mere|my|from|check)\b/gi,'').replace(/\s+/g,' ').trim():'';
+    return{c:'readsms',who,n:num?+num[1]:5};
+  }
+  m=s.match(/^(?:call|dial|phone)\s+(?:to\s+)?(.+)$/i)||s.match(/^(.+?)\s+ko\s+(?:call|phone)(?:\s+(?:karo|kar do|kardo|lagao|laga do|kar))?$/i);
+  if(m&&wc<=5)return{c:'call',who:m[1].trim()};
+  m=s.match(/^(?:open|launch|kholo|khol)\s+(.+)$/i)||s.match(/^(.+?)\s+(?:open|khol|kholo)(?:\s+(?:karo|kar do|kardo|do))?$/i);
+  if(m&&wc<=5){
+    const name=m[1].replace(/\b(the|app|application|ko|ka)\b/gi,'').replace(/\s+/g,' ').trim();
+    if(name&&name.split(' ').length<=3)return{c:'open',name};
+  }
+  return null;
+}
+async function resolveWho(who){
+  const d=who.replace(/[^\d+]/g,'');
+  if(/^\+?\d{7,}$/.test(d)&&!/[a-z]/i.test(who))return[{name:d,number:d}];
+  const r=await NP('findContact',{name:who});
+  return r.matches||[];
+}
+function askConfirm(type,text,list){
+  const o=list.slice(0,4);
+  const head=type==='sms'?'SMS bhejna hai':'Call karna hai';
+  const body=o.map(x=>x.name+(x.name!==x.number?' ('+x.number+')':'')).join('\n');
+  H.push({role:'assistant',by:'Phone',local:1,content:head+(o.length>1?' - kisko?':'')+':\n'+body+(type==='sms'?'\n\n'+text:''),confirm:{type,text,opts:o,state:'pending'}});
+}
+const fmtDate=ms=>{try{return new Date(ms).toLocaleString([],{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}catch(e){return''}};
+async function runCmd(c){
+  const say=(content,x)=>H.push(Object.assign({role:'assistant',content,by:'Phone',local:1},x||{}));
+  const stn={media:'Media',ring:'Ringtone',alarm:'Alarm'};
+  try{
+    if(c.c==='torch'){const r=await NP('torch',c.on===undefined?{}:{on:c.on});say('Torch '+(r.on?'on':'off')+' kar di.');return true}
+    if(c.c==='vol'){
+      const o={stream:c.st};if(c.v!==undefined)o.level=c.v;if(c.d)o.delta=c.d;
+      const r=await NP('volume',o);
+      say(stn[c.st]+' volume '+(c.v!==undefined||c.d?'ab ':'abhi ')+r.level+'% hai.');return true;
+    }
+    if(c.c==='bri'){
+      const o={};if(c.auto)o.auto=true;if(c.v!==undefined)o.level=c.v;if(c.d)o.delta=c.d;
+      const r=await NP('brightness',o);
+      say(r.auto?'Brightness auto kar di.':'Brightness '+(c.v!==undefined||c.d?'ab ':'abhi ')+r.level+'% hai.');return true;
+    }
+    if(c.c==='open'){const r=await NP('openApp',{name:c.name});say(r.label+' khol diya.');return true}
+    if(c.c==='call'||c.c==='sms'){
+      const rs=await resolveWho(c.who);
+      if(!rs.length){AWAIT={c:c.c,text:c.text};say('"'+c.who+'" contact me nahi mila. Number likho.');return true}
+      askConfirm(c.c,c.text,rs);return true;
+    }
+    if(c.c==='readsms'){
+      const r=await NP('readSms',{limit:Math.min(10,c.n),query:c.who||''});
+      const L=r.messages||[];
+      if(!L.length)say(c.who?'"'+c.who+'" ke koi SMS nahi mile.':'Koi SMS nahi mila.');
+      else say(L.map(x=>(x.name||x.address)+' ('+fmtDate(x.date)+')\n'+String(x.body||'').slice(0,300)).join('\n\n'),{aiNote:L.length+' SMS padhe aur Najeef ko dikhaye. Unka content tumhe nahi bheja gaya.'});
+      return true;
+    }
+  }catch(e){
+    if(e&&e.code==='NEED_WRITE_SETTINGS')say('Brightness ke liye "Modify system settings" permission chahiye. Settings khul gayi hai, allow karke dobara bolo.');
+    else if(e&&e.code==='NOT_FOUND')say('"'+(c.name||'')+'" naam ka app nahi mila.');
+    else say('Phone command fail: '+errMsg(e),{err:1});
+    return true;
+  }
+  return false;
+}
+async function localFlow(t){
+  if(AWAIT){
+    if(/^\+?[\d\s-]{7,}$/.test(t)){const a=AWAIT;AWAIT=null;const d=t.replace(/[^\d+]/g,'');askConfirm(a.c,a.text,[{name:d,number:d}]);return true}
+    AWAIT=null;
+  }
+  const c=parseCmd(t);
+  return c?await runCmd(c):false;
+}
+$('#chat').addEventListener('click',async e=>{
+  const b=e.target.closest('.abtn');if(!b)return;
+  const m=H[+b.dataset.m];if(!m||!m.confirm||m.confirm.state!=='pending')return;
+  const c=m.confirm;
+  if(b.dataset.o==='x'){c.state='cancelled';m.content+='\n\nCancel kar diya.';persist();render();return}
+  const o=c.opts[+b.dataset.o];if(!o)return;
+  c.state='done';m.content=(c.type==='sms'?'SMS':'Call')+': '+o.name+(c.type==='sms'?'\n\n'+c.text:'');
+  render();
+  try{
+    if(c.type==='sms'){await NP('sendSms',{number:o.number,text:c.text});m.content+='\n\nSMS bhej diya.'}
+    else{await NP('dial',{number:o.number});m.content+='\n\nCall laga raha hu.'}
+  }catch(err){c.state='failed';m.content+='\n\nFail: '+errMsg(err)}
+  persist();render();
 });
 render();
 </script>
