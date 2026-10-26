@@ -52,6 +52,14 @@ form textarea{resize:none;max-height:140px}
 .chips img{max-width:110px;max-height:110px;border-radius:10px;object-fit:cover}
 .chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:3px 10px;font-size:13px;color:var(--muted);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chip button{color:var(--muted);display:flex;align-items:center;padding:0 2px}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:20px;z-index:9}
+#modal.open{display:flex}
+#mcard{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;max-width:380px;width:100%}
+#mcard h2{font:600 20px ui-serif,Georgia,serif;margin-bottom:8px}
+#mcard p{color:var(--muted);font-size:14px;margin-bottom:14px}
+#mcard ul{margin:0 0 14px 18px;color:var(--text);font-size:15px}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px}
+.btn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 </style>
 </head>
 <body>
@@ -63,6 +71,8 @@ form textarea{resize:none;max-height:140px}
 <div id="chat"></div>
 <div id="pend"></div>
 <input type="file" id="fi" multiple hidden>
+<input type="file" id="ki" accept=".json,.txt,application/json,text/plain" hidden>
+<div id="modal"><div id="mcard"></div></div>
 <form id="f">
   <button type="button" class="ib" id="att" aria-label="Attach file"><svg viewBox="0 0 24 24"><path d="M21 12.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l9-9a3.7 3.7 0 0 1 5.2 5.2l-9 9a1.8 1.8 0 0 1-2.6-2.6l8.4-8.4"/></svg></button>
   <textarea id="in" rows="1" placeholder="Message likho"></textarea>
@@ -89,6 +99,35 @@ WHAT YOU CAN DO RIGHT NOW
 
 WHAT YOU CANNOT DO YET (the app does not have these)
 - Photos, files, PDFs, audio or video: there is no upload option, so you cannot see or process them. If Najeef mentions an attachment, tell him you cannot receive it yet.
+- Phone control: you cannot open apps, make calls, send SMS, change settings or tap anything.
+- Internet and live data: you cannot browse, search or check news, prices or weather. You do not know today's date or time unless he tells you.
+- Actions: you cannot run code or do tasks outside this chat. You only write text.
+
+RULES
+- Never pretend to do something from the list above, and never say a task is done unless the answer is in your reply. If a request needs something you cannot do, say plainly that it is not available in the app yet, and offer what you can do instead.
+- If you are not sure whether you can do something, say you are not sure. Do not assume.
+- If you do not know a fact, say so. Never invent facts.
+
+STYLE
+Najeef prefers direct, no-fluff answers. Reply in Hinglish (Hindi in English letters) by default. If he writes in English, reply in English. Keep answers short unless he asks for detail.`;
+const PREV2_SYS=`You are Chaman, the personal AI assistant of Najeef. Najeef built you and you belong to him. You are not a public chatbot.
+
+WHERE YOU RUN
+You live inside a native Android app called Chaman, on Najeef's phone (Oppo K13 Turbo Pro). He talks to you through the chat screen of that app.
+
+PURPOSE
+Help Najeef with questions, writing, coding, ideas and daily tasks. The long-term goal is a smart phone assistant that can also control his phone and work with files on it. That part is still being built.
+
+WHAT YOU CAN DO RIGHT NOW
+- Text chat: answer, explain, write, translate, brainstorm, help with code.
+- Najeef can attach files with the paperclip button. Text-based files (text, code, json, csv, md, logs and similar) are read by the app and given to you as text inside his message.
+- Images: only a vision-capable model can see them. If an image is mentioned but you cannot see it, say so. Never guess what is in an image.
+- You only see the current chat (last 20 messages). You do not remember older chats.
+- Behind the scenes, different AI models can answer you (the Chaman model first, then Groq, Cerebras, OpenRouter, NVIDIA, Mistral if one fails). To Najeef you are always Chaman. Do not say you are Qwen, Llama, GPT or made by any other company.
+
+WHAT YOU CANNOT DO YET (the app does not have these)
+- Other files (PDF, docx, zip, audio, video, apps): the app only tells you the file name and size. You cannot read their content. Say so plainly.
+- Creating, saving or editing files on the phone: you cannot. You can write text or code in your reply for him to copy.
 - Phone control: you cannot open apps, make calls, send SMS, change settings or tap anything.
 - Internet and live data: you cannot browse, search or check news, prices or weather. You do not know today's date or time unless he tells you.
 - Actions: you cannot run code or do tasks outside this chat. You only write text.
@@ -128,7 +167,7 @@ RULES
 - If you do not know a fact, say so. Never invent facts.
 
 STYLE
-Najeef prefers direct, no-fluff answers. Reply in Hinglish (Hindi in English letters) by default. If he writes in English, reply in English. Keep answers short unless he asks for detail.`;
+Najeef prefers direct, no-fluff answers. Reply in Hinglish (Hindi in English letters) by default. If he writes in English, reply in English. Keep answers short unless he asks for detail. Never use emojis or emoticons.`;
 const P=[
  {id:'chaman',name:'Chaman',g:1},
  {id:'groq',name:'Groq',url:'https://api.groq.com/openai/v1/chat/completions',model:'openai/gpt-oss-120b'},
@@ -139,10 +178,11 @@ const P=[
 const $=s=>document.querySelector(s);
 const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}};
 const sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
-let S=Object.assign({theme:'auto',system:DEF_SYS,keys:{},models:{},ptr:{},vision:{provider:'nvidia',model:'nvidia/nemotron-3-ultra-550b-a55b'},ch:{url:'https://chamanvip-chaman.hf.space',key:'',hf:''}},ld('nap_s',{}));
-if(S.system===OLD_SYS||S.system===PREV_SYS){S.system=DEF_SYS;sv('nap_s',S)}
+let S=Object.assign({theme:'auto',system:DEF_SYS,keys:{},models:{},ptr:{},vision:{provider:'openrouter',model:'openrouter/free'},ch:{url:'https://chamanvip-chaman.hf.space',key:'',hf:''}},ld('nap_s',{}));
+if([OLD_SYS,PREV_SYS,PREV2_SYS].includes(S.system)){S.system=DEF_SYS;sv('nap_s',S)}
 const OLDM={groq:'llama-3.3-70b-versatile',cerebras:'llama-3.3-70b',openrouter:'meta-llama/llama-3.3-70b-instruct:free',nvidia:'meta/llama-3.3-70b-instruct'};
 Object.keys(OLDM).forEach(k=>{if(S.models&&S.models[k]===OLDM[k]){delete S.models[k];sv('nap_s',S)}});
+if(S.vision&&S.vision.provider==='nvidia'&&['nvidia/nemotron-3-ultra-550b-a55b','google/gemma-3-27b-it'].includes(S.vision.model)){S.vision={provider:'openrouter',model:'openrouter/free'};sv('nap_s',S)}
 let H=ld('nap_h',[]);
 const cool={};let busy=false;
 
@@ -247,18 +287,18 @@ $('#newb').onclick=()=>{if(!H.length)return;H=[];sv('nap_h',H);render()};
 function sheet(){
   const b=$('#sbody');
   const ch=S.ch;
-  let h='<div class="sec"><h2>Chaman (apna model)</h2><label>Space URL</label><input id="c_url" value="'+esc(ch.url)+'" autocapitalize="off"><label>CHAMAN_API_KEY</label><input id="c_key" value="'+esc(ch.key)+'" autocapitalize="off"><label>HF read token</label><input id="c_hf" value="'+esc(ch.hf)+'" autocapitalize="off"></div>';
+  let h='<div class="sec"><h2>Keys import</h2><p class="hint" style="margin:0 0 10px">.json ya .txt file se keys form me bhar jayengi. Save dabane par hi set hongi.</p><button type="button" class="btn ghost" style="margin-top:0" id="imp"><svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>File se keys import karo</button><p class="hint" id="imsg"></p></div><div class="sec"><h2>Chaman (apna model)</h2><label>Space URL</label><input id="c_url" value="'+esc(ch.url)+'" autocapitalize="off"><label>CHAMAN_API_KEY</label><input id="c_key" value="'+esc(ch.key)+'" autocapitalize="off"><label>HF read token</label><input id="c_hf" value="'+esc(ch.hf)+'" autocapitalize="off"></div>';
   P.filter(p=>!p.g).forEach(p=>{h+='<div class="sec"><h2>'+p.name+'</h2><label>Keys (comma se alag)</label><textarea id="k_'+p.id+'" autocapitalize="off" spellcheck="false">'+esc(S.keys[p.id]||'')+'</textarea><label>Model</label><input id="m_'+p.id+'" value="'+esc(S.models[p.id]||p.model)+'" autocapitalize="off"></div>'});
   h+='<div class="sec"><h2>Vision (photo samajhne wala model)</h2><label>Provider</label><select id="v_p">'+['nvidia','openrouter','groq','mistral'].map(id=>'<option value="'+id+'">'+P.find(p=>p.id===id).name.replace(' (optional)','')+'</option>').join('')+'</select><label>Model</label><input id="v_m" value="'+esc(S.vision.model)+'" autocapitalize="off"><p class="hint">Photo bhejne par sirf yahi model jawab deta hai. Us provider ki key upar uske section me daalo.</p></div>';
   h+='<div class="sec"><h2>System prompt</h2><textarea id="sys" style="min-height:130px">'+esc(S.system)+'</textarea><button class="btn ghost" id="rs">Default prompt wapas lao</button></div>';
   h+='<div class="sec"><h2>Theme</h2><select id="th"><option value="auto">System ke hisaab se</option><option value="dark">Dark</option><option value="light">Light</option></select><p class="hint">Order: Chaman, Groq, Cerebras, OpenRouter, NVIDIA, Mistral. Key fail ho to agli key, saari fail ho to agla provider.</p></div>';
   h+='<button class="btn" id="save">Save</button>';
-  b.innerHTML=h;$('#th').value=S.theme;$('#v_p').value=S.vision.provider;
+  b.innerHTML=h;$('#th').value=S.theme;$('#v_p').value=S.vision.provider;$('#imp').onclick=()=>{kiMode='sheet';$('#ki').click()};
   $('#rs').onclick=()=>{$('#sys').value=DEF_SYS};
   $('#save').onclick=()=>{
     S.ch={url:$('#c_url').value.trim(),key:$('#c_key').value.trim(),hf:$('#c_hf').value.trim()};
     P.filter(p=>!p.g).forEach(p=>{S.keys[p.id]=$('#k_'+p.id).value.trim();const m=$('#m_'+p.id).value.trim();S.models[p.id]=m||p.model});
-    S.system=$('#sys').value.trim()||DEF_SYS;S.theme=$('#th').value;S.ptr={};S.vision={provider:$('#v_p').value,model:$('#v_m').value.trim()||'nvidia/nemotron-3-ultra-550b-a55b'};
+    S.system=$('#sys').value.trim()||DEF_SYS;S.theme=$('#th').value;S.ptr={};S.vision={provider:$('#v_p').value,model:$('#v_m').value.trim()||'openrouter/free'};
     sv('nap_s',S);theme();$('#sheet').classList.remove('open');
   };
 }
@@ -280,6 +320,103 @@ async function readAtt(f){
 $('#att').onclick=()=>$('#fi').click();
 $('#fi').onchange=async e=>{const fs=Array.from(e.target.files);e.target.value='';for(const f of fs){if(PEND.length>=6)break;try{PEND.push(await readAtt(f))}catch(err){PEND.push({name:f.name,size:f.size,kind:'bin'})}}rendP()};
 $('#pend').onclick=e=>{const b=e.target.closest('button');if(b){PEND.splice(+b.dataset.i,1);rendP()}};
+
+const PROV=['groq','cerebras','openrouter','nvidia','mistral'];
+let kiMode='first';
+function kind(label){
+  const l=(label||'').toLowerCase();
+  if(/url|space|host/.test(l))return'url';
+  if(/(^|[^a-z])hf([^a-z]|$)|hugging/.test(l))return'hf';
+  if(l.includes('chaman'))return'chkey';
+  if(l.includes('nvapi'))return'nvidia';
+  for(const p of PROV)if(l.includes(p))return p;
+  return'';
+}
+function vkind(v){
+  if(/^https?:\/\//i.test(v))return'url';
+  if(/^gsk_/.test(v))return'groq';
+  if(/^csk-/.test(v))return'cerebras';
+  if(/^sk-or-/.test(v))return'openrouter';
+  if(/^nvapi-/.test(v))return'nvidia';
+  if(/^hf_/.test(v))return'hf';
+  return'';
+}
+function addKV(o,k,v){
+  v=String(v).trim().replace(/^["']+|["',;]+$/g,'');
+  if(!v)return;
+  if(k==='url'){o.ch.url=v;return}
+  if(k==='hf'){o.ch.hf=v;return}
+  if(k==='chkey'){o.ch.key=v;return}
+  if(PROV.includes(k)&&v.length>=8){(o.keys[k]=o.keys[k]||[]).push(v);return}
+  o.skip++;
+}
+function feed(o,label,val){
+  const lk=kind(label);
+  const parts=String(val).split(/[\s,;]+/).map(x=>x.replace(/^["']+|["']+$/g,'')).filter(Boolean);
+  if(lk==='url'||lk==='hf'||lk==='chkey'){addKV(o,lk,parts[0]||'');return}
+  parts.forEach(p=>addKV(o,lk||vkind(p),p));
+}
+function walk(o,n,label){
+  if(typeof n==='string'){feed(o,label,n);return}
+  if(Array.isArray(n)){n.forEach(x=>walk(o,x,label));return}
+  if(n&&typeof n==='object')Object.keys(n).forEach(k=>walk(o,n[k],(label?label+'_':'')+k));
+}
+function parseKeys(text){
+  const o={keys:{},ch:{},skip:0};
+  const t=String(text).replace(/^\uFEFF/,'').trim();
+  try{walk(o,JSON.parse(t),'');return o}catch(e){}
+  o.keys={};o.ch={};o.skip=0;
+  t.split(/\r?\n/).forEach(line=>{
+    line=line.trim();
+    if(!line||/^(#|\/\/)/.test(line))return;
+    if(/^https?:\/\//i.test(line)){feed(o,'url',line);return}
+    const m=line.match(/^["']?([A-Za-z0-9_. -]+?)["']?\s*[=:]\s*(.+)$/);
+    if(m)feed(o,m[1],m[2]);else feed(o,'',line);
+  });
+  return o;
+}
+function sumr(o){
+  const a=[];
+  PROV.forEach(id=>{const n=(o.keys[id]||[]).length;if(n)a.push(P.find(p=>p.id===id).name.replace(' (optional)','')+': '+n+(n>1?' keys':' key'))});
+  if(o.ch.key)a.push('Chaman key');if(o.ch.hf)a.push('HF token');if(o.ch.url)a.push('Space URL');
+  return a;
+}
+const mergeKeys=(old,add)=>{const set=[];(String(old||'').split(/[\s,]+/).filter(Boolean).concat(add)).forEach(k=>{if(set.indexOf(k)<0)set.push(k)});return set.join(', ')};
+function applyKeys(o){
+  PROV.forEach(id=>{if(o.keys[id])S.keys[id]=mergeKeys(S.keys[id],o.keys[id])});
+  Object.assign(S.ch,o.ch);S.ptr={};sv('nap_s',S);
+}
+function modal(state,list){
+  const m=$('#modal'),c=$('#mcard');m.classList.add('open');
+  const up='<svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>';
+  if(state==='done'){
+    c.innerHTML='<h2>Keys set ho gayi</h2><ul>'+list.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul><button class="btn" id="mdone">Done</button>';
+    $('#mdone').onclick=()=>{sv('nap_first',1);m.classList.remove('open')};
+    return;
+  }
+  c.innerHTML='<h2>Keys import karo</h2><p>'+(state==='none'?'Is file me koi key nahi mili. Dusri file chuno ya baad me Settings se daalo.':'Apni keys ki .json ya .txt file chuno. File phone se bahar nahi jaati. Ye option Settings me bhi milega.')+'</p><button class="btn" id="mpick">'+up+'File chuno</button><button class="btn ghost" id="mskip">Skip</button>';
+  $('#mpick').onclick=()=>{kiMode='first';$('#ki').click()};
+  $('#mskip').onclick=()=>{sv('nap_first',1);m.classList.remove('open')};
+}
+$('#ki').onchange=async e=>{
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  let txt='';try{txt=await f.text()}catch(err){}
+  const o=parseKeys(txt),a=sumr(o);
+  if(kiMode==='sheet'){
+    const msg=$('#imsg');if(!msg)return;
+    if(!a.length){msg.textContent='Is file me koi key nahi mili.';return}
+    PROV.forEach(id=>{const ta=$('#k_'+id);if(ta&&o.keys[id])ta.value=mergeKeys(ta.value,o.keys[id])});
+    if(o.ch.url)$('#c_url').value=o.ch.url;
+    if(o.ch.key)$('#c_key').value=o.ch.key;
+    if(o.ch.hf)$('#c_hf').value=o.ch.hf;
+    msg.textContent='Mila: '+a.join(', ')+(o.skip?' ('+o.skip+' entry samajh nahi aayi)':'')+'. Ab Save dabao.';
+    return;
+  }
+  if(!a.length){modal('none');return}
+  applyKeys(o);modal('done',a.concat(o.skip?[o.skip+' entry samajh nahi aayi']:[]));
+};
+const hasKeys=Object.keys(S.keys).some(k=>(S.keys[k]||'').trim())||(S.ch&&S.ch.key);
+if(!hasKeys&&!ld('nap_first',0))modal('ask');
 render();
 </script>
 </body>
