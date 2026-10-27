@@ -180,6 +180,7 @@ async function execTool(name,a,steps){
   if(name==='open_app'||name.indexOf('screen_')===0||own)LEFT_APP=true;
   if(!own)pillShow(txt,12000,'pill','run');
   const res=await execTool0(name,a,steps,fl);
+  logAdd(fl.bad?'tool FAIL':'tool',logTool(name,a)+((name.indexOf('termux_')===0||name==='screen_read')?'':' -> '+cut(String(res).replace(/\s+/g,' '),140)));
   if(!own){
     pillShow(txt,fl.bad?3000:6000,'pill',fl.bad?'fail':'ok');
     if(fl.bad)await sleep(1500);

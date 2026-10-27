@@ -18,7 +18,7 @@ ctx.Capacitor={nativePromise:async(pl,m,o)=>{
  if(m==='activity'){polls++;if(polls>4)acts=1;return{count:acts,kbd:false,done:false,stop:false}}
  return{}}};
 vm.createContext(ctx);
-for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
+for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
 (async()=>{
  vm.runInContext("S.keys.groq='k';S.prov='groq';",ctx);
  els['#in'].value='termux kholo aur apt update chalao';

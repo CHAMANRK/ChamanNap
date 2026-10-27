@@ -31,6 +31,7 @@ function tconfirm(head,body,why){
   return new Promise(res=>{
     const id='t'+Date.now()+Math.random().toString(36).slice(2,6);
     TCONF[id]=res;
+    logAdd('confirm?',head+': '+cut(body,200)+' | wajah: '+why.join(', '));
     H.push({role:'assistant',by:'Termux',local:1,content:head+':\n```\n'+noFence(cut(body,1500))+'\n```\nWajah: '+why.join(', '),confirm:{type:'termux',id,opts:[{name:''}],state:'pending'}});
     NS('finish',{quiet:true}).catch(()=>{});
     liveRender();
@@ -39,6 +40,7 @@ function tconfirm(head,body,why){
       delete TCONF[id];
       const m=H.find(x=>x.confirm&&x.confirm.id===id);
       if(m&&m.confirm.state==='pending'){m.confirm.state='expired';m.content+='\n\nTime khatam, cancel.'}
+      logAdd('confirm','termux expired (cancel)');
       liveRender();res(false);
     },180000);
   });
@@ -56,17 +58,18 @@ async function termuxExec(method,o,shown,note,fl){
   catch(e){
     const msg=termuxMsg(e&&e.code)||errMsg(e);
     tm.content='```\n$ '+noFence(cut(shown,600))+'\n'+noFence(msg)+'\n```';tm.aiNote='$ '+cut(shown,200)+' -> fail: '+msg;
-    fl.bad=true;liveRender();return note('Termux fail: '+msg);
+    fl.bad=true;logAdd('termux','$ '+shown+' -> fail: '+msg);liveRender();return note('Termux fail: '+msg);
   }
   if(r.timeout){
     const msg='Termux ne time par jawab nahi diya. Command abhi chal rahi ho sakti hai, ya Termux me allow-external-apps=true nahi hai.';
     tm.content='```\n$ '+noFence(cut(shown,600))+'\n'+msg+'\n```';tm.aiNote='$ '+cut(shown,200)+' -> timeout';
-    fl.bad=true;liveRender();return note('Termux timeout')+' '+msg;
+    fl.bad=true;logAdd('termux','$ '+shown+' -> timeout');liveRender();return note('Termux timeout')+' '+msg;
   }
   const code=r.exitCode,out=String(r.stdout||''),err=String(r.stderr||'');
   const body=out+(err?(out?'\n':'')+'[stderr]\n'+err:'')+(r.errmsg?'\n[termux] '+r.errmsg:'');
   tm.content='```\n$ '+noFence(cut(shown,600))+'\n'+noFence(cut(body.trim()||'(koi output nahi)',6000))+'\n[exit '+code+']\n```';
   tm.aiNote='$ '+cut(shown,200)+' (exit '+code+')\n'+cut(body.trim(),400);
+  logAdd('termux','$ '+shown+' (exit '+code+')',cut(body.trim(),1500));
   if(code!==0)fl.bad=true;
   liveRender();
   return note('Termux: exit '+code)+'\nSTDOUT/STDERR (max 4000 chars):\n'+cut(body.trim()||'(koi output nahi)',4000);

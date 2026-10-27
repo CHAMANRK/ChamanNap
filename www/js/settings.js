@@ -9,6 +9,7 @@ function sheet(){
   h+='<div class="sec"><h2>Screen control</h2><p class="hint" id="a11s" style="margin:0 0 10px">Check ho raha hai...</p><button type="button" class="btn ghost" style="margin-top:0" id="a11b">Accessibility settings kholo</button><button type="button" class="btn ghost" id="ovb">Display over other apps allow karo</button><button type="button" class="btn ghost" id="ptb">Pill test karo</button><p class="hint">Android 13+ pe pehle Settings > Apps > Chaman > teen dot > Allow restricted settings karo, tab Accessibility on hoti hai. Overlay permission sirf status pill ke liye hai.</p></div>';
   h+='<div class="sec"><h2>Termux</h2><p class="hint" id="tms" style="margin:0 0 10px">Check ho raha hai...</p><button type="button" class="btn ghost" style="margin-top:0" id="tmc">Termux setup line copy karo</button><button type="button" class="btn ghost" id="tmp">Chaman ki permissions kholo</button><p class="hint">Copy ki hui line Termux me paste karke chalao (ek baar). Phir Chaman ki permissions me Additional permissions > Run commands in Termux environment allow karo. Termux F-Droid ya GitHub wala hona chahiye.</p></div>';
   h+='<div class="sec"><h2>Workspace (/sdcard/Chaman)</h2><p class="hint" id="wss" style="margin:0 0 10px">Check ho raha hai...</p><button type="button" class="btn ghost" style="margin-top:0" id="wsb">Workspace banao / check karo</button><label>Auto memory</label><select id="ws_auto"><option value="on">On: kaam ke baad khud note save</option><option value="off">Off</option></select><p class="hint">AI ka apna folder: work/ (uski files), memory/ (har project ki .md memory), backup/ (overwrite se pehle ki copy). Pehle Termux setup karna hai.</p></div>';
+  h+='<div class="sec"><h2>Logs (/sdcard/Chaman/logs)</h2><p class="hint" id="lgs" style="margin:0 0 10px">Check ho raha hai...</p><label>Log save</label><select id="lg_on"><option value="on">On</option><option value="off">Off</option></select><button type="button" class="btn ghost" id="lgf">Abhi save karo</button><button type="button" class="btn ghost" id="lgc">Aaj ka log copy karo</button><p class="hint">Har din ki ek file (YYYY-MM-DD.md): tere messages, tool calls, Termux commands aur output, confirm allow/cancel, AI ke jawab. Screen ka text aur SMS ka content nahi likhta; typed text aur SMS sirf character count. 30 din baad purani files apne aap hat jati hain. Termux setup zaroori hai.</p></div>';
   h+='<button class="btn" id="save">Save</button>';
   b.innerHTML=h;$('#th').value=S.theme;$('#v_p').value=S.vision.provider;$('#imp').onclick=()=>{kiMode='sheet';$('#ki').click()};
   $('#rs').onclick=()=>{$('#sys').value=DEF_SYS};
@@ -17,6 +18,11 @@ function sheet(){
   $('#tmp').onclick=()=>NT('openAppInfo').catch(()=>{});
   NT('status').then(r=>{$('#tms').textContent='Termux: '+(r.installed?'installed':'nahi mila')+'. Permission: '+(r.permission?'on':'off')+'.'}).catch(()=>{$('#tms').textContent='Ye sirf Android app me chalta hai.'});
   $('#ovb').onclick=()=>NS('requestOverlay').catch(()=>{});
+  $('#lg_on').value=(S.lg&&S.lg.on===false)?'off':'on';
+  const lgst=()=>logInfo().then(m=>{$('#lgs').textContent=m}).catch(e=>{$('#lgs').textContent=termuxMsg(e&&e.code)||'Ye sirf Android app me chalta hai.'});
+  $('#lgf').onclick=()=>{$('#lgs').textContent='Save ho raha hai...';logFlush(true).then(lgst)};
+  $('#lgc').onclick=()=>logToday().then(t=>copyTxt(t)).then(()=>{$('#lgs').textContent='Aaj ka log copy ho gaya.'}).catch(e=>{$('#lgs').textContent=termuxMsg(e&&e.code)||errMsg(e)});
+  lgst();
   $('#ws_auto').value=(S.ws&&S.ws.auto===false)?'off':'on';
   $('#wsb').onclick=()=>{$('#wss').textContent='Ban raha hai...';WS_BACKOFF=0;WS_MEM.t=0;wsInfo(true).then(m=>{$('#wss').textContent=m}).catch(e=>{$('#wss').textContent=termuxMsg(e&&e.code)||errMsg(e)})};
   wsInfo(false).then(m=>{$('#wss').textContent=m}).catch(e=>{$('#wss').textContent=termuxMsg(e&&e.code)||'Ye sirf Android app me chalta hai.'});
@@ -25,7 +31,7 @@ function sheet(){
   $('#save').onclick=()=>{
     S.ch={url:$('#c_url').value.trim(),key:$('#c_key').value.trim(),hf:$('#c_hf').value.trim()};
     P.filter(p=>!p.g).forEach(p=>{S.keys[p.id]=$('#k_'+p.id).value.trim();const m=$('#m_'+p.id).value.trim();S.models[p.id]=m||p.model});
-    S.system=$('#sys').value.trim()||DEF_SYS;S.theme=$('#th').value;S.ws={auto:$('#ws_auto').value!=='off'};S.ptr={};S.vision={provider:$('#v_p').value,model:$('#v_m').value.trim()||'openrouter/free'};
+    S.system=$('#sys').value.trim()||DEF_SYS;S.theme=$('#th').value;S.ws={auto:$('#ws_auto').value!=='off'};S.lg={on:$('#lg_on').value!=='off'};S.ptr={};S.vision={provider:$('#v_p').value,model:$('#v_m').value.trim()||'openrouter/free'};
     sv('nap_s',S);theme();$('#sheet').classList.remove('open');
   };
 }

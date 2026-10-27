@@ -66,12 +66,13 @@ $('#f').addEventListener('submit',async e=>{
   const pc=t.match(/^\/(?:provider|prov|p)\b\s*(\S*)\s*$/i);
   if(pc&&!PEND.length){i.value='';i.style.height='auto';setProv(pc[1]);return}
   i.value='';i.style.height='auto';busy=true;$('#send').disabled=true;
+  logAdd('you',t+(PEND.length?' [files: '+PEND.map(a=>a.name).join(', ')+']':''));
   H.push({role:'user',content:t,files:PEND.map(a=>({name:a.name,size:a.size,kind:a.kind,body:a.body,cut:a.cut})),imgs:PEND.filter(a=>a.kind==='img').map(a=>a.img)});
   PEND=[];rendP();render();
   $('#chat').insertAdjacentHTML('beforeend','<div class="msg ai dots" id="ty"><span></span><span></span><span></span></div>');$('#chat').scrollTop=1e9;
-  try{const r=await ask();H.push({role:'assistant',content:r.content,by:r.by,steps:r.steps})}
-  catch(err){H.push({role:'assistant',content:err.message,err:1})}
-  H=H.slice(-100);persist();busy=false;$('#send').disabled=false;render();
+  try{const r=await ask();H.push({role:'assistant',content:r.content,by:r.by,steps:r.steps});logAdd('chaman','('+(r.by||'?')+') '+r.content)}
+  catch(err){H.push({role:'assistant',content:err.message,err:1});logAdd('error',err.message)}
+  H=H.slice(-100);persist();busy=false;$('#send').disabled=false;render();logFlush();
 });
 $('#in').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=e.target.scrollHeight+'px'});
 $('#newb').onclick=()=>{if(!H.length)return;H=[];sv('nap_h',H);render()};

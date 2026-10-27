@@ -63,3 +63,20 @@ form textarea{resize:none;max-height:140px}
 .abtn.x{background:none;border:1px solid var(--border);color:var(--text)}
 #prov{width:auto;max-width:150px;padding:6px 8px;font-size:13px;border-radius:10px;margin-right:4px}
 .steps{font-size:12px;color:var(--muted);margin-bottom:6px;white-space:normal}
+
+.p{margin:6px 0}
+.h{font-weight:600;margin:12px 0 4px;white-space:normal}
+.h1{font:600 20px ui-serif,Georgia,serif}.h2{font-size:18px}.h3{font-size:16px}.h4{font-size:15px;color:var(--muted)}
+.li{display:flex;gap:8px;margin:2px 0 2px calc(var(--d,0)*16px);white-space:normal}
+.li .bul{flex:none;min-width:1.1em;color:var(--accent);font-weight:600;text-align:right}
+.li .lt{flex:1;min-width:0;white-space:pre-wrap}
+blockquote{border-left:3px solid var(--accent);padding:2px 0 2px 12px;margin:8px 0;color:var(--muted);white-space:pre-wrap}
+hr{border:0;border-top:1px solid var(--border);margin:12px 0}
+.tw{overflow-x:auto;margin:8px 0;white-space:normal}
+table{border-collapse:collapse;font-size:14px}
+th,td{border:1px solid var(--border);padding:6px 10px;text-align:left;vertical-align:top}
+th{background:var(--surface);font-weight:600}
+b{font-weight:700}i{font-style:italic}del{opacity:.65}
+:not(pre)>code{background:var(--code);border:1px solid var(--border);border-radius:6px;padding:1px 5px;font-size:13px}
+.lang{margin-right:auto;align-self:center;padding-left:8px;font:12px ui-monospace,Menlo,monospace;color:var(--muted)}
+.lnk{text-decoration:underline;color:var(--accent)}

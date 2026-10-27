@@ -18,15 +18,16 @@ $('#chat').addEventListener('click',async e=>{
   if(c.type==='termux'){
     const res=TCONF[c.id];delete TCONF[c.id];
     if(b.dataset.o==='x'){c.state='cancelled';m.content+='\n\nCancel kar diya.'}else{c.state='done';m.content+='\n\nAllow kiya.'}
+    logAdd('confirm','termux '+(b.dataset.o==='x'?'CANCEL':'ALLOW'));
     persist();render();if(res)res(b.dataset.o!=='x');return;
   }
-  if(b.dataset.o==='x'){c.state='cancelled';m.content+='\n\nCancel kar diya.';persist();render();return}
+  if(b.dataset.o==='x'){c.state='cancelled';m.content+='\n\nCancel kar diya.';logAdd('confirm',c.type+' CANCEL');persist();render();return}
   const o=c.opts[+b.dataset.o];if(!o)return;
-  c.state='done';m.content=(c.type==='sms'?'SMS':'Call')+': '+o.name+(c.type==='sms'?'\n\n'+c.text:'');
+  c.state='done';logAdd('confirm',c.type+' ALLOW: '+o.name+(c.type==='sms'?' ('+String(c.text||'').length+' chars)':''));m.content=(c.type==='sms'?'SMS':'Call')+': '+o.name+(c.type==='sms'?'\n\n'+c.text:'');
   render();
   try{
     if(c.type==='sms'){await NP('sendSms',{number:o.number,text:c.text});m.content+='\n\nSMS bhej diya.'}
     else{await NP('dial',{number:o.number});m.content+='\n\nCall laga raha hu.'}
-  }catch(err){c.state='failed';m.content+='\n\nFail: '+errMsg(err)}
+  }catch(err){c.state='failed';m.content+='\n\nFail: '+errMsg(err);logAdd('error',c.type+' fail: '+errMsg(err))}
   persist();render();
 });
