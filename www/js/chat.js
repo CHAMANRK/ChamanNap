@@ -7,25 +7,29 @@ async function runWithTools(p){
   return r;
 }
 async function runLoop(p){
-  const msgs=apiMsgs(false),steps=[],by=p.name.replace(' (optional)','');
+  const msgs=apiMsgs(false),steps=[],by=p.name.replace(' (optional)',''),used={run:0,write:false,mem:false};
+  const mem=await wsLoadMem();if(mem)msgs[0].content+=mem;
   let tools=TOOLS;
   SCR_STOP=false;LEFT_APP=false;PILL_ERR='';NS('reset').catch(()=>{});
+  const fin=async c=>{if(tools)await autoMem(p,msgs,used,c,steps);return{content:c,by,steps}};
   for(let n=0;n<20;n++){
     let out;
     try{out=await callOpenAI(p,msgs,undefined,tools)}
     catch(e){if(e.noTools&&tools){tools=null;n--;continue}throw e}
     if(out===null)return null;
-    if(typeof out==='string')return{content:out.trim(),by,steps};
+    if(typeof out==='string')return await fin(out.trim());
     const tc=out.tool_calls||[];
-    if(!tc.length)return{content:(out.content||'').trim()||'(khaali jawab)',by,steps};
+    if(!tc.length)return await fin((out.content||'').trim()||'(khaali jawab)');
     msgs.push({role:'assistant',content:out.content||'',tool_calls:tc});
     for(const c of tc){
       let args={};try{args=JSON.parse(c.function.arguments||'{}')}catch(e){}
-      msgs.push({role:'tool',tool_call_id:c.id,content:await execTool(c.function.name,args,steps)});
+      const nm=c.function.name;
+      if(nm==='termux_run')used.run++;else if(nm==='termux_write_file')used.write=true;else if(nm==='memory_save')used.mem=true;
+      msgs.push({role:'tool',tool_call_id:c.id,content:await execTool(nm,args,steps)});
     }
     if(SCR_STOP)return{content:'Stop dabaya gaya, kaam rok diya.',by,steps};
   }
-  return{content:'Tool steps ki limit (20) ho gayi, kaam adhura ho sakta hai.',by,steps};
+  return await fin('Tool steps ki limit (20) ho gayi, kaam adhura ho sakta hai.');
 }
 async function ask(){
   const lm=H[H.length-1];

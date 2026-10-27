@@ -1,7 +1,7 @@
 // Termux integration: commands run silently in the background; everything is shown in the chat.
 TOOLS.push(
   fn('termux_run','Run a bash command in Termux (background, no Termux screen). Returns stdout, stderr and exit code. Termux home is ~ and shared storage is /sdcard, so use it to read, create and edit files (cat, head, ls, cp, sed...). Not interactive: no sudo/ssh password prompts, no nano/vim. Risky or heavy commands automatically ask Najeef for confirmation. Keep output small (head, tail, grep).',{command:{type:'string'},timeout_s:{type:'integer',minimum:5,maximum:600,description:'default 120'}},['command']),
-  fn('termux_write_file','Write text to a file in Termux or /sdcard (creates folders, overwrites). Overwriting a file or writing outside the Termux home asks Najeef for confirmation first. For reading use termux_run with cat/head.',{path:{type:'string',description:'~/notes.txt or /sdcard/Download/a.txt'},content:{type:'string'}},['path','content'])
+  fn('termux_write_file','Write text to a file in Termux or /sdcard (creates folders, overwrites). Inside /sdcard/Chaman no confirm is needed and the old file is backed up automatically. Overwriting a file or writing outside the Termux home or the workspace asks Najeef for confirmation first. To read a file use termux_read_file.',{path:{type:'string',description:'~/notes.txt or /sdcard/Download/a.txt'},content:{type:'string'}},['path','content'])
 );
 const shq=s=>"'"+String(s).replace(/'/g,"'\\''")+"'";
 const RISKS=[
@@ -18,7 +18,7 @@ const RISKS=[
   [/\bwhile\s+(true|:)\b|:\s*\(\s*\)\s*\{|\bfor\s*\(\(/,'infinite loop ho sakta hai'],
   [/\b(make|cmake|cargo\s+build|gradle|ffmpeg|tar|zip|7z|git\s+clone|docker)\b/,'heavy kaam']
 ];
-function riskOf(cmd,tmo){const w=[];for(const x of RISKS)if(x[0].test(cmd))w.push(x[1]);if(tmo>180)w.push('lamba timeout ('+tmo+'s)');return w}
+function riskOf(cmd,tmo){const w=[];const c=cmd.indexOf('..')<0?cmd.replace(/(\/sdcard|\/storage\/emulated\/0)\/Chaman(?=[\/\s;|&)"']|$)/g,'WS'):cmd;for(const x of RISKS)if(x[0].test(c))w.push(x[1]);if(tmo>180)w.push('lamba timeout ('+tmo+'s)');return w}
 const TCONF={};
 const noFence=s=>String(s==null?'':s).replace(/```/g,"'''");
 function liveRender(){
@@ -85,6 +85,8 @@ async function termuxTool(name,a,note,fl){
     const path=String(a.path||'').trim(),content=String(a.content==null?'':a.content);
     if(!path){fl.bad=true;return note('Path nahi diya.')}
     if(content.length>100000){fl.bad=true;return note('Content bahut bada (max 100KB).')}
+    const wp=wsPath(path);
+    if(wp)return await wsWrite(wp,content,note,fl);
     const why=[];
     if(path.startsWith('/')&&path.indexOf('/data/data/com.termux')!==0)why.push('Termux home ke bahar likhna');
     else{
@@ -97,6 +99,13 @@ async function termuxTool(name,a,note,fl){
       fl.bad=true;return note('Najeef ne file likhna cancel kiya.')+' Dobara mat likho, pucho kya karna hai.';
     }
     return await termuxExec('write',{path,content},'write '+path+' ('+content.length+' chars)',note,fl);
+  }
+  if(name==='termux_read_file'){
+    const path=String(a.path||'').trim();
+    if(!path){fl.bad=true;return note('Path nahi diya.')}
+    const st=Math.max(1,Math.round(+a.start_line||1)),n=Math.min(400,Math.max(1,Math.round(+a.max_lines||150)));
+    const cmd='p='+shq(path)+'; case "$p" in "~"*) p="$HOME${p#?}";; esac; if [ -f "$p" ]; then echo "[file] $p | $(wc -l < "$p") lines | $(wc -c < "$p") bytes | showing '+st+'-'+(st+n-1)+'"; sed -n "'+st+','+(st+n-1)+'p" "$p"; elif [ -d "$p" ]; then echo "[folder] $p"; ls -la "$p" | head -60; else echo "NOT FOUND: $p"; fi';
+    return await termuxExec('run',{command:cmd,timeout:20},'read '+path+' ('+st+'-'+(st+n-1)+')',note,fl);
   }
   fl.bad=true;return'Unknown tool: '+name;
 }

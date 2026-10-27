@@ -38,6 +38,9 @@ function pillText(name,a){
     case'screen_key':return'Pressing '+(a.key||'');
     case'termux_run':return'Running command';
     case'termux_write_file':return'Writing file';
+    case'termux_read_file':return'Reading file';
+    case'memory_read':return'Reading memory';
+    case'memory_save':return'Saving memory';
   }
   return name;
 }
@@ -128,6 +131,7 @@ async function execTool0(name,a,steps,fl){
   try{
     if(name.indexOf('screen_')===0||name==='ask_user'||name==='wait_for_user')return await screenTool(name,a,note,fl);
     if(name.indexOf('termux_')===0)return await termuxTool(name,a,note,fl);
+    if(name.indexOf('memory_')===0)return await memoryTool(name,a,note,fl);
     if(name==='torch'){const r=await NP('torch',a.state==='on'?{on:true}:a.state==='off'?{on:false}:{});return note('Torch '+(r.on?'on':'off')+' hai.')}
     if(name==='set_volume'){
       const st=STN[a.stream]?a.stream:'media',o={stream:st};
