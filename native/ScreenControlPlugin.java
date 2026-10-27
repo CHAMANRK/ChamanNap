@@ -12,6 +12,25 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 @CapacitorPlugin(name = "ScreenControl")
 public class ScreenControlPlugin extends Plugin {
 
+    private static volatile boolean appVisible = true;
+
+    @Override
+    public void load() {
+        appVisible = true;
+    }
+
+    @Override
+    protected void handleOnResume() {
+        appVisible = true;
+        ChamanAccessibilityService s = ChamanAccessibilityService.get();
+        if (s != null) s.hideDonePill();
+    }
+
+    @Override
+    protected void handleOnPause() {
+        appVisible = false;
+    }
+
     private ChamanAccessibilityService svc(PluginCall call) {
         ChamanAccessibilityService s = ChamanAccessibilityService.get();
         if (s == null) {
@@ -148,11 +167,35 @@ public class ScreenControlPlugin extends Plugin {
 
     @PluginMethod
     public void pill(PluginCall call) {
+        JSObject r = new JSObject();
         ChamanAccessibilityService s = ChamanAccessibilityService.get();
-        if (s != null) {
-            Integer ttl = call.getInt("ttl", 8000);
-            s.showPill(call.getString("text", ""), ttl == null ? 8000 : ttl);
+        if (s == null) {
+            r.put("ok", false);
+            r.put("err", "Accessibility service on nahi hai");
+            call.resolve(r);
+            return;
         }
-        call.resolve();
+        Integer ttl = call.getInt("ttl", 8000);
+        String err = s.showPillSync(call.getString("text", ""), ttl == null ? 8000 : ttl, false);
+        r.put("ok", err.isEmpty());
+        r.put("err", err);
+        r.put("type", s.lastPillType());
+        call.resolve(r);
+    }
+
+    // Task finished: bring Chaman back to the front. If Android blocks the launch, the pill says "tap to open".
+    @PluginMethod
+    public void finish(PluginCall call) {
+        JSObject r = new JSObject();
+        ChamanAccessibilityService s = ChamanAccessibilityService.get();
+        if (s == null || appVisible) {
+            r.put("opened", false);
+            call.resolve(r);
+            return;
+        }
+        boolean launched = s.openSelf();
+        s.showPillSync("Done. Tap to open Chaman", 6000, true);
+        r.put("opened", launched);
+        call.resolve(r);
     }
 }

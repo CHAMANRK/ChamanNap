@@ -1,12 +1,15 @@
 async function runWithTools(p){
   const r=await runLoop(p);
-  if(r&&r.steps&&r.steps.length)NS('pill',{text:'Done',ttl:1500}).catch(()=>{});
+  if(r&&r.steps&&r.steps.length){
+    if(PILL_ERR){r.steps.push('Pill nahi dikha: '+PILL_ERR);PILL_ERR=''}
+    if(LEFT_APP)NS('finish').catch(()=>{});else NS('pill',{text:'Done',ttl:1500}).catch(()=>{});
+  }
   return r;
 }
 async function runLoop(p){
   const msgs=apiMsgs(false),steps=[],by=p.name.replace(' (optional)','');
   let tools=TOOLS;
-  SCR_STOP=false;NS('reset').catch(()=>{});
+  SCR_STOP=false;LEFT_APP=false;PILL_ERR='';NS('reset').catch(()=>{});
   for(let n=0;n<20;n++){
     let out;
     try{out=await callOpenAI(p,msgs,undefined,tools)}

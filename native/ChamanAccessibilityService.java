@@ -28,6 +28,8 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -294,6 +296,14 @@ public class ChamanAccessibilityService extends AccessibilityService {
 
     // ---------- status pill (overlay) ----------
 
+    private boolean pillTapOpens = false;
+    private View stopIcon;
+    private volatile String lastPillType = "";
+
+    public String lastPillType() {
+        return lastPillType;
+    }
+
     private class StopIcon extends View {
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
 
@@ -344,14 +354,19 @@ public class ChamanAccessibilityService extends AccessibilityService {
         pillText.setMaxWidth((int) (getResources().getDisplayMetrics().widthPixels * 0.66f));
         pill.addView(pillText, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        StopIcon x = new StopIcon(c);
+        stopIcon = new StopIcon(c);
         LinearLayout.LayoutParams xlp = new LinearLayout.LayoutParams(dp(26), dp(26));
         xlp.leftMargin = dp(10);
-        pill.addView(x, xlp);
+        pill.addView(stopIcon, xlp);
 
         pill.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                if (pillTapOpens) {
+                    openSelf();
+                    removePill();
+                    return;
+                }
                 stopRequested = true;
                 if (pillText != null) pillText.setText("Stopped");
                 scheduleHide(1200);
@@ -359,10 +374,7 @@ public class ChamanAccessibilityService extends AccessibilityService {
         });
     }
 
-    private WindowManager.LayoutParams pillParams() {
-        int type = (Build.VERSION.SDK_INT >= 26 && Settings.canDrawOverlays(this))
-            ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            : WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY;
+    private WindowManager.LayoutParams pillParams(int type) {
         WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -397,22 +409,88 @@ public class ChamanAccessibilityService extends AccessibilityService {
         pillAttached = false;
     }
 
-    public void showPill(final String text, final long ttl) {
+    // runs on the main thread; returns "" on success, else the error text
+    private String doShowPill(String text, long ttl, boolean tapOpens) {
+        try {
+            if (wm == null) wm = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
+            if (pill == null) {
+                try {
+                    buildPill();
+                } catch (Exception e) {
+                    pill = null;
+                    pillText = null;
+                    return "build: " + e;
+                }
+            }
+            pillTapOpens = tapOpens;
+            stopIcon.setVisibility(tapOpens ? View.GONE : View.VISIBLE);
+            pillText.setText(text);
+            if (!pillAttached) {
+                String err = "";
+                boolean ok = false;
+                if (Build.VERSION.SDK_INT >= 26 && Settings.canDrawOverlays(this)) {
+                    try {
+                        wm.addView(pill, pillParams(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY));
+                        ok = true;
+                        lastPillType = "app_overlay";
+                    } catch (Exception e) {
+                        err = "app overlay: " + e;
+                    }
+                }
+                if (!ok) {
+                    try {
+                        wm.addView(pill, pillParams(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY));
+                        ok = true;
+                        lastPillType = "a11y_overlay";
+                    } catch (Exception e) {
+                        return err + " | a11y overlay: " + e;
+                    }
+                }
+                pillAttached = true;
+            }
+            scheduleHide(ttl > 0 ? ttl : 8000);
+            return "";
+        } catch (Exception e) {
+            return String.valueOf(e);
+        }
+    }
+
+    // called from a plugin thread; waits briefly for the main thread so errors can be reported
+    public String showPillSync(final String text, final long ttl, final boolean tapOpens) {
+        final String[] res = { "" };
+        final CountDownLatch latch = new CountDownLatch(1);
         main.post(new Runnable() {
             @Override
             public void run() {
-                try {
-                    if (wm == null) return;
-                    if (pill == null) buildPill();
-                    pillText.setText(text);
-                    if (!pillAttached) {
-                        wm.addView(pill, pillParams());
-                        pillAttached = true;
-                    }
-                    scheduleHide(ttl > 0 ? ttl : 8000);
-                } catch (Exception e) {
-                    // ignore: pill is optional
-                }
+                res[0] = doShowPill(text, ttl, tapOpens);
+                latch.countDown();
+            }
+        });
+        try {
+            if (!latch.await(800, TimeUnit.MILLISECONDS)) return "main thread busy";
+        } catch (InterruptedException e) {
+            return "interrupted";
+        }
+        return res[0];
+    }
+
+    public boolean openSelf() {
+        try {
+            Intent i = getPackageManager().getLaunchIntentForPackage(getPackageName());
+            if (i == null) return false;
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            startActivity(i);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    public void hideDonePill() {
+        main.post(new Runnable() {
+            @Override
+            public void run() {
+                if (pillTapOpens) removePill();
             }
         });
     }
