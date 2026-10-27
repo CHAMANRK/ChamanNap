@@ -6,7 +6,7 @@ const pkgDir = path.join(root, 'android/app/src/main/java/com/chaman/nap');
 const resDir = path.join(root, 'android/app/src/main/res');
 fs.mkdirSync(pkgDir, { recursive: true });
 
-for (const f of ['PhoneControlPlugin.java', 'ScreenControlPlugin.java', 'ChamanAccessibilityService.java']) {
+for (const f of ['PhoneControlPlugin.java', 'ScreenControlPlugin.java', 'ChamanAccessibilityService.java', 'TermuxPlugin.java', 'TermuxResultReceiver.java']) {
   fs.copyFileSync(path.join(root, 'native', f), path.join(pkgDir, f));
 }
 
@@ -34,6 +34,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(PhoneControlPlugin.class);
         registerPlugin(ScreenControlPlugin.class);
+        registerPlugin(TermuxPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
@@ -50,8 +51,10 @@ if (!m.includes('android.permission.READ_SMS')) {
     <uses-permission android:name="android.permission.CALL_PHONE" />
     <uses-permission android:name="android.permission.WRITE_SETTINGS" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
     <queries>
+        <package android:name="com.termux" />
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
@@ -76,6 +79,9 @@ if (!m.includes('ChamanAccessibilityService')) {
     `;
   if (!m.includes('</application>')) throw new Error('</application> tag not found in manifest');
   m = m.replace('</application>', svc + '</application>');
+}
+if (!m.includes('TermuxResultReceiver')) {
+  m = m.replace('</application>', '        <receiver android:name="com.chaman.nap.TermuxResultReceiver" android:exported="false" />\n    </application>');
 }
 fs.writeFileSync(mp, m);
 console.log('PhoneControl + ScreenControl plugins and accessibility service patched into android project');

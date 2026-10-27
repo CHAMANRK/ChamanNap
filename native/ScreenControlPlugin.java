@@ -210,7 +210,7 @@ public class ScreenControlPlugin extends Plugin {
             return;
         }
         boolean launched = s.openSelf();
-        s.showPillSync("Done. Tap to open Chaman", 6000, 2, "ok");
+        if (!Boolean.TRUE.equals(call.getBoolean("quiet", false))) s.showPillSync("Done. Tap to open Chaman", 6000, 2, "ok");
         r.put("opened", launched);
         call.resolve(r);
     }

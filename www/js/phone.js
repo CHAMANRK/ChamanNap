@@ -15,6 +15,11 @@ $('#chat').addEventListener('click',async e=>{
   const b=e.target.closest('.abtn');if(!b)return;
   const m=H[+b.dataset.m];if(!m||!m.confirm||m.confirm.state!=='pending')return;
   const c=m.confirm;
+  if(c.type==='termux'){
+    const res=TCONF[c.id];delete TCONF[c.id];
+    if(b.dataset.o==='x'){c.state='cancelled';m.content+='\n\nCancel kar diya.'}else{c.state='done';m.content+='\n\nAllow kiya.'}
+    persist();render();if(res)res(b.dataset.o!=='x');return;
+  }
   if(b.dataset.o==='x'){c.state='cancelled';m.content+='\n\nCancel kar diya.';persist();render();return}
   const o=c.opts[+b.dataset.o];if(!o)return;
   c.state='done';m.content=(c.type==='sms'?'SMS':'Call')+': '+o.name+(c.type==='sms'?'\n\n'+c.text:'');
