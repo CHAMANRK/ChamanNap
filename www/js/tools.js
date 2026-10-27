@@ -13,12 +13,13 @@ const TOOLS=[
   fn('screen_click','Tap an element by id from the latest screen_read, or by its visible text.',{id:{type:'integer'},text:{type:'string'}}),
   fn('screen_type','Type text into a text box (id from screen_read, otherwise the focused or first text box). submit=true presses the keyboard Enter/Send key afterwards.',{text:{type:'string'},id:{type:'integer'},submit:{type:'boolean'}},['text']),
   fn('screen_scroll','Scroll the current screen.',{direction:{type:'string',enum:['up','down','left','right']}},['direction']),
-  fn('wait_for_user','Pause until Najeef finishes something only he can do on screen: PIN, UPI PIN, password, pattern, fingerprint, OTP, captcha. reason is shown as a pill. Returns when the screen changes (or on timeout). Never tap or type on such screens yourself.',{reason:{type:'string'},timeout_s:{type:'integer',minimum:10,maximum:300}},['reason']),
+  fn('ask_user','Ask Najeef to do a simple action on the screen (for example tap the text area, open a menu, pick an option) and wait until he does it. message is shown over the screen as text; after is the short line shown once he is done. Use this instead of writing the request in your final reply. For PIN, password, OTP or fingerprint use wait_for_user.',{message:{type:'string'},after:{type:'string'},timeout_s:{type:'integer',minimum:10,maximum:300}},['message']),
+  fn('wait_for_user','Pause until Najeef finishes something only he can do on screen: PIN, UPI PIN, password, pattern, fingerprint, OTP, captcha. reason is shown over the screen. Returns when the screen changes (or on timeout). Never tap or type on such screens yourself.',{reason:{type:'string'},timeout_s:{type:'integer',minimum:10,maximum:300}},['reason']),
   fn('screen_key','Press a system key or action.',{key:{type:'string',enum:['back','home','recents','notifications','quick_settings','lock','screenshot','enter']}},['key'])
 ];
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let SCR_STOP=false,A11Y_HINTED=false,LEFT_APP=false,PILL_ERR='';
-const pillShow=(text,ttl)=>NS('pill',{text,ttl}).then(r=>{if(r&&r.err&&String(r.err).indexOf('Accessibility')<0&&!PILL_ERR)PILL_ERR=r.err}).catch(()=>{});
+const pillShow=(text,ttl,mode,state)=>NS('pill',{text,ttl,mode:mode||'pill',state:state||'run'}).then(r=>{if(r&&r.err&&String(r.err).indexOf('Accessibility')<0&&!PILL_ERR)PILL_ERR=r.err}).catch(()=>{});
 const cut=(t,n)=>{t=String(t==null?'':t);return t.length>n?t.slice(0,n)+'...':t};
 function pillText(name,a){
   if(a.status)return cut(a.status,60);
@@ -35,7 +36,6 @@ function pillText(name,a){
     case'screen_type':return'Typing';
     case'screen_scroll':return'Scrolling '+(a.direction||'');
     case'screen_key':return'Pressing '+(a.key||'');
-    case'wait_for_user':return cut(a.reason||'Waiting for you',60);
   }
   return name;
 }
@@ -50,32 +50,49 @@ function userGate(r){
 }
 const sigOf=r=>new Set((r.items||[]).map(x=>(x.t||'').toLowerCase()).filter(t=>t.length>1));
 function jac(a,b){let i=0;a.forEach(x=>{if(b.has(x))i++});const u=a.size+b.size-i;return u?i/u:1}
-async function waitForUser(reason,tmo,baseR){
+// kind 'pin': waits until the screen changes (taps and typing are ignored, so PIN digits do not end the wait)
+// kind 'act': ends on any tap/focus/keyboard/screen change by the user. Tapping the dot always ends it.
+async function waitUser(kind,msg,after,tmo,baseR){
   const max=Math.min(300,Math.max(10,+tmo||120))*1000,t0=Date.now();
-  pillShow(cut(reason||'Waiting for you',60),max+5000);
-  const base=sigOf(baseR||await NS('read'));let pend=null;
-  while(Date.now()-t0<max){
-    await sleep(1200);
+  pillShow(cut(msg||'Waiting for you',140),max+5000,'ask','wait');
+  await NS('activity',{reset:true}).catch(()=>{});
+  await sleep(900);
+  const b0=await NS('activity',{}).catch(()=>({count:0,kbd:false}));
+  const base=sigOf(baseR||await NS('read'));
+  let pend=null,why='';
+  while(Date.now()-t0<max&&!why){
+    await sleep(700);
+    const u=await NS('activity',{}).catch(()=>({}));
+    if(u.stop){const e=new Error('stop');e.code='STOPPED';throw e}
+    if(u.done){why='dot';break}
+    if(kind==='act'){
+      if(u.count>b0.count){why='tap';break}
+      if(u.kbd&&!b0.kbd){why='keyboard';break}
+    }
     const r=await NS('read'),s=sigOf(r);
-    if(pend){if(jac(pend,s)>0.8){pillShow('Continuing',3000);return{changed:true,pkg:r.pkg}}pend=jac(base,s)<0.5?s:null}
+    if(pend){if(jac(pend,s)>0.8){why='screen';break}pend=jac(base,s)<0.5?s:null}
     else if(jac(base,s)<0.5)pend=s;
   }
-  return{changed:false};
+  if(!why)return{changed:false};
+  pillShow(cut(after||'Ok, aage badhte hain',140),3500,'ask','ok');
+  await sleep(1100);
+  return{changed:true,why};
 }
-async function screenTool(name,a,note){
-  if(name==='wait_for_user'){
-    note('User ka wait: '+cut(a.reason,50));
-    const w=await waitForUser(a.reason,a.timeout_s);
-    if(w.changed)return note('User ne apna step kar diya.')+' Screen badal gayi (pkg='+w.pkg+'). Ab screen_read karke aage badho.';
-    return note('Wait timeout, user ne kuch nahi kiya.')+' Kaam rok do aur Najeef ko batao.';
+async function screenTool(name,a,note,fl){
+  if(name==='ask_user'||name==='wait_for_user'){
+    const msg=name==='ask_user'?a.message:a.reason;
+    note('User ka wait: '+cut(msg,50));
+    const w=await waitUser(name==='ask_user'?'act':'pin',msg,a.after,a.timeout_s);
+    if(w.changed)return note('User ne kar diya ('+w.why+').')+' Ab screen_read karke aage badho.';
+    fl.bad=true;return note('Wait timeout, user ne kuch nahi kiya.')+' Kaam rok do aur Najeef ko batao.';
   }
   if(name==='screen_read'){
     let r=await NS('read'),it=r.items||[],pre='';
     const g=userGate(r);
     if(g.strong){
       note('PIN/password screen mili, user ka wait');
-      const w=await waitForUser('Enter PIN/password, waiting for you',120,r);
-      if(!w.changed)return note('Wait timeout, user ne kuch nahi kiya.')+' Kaam rok do aur Najeef ko batao.';
+      const w=await waitUser('pin','Enter PIN/password, waiting for you','Ok, aage badhte hain',120,r);
+      if(!w.changed){fl.bad=true;return note('Wait timeout, user ne kuch nahi kiya.')+' Kaam rok do aur Najeef ko batao.'}
       r=await NS('read');it=r.items||[];pre='NOTE: Najeef ne PIN/password khud daal diya, screen badal gayi.\n';
     }else if(g.weak)pre='NOTE: Ye screen user se PIN/password/OTP/fingerprint maang sakti hai. Agar haan, tap/type mat karo, wait_for_user chalao.\n';
     note('Screen padhi ('+(r.pkg||'?')+', '+it.length+' items)');
@@ -97,18 +114,17 @@ async function screenTool(name,a,note){
   if(name==='screen_scroll'){await NS('scroll',{direction:a.direction||'down'});await sleep(600);return note('Scroll '+(a.direction||'down'))}
   if(name==='screen_key'){
     const r=await NS('key',{key:String(a.key||'')});await sleep(700);
+    if(!r.ok)fl.bad=true;
     return note('Key: '+a.key+(r.ok?'':' (nahi chala)'));
   }
   return'Unknown tool: '+name;
 }
-async function execTool(name,a,steps){
-  a=a||{};
+async function execTool0(name,a,steps,fl){
   const note=s=>{steps.push(s);return s};
+  const bad=s=>{fl.bad=true;return note(s)};
   const say=(content,x)=>H.push(Object.assign({role:'assistant',content,by:'Phone',local:1},x||{}));
-  if(name==='open_app'||name.indexOf('screen_')===0)LEFT_APP=true;
-  if(name!=='wait_for_user')pillShow(pillText(name,a),12000);
   try{
-    if(name.indexOf('screen_')===0)return await screenTool(name,a,note);
+    if(name.indexOf('screen_')===0||name==='ask_user'||name==='wait_for_user')return await screenTool(name,a,note,fl);
     if(name==='torch'){const r=await NP('torch',a.state==='on'?{on:true}:a.state==='off'?{on:false}:{});return note('Torch '+(r.on?'on':'off')+' hai.')}
     if(name==='set_volume'){
       const st=STN[a.stream]?a.stream:'media',o={stream:st};
@@ -123,10 +139,10 @@ async function execTool(name,a,steps){
     if(name==='open_app'){const r=await NP('openApp',{name:String(a.name||'')});await sleep(1500);return note(r.label+' khul gaya.')}
     if(name==='call'||name==='send_sms'){
       const who=String(a.contact||'').trim(),type=name==='call'?'call':'sms',text=String(a.text||'').trim();
-      if(!who)return note('Contact nahi diya.');
-      if(type==='sms'&&!text)return note('SMS ka text nahi diya.');
+      if(!who)return bad('Contact nahi diya.');
+      if(type==='sms'&&!text)return bad('SMS ka text nahi diya.');
       const rs=await resolveWho(who);
-      if(!rs.length)return note('"'+who+'" contact me nahi mila. Najeef se number poochho aur number ke saath dobara try karo.');
+      if(!rs.length)return bad('"'+who+'" contact me nahi mila. Najeef se number poochho aur number ke saath dobara try karo.');
       askConfirm(type,text,rs);
       return note((type==='sms'?'SMS':'Call')+' ka confirm card dikha diya.')+' Abhi kuch bheja/lagaya nahi gaya, Najeef ke tap karne par hi hoga. Dobara tool mat chalao.';
     }
@@ -137,16 +153,29 @@ async function execTool(name,a,steps){
       say(L.map(x=>(x.name||x.address)+' ('+fmtDate(x.date)+')\n'+String(x.body||'').slice(0,300)).join('\n\n'),{aiNote:L.length+' SMS padhe aur Najeef ko dikhaye. Unka content tumhe nahi bheja gaya.'});
       return note(L.length+' SMS Najeef ko screen pe dikhaye.')+' Content tumhe nahi diya gaya.';
     }
-    return 'Unknown tool: '+name;
+    return bad('Unknown tool: '+name);
   }catch(e){
     const c=e&&e.code;
     if(c==='NOT_ENABLED'){
       if(!A11Y_HINTED){A11Y_HINTED=true;NS('openA11ySettings').catch(()=>{})}
-      return note('Accessibility service on nahi hai. Najeef ko bolo Settings > Accessibility > Chaman on kare (Android 13+ pe pehle "Allow restricted settings").');
+      return bad('Accessibility service on nahi hai. Najeef ko bolo Settings > Accessibility > Chaman on kare (Android 13+ pe pehle "Allow restricted settings").');
     }
-    if(c==='STOPPED'){SCR_STOP=true;return note('Najeef ne Stop dabaya.')}
-    if(c==='NEED_WRITE_SETTINGS')return note('Brightness ke liye "Modify system settings" permission chahiye. Settings khul gayi hai, Najeef allow karke dobara bole.');
-    if(c==='NOT_FOUND'&&name==='open_app')return note('"'+(a.name||'')+'" naam ka app nahi mila.');
-    return note('Fail: '+errMsg(e));
+    if(c==='STOPPED'){SCR_STOP=true;return bad('Najeef ne Stop dabaya.')}
+    if(c==='NEED_WRITE_SETTINGS')return bad('Brightness ke liye "Modify system settings" permission chahiye. Settings khul gayi hai, Najeef allow karke dobara bole.');
+    if(c==='NOT_FOUND'&&name==='open_app')return bad('"'+(a.name||'')+'" naam ka app nahi mila.');
+    return bad('Fail: '+errMsg(e));
   }
+}
+// Pill dot: orange while a step runs, green when it worked, red when it failed. (ask/wait tools draw their own overlay.)
+async function execTool(name,a,steps){
+  a=a||{};
+  const fl={bad:false},own=name==='ask_user'||name==='wait_for_user',txt=pillText(name,a);
+  if(name==='open_app'||name.indexOf('screen_')===0||own)LEFT_APP=true;
+  if(!own)pillShow(txt,12000,'pill','run');
+  const res=await execTool0(name,a,steps,fl);
+  if(!own){
+    pillShow(txt,fl.bad?3000:6000,'pill',fl.bad?'fail':'ok');
+    if(fl.bad)await sleep(1500);
+  }
+  return res;
 }

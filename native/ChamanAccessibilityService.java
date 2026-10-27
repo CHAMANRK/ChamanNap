@@ -1,6 +1,8 @@
 package com.chaman.nap;
 
 import android.accessibilityservice.AccessibilityService;
+import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
 import android.accessibilityservice.GestureDescription;
 import android.content.Context;
 import android.content.Intent;
@@ -24,6 +26,8 @@ import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityWindowInfo;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import java.util.ArrayList;
@@ -46,6 +50,8 @@ public class ChamanAccessibilityService extends AccessibilityService {
 
     private static ChamanAccessibilityService instance;
     public static volatile boolean stopRequested = false;
+    public static volatile boolean userDone = false;
+    public static volatile int actCount = 0;
 
     public static ChamanAccessibilityService get() {
         return instance;
@@ -66,8 +72,34 @@ public class ChamanAccessibilityService extends AccessibilityService {
         wm = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
     }
 
+    // Counts the user's own interactions (taps, focus, typing) outside Chaman; used by ask_user.
     @Override
-    public void onAccessibilityEvent(AccessibilityEvent event) {}
+    public void onAccessibilityEvent(AccessibilityEvent event) {
+        if (event == null) return;
+        int t = event.getEventType();
+        if (
+            t == AccessibilityEvent.TYPE_VIEW_CLICKED
+                || t == AccessibilityEvent.TYPE_VIEW_FOCUSED
+                || t == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED
+                || t == AccessibilityEvent.TYPE_TOUCH_INTERACTION_END
+        ) {
+            CharSequence pkg = event.getPackageName();
+            if (pkg == null || !getPackageName().contentEquals(pkg)) actCount++;
+        }
+    }
+
+    public boolean keyboardVisible() {
+        try {
+            List<AccessibilityWindowInfo> ws = getWindows();
+            if (ws == null) return false;
+            for (AccessibilityWindowInfo w : ws) {
+                if (w.getType() == AccessibilityWindowInfo.TYPE_INPUT_METHOD) return true;
+            }
+        } catch (Exception e) {
+            // ignore
+        }
+        return false;
+    }
 
     @Override
     public void onInterrupt() {}
@@ -295,34 +327,22 @@ public class ChamanAccessibilityService extends AccessibilityService {
     }
 
     // ---------- status pill (overlay) ----------
+    // modes: 0 = pill (background, one line), 1 = ask (no background, text beside a dot), 2 = done (tap to open Chaman)
+    // dot states: run = orange, ok = green, fail = red, wait = orange pulsing
+    private static final int C_ORANGE = 0xFFD98A3D;
+    private static final int C_GREEN = 0xFF8DBF9C;
+    private static final int C_RED = 0xFFD4645C;
 
-    private boolean pillTapOpens = false;
-    private View stopIcon;
+    private int pillMode = 0;
+    private View dotBox;
+    private View dotView;
+    private GradientDrawable dotDraw;
+    private GradientDrawable pillBg;
+    private ObjectAnimator pulse;
     private volatile String lastPillType = "";
 
     public String lastPillType() {
         return lastPillType;
-    }
-
-    private class StopIcon extends View {
-        private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-
-        StopIcon(Context c) {
-            super(c);
-            p.setColor(0xFFE6EFE8);
-            p.setStyle(Paint.Style.STROKE);
-            p.setStrokeWidth(dp(1.6f));
-            p.setStrokeCap(Paint.Cap.ROUND);
-        }
-
-        @Override
-        protected void onDraw(Canvas c) {
-            float w = getWidth();
-            float h = getHeight();
-            float m = w * 0.28f;
-            c.drawLine(m, m, w - m, h - m, p);
-            c.drawLine(w - m, m, m, h - m, p);
-        }
     }
 
     private void buildPill() {
@@ -330,48 +350,96 @@ public class ChamanAccessibilityService extends AccessibilityService {
         pill = new LinearLayout(c);
         pill.setOrientation(LinearLayout.HORIZONTAL);
         pill.setGravity(Gravity.CENTER_VERTICAL);
-        pill.setPadding(dp(14), dp(8), dp(10), dp(8));
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(0xF01E2A24);
-        bg.setCornerRadius(dp(24));
-        bg.setStroke(dp(1), 0xFF3F5E4C);
-        pill.setBackground(bg);
 
-        View dot = new View(c);
-        GradientDrawable d = new GradientDrawable();
-        d.setShape(GradientDrawable.OVAL);
-        d.setColor(0xFF8DBF9C);
-        dot.setBackground(d);
-        LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(dp(8), dp(8));
-        dlp.rightMargin = dp(10);
-        pill.addView(dot, dlp);
+        pillBg = new GradientDrawable();
+        pillBg.setColor(0xF01E2A24);
+        pillBg.setCornerRadius(dp(24));
+        pillBg.setStroke(dp(1), 0xFF3F5E4C);
+
+        FrameLayout box = new FrameLayout(c);
+        dotView = new View(c);
+        dotDraw = new GradientDrawable();
+        dotDraw.setShape(GradientDrawable.OVAL);
+        dotDraw.setColor(C_ORANGE);
+        dotView.setBackground(dotDraw);
+        FrameLayout.LayoutParams dlp = new FrameLayout.LayoutParams(dp(10), dp(10));
+        dlp.gravity = Gravity.CENTER;
+        box.addView(dotView, dlp);
+        dotBox = box;
+        pill.addView(box, new LinearLayout.LayoutParams(dp(34), dp(34)));
 
         pillText = new TextView(c);
-        pillText.setTextColor(0xFFE6EFE8);
-        pillText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
-        pillText.setSingleLine(true);
         pillText.setEllipsize(TextUtils.TruncateAt.END);
-        pillText.setMaxWidth((int) (getResources().getDisplayMetrics().widthPixels * 0.66f));
         pill.addView(pillText, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        stopIcon = new StopIcon(c);
-        LinearLayout.LayoutParams xlp = new LinearLayout.LayoutParams(dp(26), dp(26));
-        xlp.leftMargin = dp(10);
-        pill.addView(stopIcon, xlp);
-
+        // tap the dot while Chaman is waiting for you = "done"
+        box.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (pillMode == 1) userDone = true;
+            }
+        });
+        // long-press the dot = stop the agent
+        box.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                stopRequested = true;
+                if (pillText != null) pillText.setText("Stopped");
+                setDot("fail");
+                scheduleHide(1200);
+                return true;
+            }
+        });
         pill.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (pillTapOpens) {
+                if (pillMode == 2) {
                     openSelf();
                     removePill();
-                    return;
                 }
-                stopRequested = true;
-                if (pillText != null) pillText.setText("Stopped");
-                scheduleHide(1200);
             }
         });
+    }
+
+    private void setDot(String state) {
+        int col = "ok".equals(state) ? C_GREEN : ("fail".equals(state) ? C_RED : C_ORANGE);
+        dotDraw.setColor(col);
+        if (pulse != null) {
+            pulse.cancel();
+            pulse = null;
+        }
+        dotView.setAlpha(1f);
+        if ("wait".equals(state)) {
+            pulse = ObjectAnimator.ofFloat(dotView, "alpha", 1f, 0.3f);
+            pulse.setDuration(650);
+            pulse.setRepeatCount(ValueAnimator.INFINITE);
+            pulse.setRepeatMode(ValueAnimator.REVERSE);
+            pulse.start();
+        }
+    }
+
+    private void applyMode(int mode) {
+        pillMode = mode;
+        int w = getResources().getDisplayMetrics().widthPixels;
+        if (mode == 1) {
+            pill.setBackground(null);
+            pill.setPadding(dp(4), dp(2), dp(8), dp(2));
+            pillText.setSingleLine(false);
+            pillText.setMaxLines(3);
+            pillText.setTextColor(0xFFFFFFFF);
+            pillText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
+            pillText.setShadowLayer(dp(3), 0, dp(1), 0xFF000000);
+            pillText.setMaxWidth((int) (w * 0.78f));
+        } else {
+            pill.setBackground(pillBg);
+            pill.setPadding(dp(8), dp(4), dp(16), dp(4));
+            pillText.setSingleLine(true);
+            pillText.setTextColor(0xFFE6EFE8);
+            pillText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+            pillText.setShadowLayer(0, 0, 0, 0);
+            pillText.setMaxWidth((int) (w * 0.66f));
+        }
+        pillText.setEllipsize(TextUtils.TruncateAt.END);
     }
 
     private WindowManager.LayoutParams pillParams(int type) {
@@ -402,6 +470,10 @@ public class ChamanAccessibilityService extends AccessibilityService {
 
     private void removePill() {
         try {
+            if (pulse != null) {
+                pulse.cancel();
+                pulse = null;
+            }
             if (pillAttached && wm != null && pill != null) wm.removeView(pill);
         } catch (Exception e) {
             // ignore
@@ -410,7 +482,7 @@ public class ChamanAccessibilityService extends AccessibilityService {
     }
 
     // runs on the main thread; returns "" on success, else the error text
-    private String doShowPill(String text, long ttl, boolean tapOpens) {
+    private String doShowPill(String text, long ttl, int mode, String state) {
         try {
             if (wm == null) wm = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
             if (pill == null) {
@@ -422,8 +494,8 @@ public class ChamanAccessibilityService extends AccessibilityService {
                     return "build: " + e;
                 }
             }
-            pillTapOpens = tapOpens;
-            stopIcon.setVisibility(tapOpens ? View.GONE : View.VISIBLE);
+            applyMode(mode);
+            setDot(state);
             pillText.setText(text);
             if (!pillAttached) {
                 String err = "";
@@ -456,13 +528,13 @@ public class ChamanAccessibilityService extends AccessibilityService {
     }
 
     // called from a plugin thread; waits briefly for the main thread so errors can be reported
-    public String showPillSync(final String text, final long ttl, final boolean tapOpens) {
+    public String showPillSync(final String text, final long ttl, final int mode, final String state) {
         final String[] res = { "" };
         final CountDownLatch latch = new CountDownLatch(1);
         main.post(new Runnable() {
             @Override
             public void run() {
-                res[0] = doShowPill(text, ttl, tapOpens);
+                res[0] = doShowPill(text, ttl, mode, state);
                 latch.countDown();
             }
         });
@@ -490,7 +562,7 @@ public class ChamanAccessibilityService extends AccessibilityService {
         main.post(new Runnable() {
             @Override
             public void run() {
-                if (pillTapOpens) removePill();
+                if (pillMode == 2) removePill();
             }
         });
     }

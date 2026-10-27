@@ -9,7 +9,7 @@ const $=s=>document.querySelector(s);
 const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}};
 const sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
 let S=Object.assign({theme:'auto',prov:'auto',system:DEF_SYS,keys:{},models:{},ptr:{},vision:{provider:'openrouter',model:'openrouter/free'},ch:{url:'https://chamanvip-chaman.hf.space',key:'',hf:''}},ld('nap_s',{}));
-if([OLD_SYS,PREV_SYS,PREV2_SYS,PREV3_SYS,PREV4_SYS,PREV5_SYS,PREV6_SYS,PREV7_SYS].includes(S.system)){S.system=DEF_SYS;sv('nap_s',S)}
+if([OLD_SYS,PREV_SYS,PREV2_SYS,PREV3_SYS,PREV4_SYS,PREV5_SYS,PREV6_SYS,PREV7_SYS,PREV8_SYS].includes(S.system)){S.system=DEF_SYS;sv('nap_s',S)}
 const OLDM={groq:'llama-3.3-70b-versatile',cerebras:'llama-3.3-70b',openrouter:'meta-llama/llama-3.3-70b-instruct:free',nvidia:'meta/llama-3.3-70b-instruct'};
 Object.keys(OLDM).forEach(k=>{if(S.models&&S.models[k]===OLDM[k]){delete S.models[k];sv('nap_s',S)}});
 if(S.vision&&S.vision.provider==='nvidia'&&['nvidia/nemotron-3-ultra-550b-a55b','google/gemma-3-27b-it'].includes(S.vision.model)){S.vision={provider:'openrouter',model:'openrouter/free'};sv('nap_s',S)}

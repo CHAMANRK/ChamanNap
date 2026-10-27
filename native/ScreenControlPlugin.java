@@ -86,7 +86,21 @@ public class ScreenControlPlugin extends Plugin {
     @PluginMethod
     public void reset(PluginCall call) {
         ChamanAccessibilityService.stopRequested = false;
+        ChamanAccessibilityService.userDone = false;
         call.resolve();
+    }
+
+    // Used while the agent waits for Najeef: tap counter, keyboard state, dot-tap flag, stop flag.
+    @PluginMethod
+    public void activity(PluginCall call) {
+        if (Boolean.TRUE.equals(call.getBoolean("reset", false))) ChamanAccessibilityService.userDone = false;
+        ChamanAccessibilityService s = ChamanAccessibilityService.get();
+        JSObject r = new JSObject();
+        r.put("count", ChamanAccessibilityService.actCount);
+        r.put("kbd", s != null && s.keyboardVisible());
+        r.put("done", ChamanAccessibilityService.userDone);
+        r.put("stop", ChamanAccessibilityService.stopRequested);
+        call.resolve(r);
     }
 
     @PluginMethod
@@ -176,7 +190,9 @@ public class ScreenControlPlugin extends Plugin {
             return;
         }
         Integer ttl = call.getInt("ttl", 8000);
-        String err = s.showPillSync(call.getString("text", ""), ttl == null ? 8000 : ttl, false);
+        String m = call.getString("mode", "pill");
+        int mode = "ask".equals(m) ? 1 : ("done".equals(m) ? 2 : 0);
+        String err = s.showPillSync(call.getString("text", ""), ttl == null ? 8000 : ttl, mode, call.getString("state", "run"));
         r.put("ok", err.isEmpty());
         r.put("err", err);
         r.put("type", s.lastPillType());
@@ -194,7 +210,7 @@ public class ScreenControlPlugin extends Plugin {
             return;
         }
         boolean launched = s.openSelf();
-        s.showPillSync("Done. Tap to open Chaman", 6000, true);
+        s.showPillSync("Done. Tap to open Chaman", 6000, 2, "ok");
         r.put("opened", launched);
         call.resolve(r);
     }

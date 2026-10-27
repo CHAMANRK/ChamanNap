@@ -2,7 +2,7 @@ async function runWithTools(p){
   const r=await runLoop(p);
   if(r&&r.steps&&r.steps.length){
     if(PILL_ERR){r.steps.push('Pill nahi dikha: '+PILL_ERR);PILL_ERR=''}
-    if(LEFT_APP)NS('finish').catch(()=>{});else NS('pill',{text:'Done',ttl:1500}).catch(()=>{});
+    if(LEFT_APP)NS('finish').catch(()=>{});else NS('pill',{text:'Done',ttl:1500,state:'ok'}).catch(()=>{});
   }
   return r;
 }

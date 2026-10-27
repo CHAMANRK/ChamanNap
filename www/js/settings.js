@@ -12,7 +12,7 @@ function sheet(){
   $('#rs').onclick=()=>{$('#sys').value=DEF_SYS};
   $('#a11b').onclick=()=>NS('openA11ySettings').catch(()=>{});
   $('#ovb').onclick=()=>NS('requestOverlay').catch(()=>{});
-  $('#ptb').onclick=()=>NS('pill',{text:'Pill test - dikh raha hai?',ttl:5000}).then(r=>{$('#a11s').textContent=r.ok?'Pill bheja ('+r.type+'). Upar status bar ke neeche dikhna chahiye.':'Pill fail: '+r.err}).catch(e=>{$('#a11s').textContent='Pill fail: '+errMsg(e)});
+  $('#ptb').onclick=()=>NS('pill',{text:'Pill test - dikh raha hai?',ttl:5000,state:'wait'}).then(r=>{$('#a11s').textContent=r.ok?'Pill bheja ('+r.type+'). Upar status bar ke neeche dikhna chahiye.':'Pill fail: '+r.err}).catch(e=>{$('#a11s').textContent='Pill fail: '+errMsg(e)});
   NS('status').then(r=>{$('#a11s').textContent='Accessibility: '+(r.a11y?'on':'off')+'. Overlay pill: '+(r.overlay?'on':'off (tab accessibility overlay use hoga)')+'.'}).catch(()=>{$('#a11s').textContent='Ye sirf Android app me chalta hai.'});
   $('#save').onclick=()=>{
     S.ch={url:$('#c_url').value.trim(),key:$('#c_key').value.trim(),hf:$('#c_hf').value.trim()};
