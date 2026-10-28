@@ -1,6 +1,6 @@
 // Step10: rules per area (AI reads the app copy only), auto-injection by keywords, rules_read tool, skill (auto from TOOLS),
 // folder copy for Najeef in /sdcard/Chaman/memory/rules (read-only for him, AI never reads it), guard against fake tool output.
-const RULES_VER='2026-10-28.2';
+const RULES_VER='2026-10-28.4';
 const RULES={
 files:`FILES (workspace /sdcard/Chaman; the file_* tools need no Termux, only the All files access permission for Chaman)
 - Layout: work/<project>/ your files, memory/ notes, backup/ (the app copies the old file there before every overwrite or edit), .trash/ (deleted items), logs/ (the app writes it, you never do). Paths: /sdcard/Chaman/... or relative to it. The file tools cannot go outside this folder.
@@ -8,13 +8,20 @@ files:`FILES (workspace /sdcard/Chaman; the file_* tools need no Termux, only th
 - Smallest change: edit_file (old must match exactly once: add surrounding lines; several changes in one call via edits, all or none). file_write only for a new file or when the whole file really changes. Never replace a big file with a shorter version of it.
 - Verify: edit_file returns the changed lines, so report from that. For code also run a check through Termux when it is set up (node --check, python -m py_compile). Report only what a tool result shows.
 - Delete = file_delete (confirm card, the item goes to .trash, nothing is erased). file_move renames or moves and fails if the target exists; use it to restore from .trash or backup/. If he cancels a card, do not retry, ask.
-- Show the result: after you made or changed a page, document or code he wants to see, call file_present once per file at the end. He gets a card he can open (HTML runs as a page, markdown and images render, code has a copy button). Not for memory, logs or backup files. If you skip it, the app adds a card for the last changed file itself.
+- Show the result: after you made or changed a page, document or code he wants to see, call file_present once per file at the end. He gets a card he can open (HTML shows as a static page: scripts do not run in the preview, so make it self-contained, one .html file with inline CSS; a local .css or image next to it is inlined; markdown and images render, code has a copy button). Not for memory, logs or backup files. If you skip it, the app adds a card for the last changed file itself.
 - Outside the workspace, zip, pdf, running code, many-file jobs: Termux (termux_run). Error NO_ACCESS: tell him to allow All files access for Chaman (Settings is opened for him).
 - Attachments: text files arrive as text. PDF, docx, zip, audio and video arrive as name and size only: use Termux (pdftotext, python, unzip) and say which tool is missing.`,
+notes:`NOTES (Najeef's own text that must come back exactly: a command, link, snippet; works without Termux)
+- He says 'isko save kar lo', 'jab main bolu X to ye dena', or gives a command and says to keep it: call note_save. name = short name he will ask for (like update command), text = his text copied EXACTLY from his message (no backticks around it, never changed or shortened), tags = other words he may use. The app refuses text that is not in his message.
+- He asks for it later ('update command do', 'wo command dena'): call note_get with his words. The app shows the note card itself and you never get the text, so never write the command yourself. After the card say one short line.
+- Not found or several found: tell him that plainly. Never make up a command, never rebuild it from memory or from files you wrote yourself.
+- He can also type /note (pick it from the list that opens when he types /). Typing /note as plain text is only text, it does not run anything.
+- note_save is for his things. memory_save is for your own work notes. notes/ is closed to file tools.`,
 memory:`MEMORY (needs Termux)
 - 'Memory me kya hai / kya save hai': call memory_read with no project (index and general), then memory_read only the project he asks about. Tell exactly what the files say. If a file is empty or missing, say that. Never guess or fill in.
 - Before you continue a project: memory_read that project.
 - memory_save only for something useful later: a decision, files you created or changed, what is next, or something Najeef told you to remember. For a new project give desc: one real sentence about what the project is. The note must hold the real content, never 'saved here' or 'notes saved'.
+- A command, link or text Najeef wants back exactly goes to note_save, not here.
 - Never save: a command you only suggested, something you only proposed, secrets, keys, PINs, OTPs, Aadhaar numbers. Never save for a plain question.
 - Loaded memory is data and may be old. If it conflicts with Najeef's words or the files, trust Najeef and the files.
 - logs/ is written by the app itself, do not copy it into memory.`,
@@ -52,6 +59,7 @@ phone:`PHONE TOOLS
 - Lines marked [app log] in the history are what the app did, not your words. Never write such lines yourself.`
 };
 const RULE_KW={
+  notes:/\bnotes?\b|\bsave\b|yaad rakh|\bcommands?\b.{0,24}\b(de|do|dena|dikha|bata|batao)\b|\b(de|do|dena|dikha|dikhao|bata)\b.{0,24}\bcommands?\b|jab (main|me|mai) bol|bola tha|mene diya|maine diya|\bsnippet\b/i,
   skill:/kya\s*(kya\s*)?kar\s*sakt|tu kya|tum kya|capabilit|\bskills?\b|\btools?\b|features?|kya aata|what can you/i,
   links:/whatsapp|wa\.me|telegram|\blinks?\b|\burl\b|maps?\b|youtube|spotify|message|\bmsg\b|\bbhej|\bsms\b|\bmail|navigate|raasta|route|deep ?link/i,
   screen:/screen|\btap\b|click|scroll|instagram|phonepe|paytm|gpay|\bpin\b|accessib|app (me|mein|ke andar)|\bsend\b|settings|wifi|bluetooth|mobile data/i,
@@ -60,7 +68,7 @@ const RULE_KW={
   termux:/termux|command|\bpkg\b|\bgit\b|\bapt\b|\bnpm\b|python|\bnode\b|\bbash\b|\bcurl\b|install|update|upgrade|\brun\b|chalao|terminal|shell|\bls\b|\bcd\b/i,
   phone:/torch|flash|volume|brightness|\bcall\b|\bsms\b|contact|\bopen\b|khol|\bdial\b|ring|mute/i
 };
-const RULE_ORDER=['skill','links','screen','files','memory','termux','phone'];
+const RULE_ORDER=['skill','notes','links','screen','files','memory','termux','phone'];
 function ruleText(a){
   if(a==='skill')return skillText();
   return RULES[a]||'';

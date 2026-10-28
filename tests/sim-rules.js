@@ -27,7 +27,7 @@ ctx.Capacitor={nativePromise:async(pl,m,o)=>{
   return{stdout:'',exitCode:0}}
  return{}}};
 vm.createContext(ctx);
-for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','fast','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
+for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','notes','slash','fast','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
 const ev=s=>vm.runInContext(s,ctx);
 const send=async t=>{els['#in'].value=t;await handlers['#f:submit']({preventDefault(){}})};
 (async()=>{

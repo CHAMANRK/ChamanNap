@@ -425,7 +425,7 @@ public class FilesPlugin extends Plugin {
             List<File> keep = new ArrayList<>();
             for (File f : files) {
                 String tf = top(f);
-                if ((tf.equals("backup") && !t0.equals("backup")) || (tf.equals("logs") && !t0.equals("logs"))) continue;
+                if ((tf.equals("backup") && !t0.equals("backup")) || (tf.equals("logs") && !t0.equals("logs")) || (tf.equals("notes") && !t0.equals("notes"))) continue;
                 keep.add(f);
             }
             files = keep;

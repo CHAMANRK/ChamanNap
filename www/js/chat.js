@@ -72,8 +72,9 @@ function setProv(v){
 $('#f').addEventListener('submit',async e=>{
   e.preventDefault();if(busy)return;
   const i=$('#in'),t=i.value.trim();if(!t&&!PEND.length)return;
-  const pc=t.match(/^\/(?:provider|prov|p)\b\s*(\S*)\s*$/i);
-  if(pc&&!PEND.length){i.value='';i.style.height='auto';setProv(pc[1]);return}
+  const sl=(typeof slashTake==='function'&&!PEND.length)?slashTake(t):null;
+  if(typeof hideSlash==='function')hideSlash();
+  if(sl){i.value='';i.style.height='auto';await slashRun(sl,t);return}
   i.value='';i.style.height='auto';busy=true;$('#send').disabled=true;
   logAdd('you',t+(PEND.length?' [files: '+PEND.map(a=>a.name).join(', ')+']':''));
   H.push({role:'user',content:t,files:PEND.map(a=>({name:a.name,size:a.size,kind:a.kind,body:a.body,cut:a.cut})),imgs:PEND.filter(a=>a.kind==='img').map(a=>a.img)});

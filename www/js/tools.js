@@ -54,6 +54,8 @@ function pillText(name,a){
     case'termux_read_file':return'Reading file';
     case'memory_read':return'Reading memory';
     case'memory_save':return'Saving memory';
+    case'note_save':return'Saving note';
+    case'note_get':return'Finding note';
   }
   return name;
 }
@@ -146,6 +148,7 @@ async function execTool0(name,a,steps,fl){
     if(name==='open_url'||name==='tap_when_visible'||name==='run_flow')return await fastTool(name,a,note,fl);
     if(name.indexOf('file_')===0||name==='edit_file')return await fileTool(name,a,note,fl);
     if(name==='rules_read')return rulesTool(a,note,fl);
+    if(name.indexOf('note_')===0)return await noteTool(name,a,note,fl);
     if(name.indexOf('termux_')===0)return await termuxTool(name,a,note,fl);
     if(name.indexOf('memory_')===0)return await memoryTool(name,a,note,fl);
     if(name==='torch'){const r=await NP('torch',a.state==='on'?{on:true}:a.state==='off'?{on:false}:{});return note('Torch '+(r.on?'on':'off')+' hai.')}
@@ -196,7 +199,7 @@ async function execTool(name,a,steps){
   if(name==='open_app'||name.indexOf('screen_')===0||own||/^(open_url|tap_when_visible|run_flow)$/.test(name))LEFT_APP=true;
   if(!own)pillShow(txt,12000,'pill','run');
   const res=await execTool0(name,a,steps,fl);
-  logAdd(fl.bad?'tool FAIL':'tool',logTool(name,a)+((name.indexOf('termux_')===0||name.indexOf('file_')===0||name==='edit_file'||name==='screen_read')?'':' -> '+cut(String(res).replace(/\s+/g,' '),140)));
+  logAdd(fl.bad?'tool FAIL':'tool',logTool(name,a)+((name.indexOf('termux_')===0||name.indexOf('file_')===0||name.indexOf('note_')===0||name==='edit_file'||name==='screen_read')?'':' -> '+cut(String(res).replace(/\s+/g,' '),140)));
   if(!own){
     pillShow(txt,fl.bad?3000:6000,'pill',fl.bad?'fail':'ok');
     if(fl.bad)await sleep(1500);

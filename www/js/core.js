@@ -81,6 +81,6 @@ const stepsH=m=>m.steps&&m.steps.length?'<div class="steps">'+m.steps.map(esc).j
 function render(){
   const c=$('#chat');
   if(!H.length){c.innerHTML='<div class="empty"><b>Chaman</b>Kuch bhi pucho. Pehle Settings me keys daal do.</div>';return}
-  c.innerHTML=H.map((m,hi)=>m.role==='user'?'<div class="msg me">'+esc(m.content||'')+att(m)+'</div>':'<div class="msg ai'+(m.err?' err':'')+'">'+stepsH(m)+fmt(m.content)+acts(m,hi)+(typeof artH==='function'?artH(m,hi):'')+(m.by?'<span class="by">'+esc(m.by)+'</span>':'')+'</div>').join('');
+  c.innerHTML=H.map((m,hi)=>m.role==='user'?'<div class="msg me">'+esc(m.content||'')+att(m)+'</div>':'<div class="msg ai'+(m.err?' err':'')+'">'+stepsH(m)+fmt(m.content)+acts(m,hi)+(typeof artH==='function'?artH(m,hi):'')+(typeof noteH==='function'?noteH(m,hi):'')+(m.by?'<span class="by">'+esc(m.by)+'</span>':'')+'</div>').join('');
   c.scrollTop=c.scrollHeight;
 }

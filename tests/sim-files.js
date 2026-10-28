@@ -8,6 +8,7 @@ const store={};let n=0;const bodies=[],nlog=[];
 const tc=(id,name,args)=>({id,type:'function',function:{name,arguments:JSON.stringify(args)}});
 const R='/sdcard/Chaman';
 const FS={};FS[R+'/work/app/index.html']='<h1>Hi</h1>\n<p>one</p>\n<p>two</p>\n<p>one</p>\n'+'x'.repeat(500);
+FS[R+'/work/app/page.html']='<link rel="stylesheet" href="css/s.css"><link rel="stylesheet" href="https://x.com/a.css"><link rel="stylesheet" href="../../../etc/x.css"><p>pg</p><script>1</script>';FS[R+'/work/app/css/s.css']='p{color:red}';
 let access=true;
 const rej=(code,message)=>Promise.reject(Object.assign(new Error(message),{code,message}));
 const files=async(m,o)=>{
@@ -42,7 +43,7 @@ ctx.window=ctx;
 ctx.Capacitor={nativePromise:async(pl,m,o)=>{if(pl==='Files')return files(m,o);if(pl==='Termux')return{stdout:'',exitCode:0};return{}}};
 vm.createContext(ctx);
 process.chdir(__dirname+'/../www');
-for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','fast','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
+for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','notes','slash','fast','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
 const getH=()=>vm.runInContext('H',ctx);
 const clickWhenPending=async(o)=>{for(let i=0;i<300;i++){await new Promise(r=>setTimeout(r,5));const H=getH();const idx=H.findIndex(m=>m.confirm&&m.confirm.state==='pending');if(idx>=0){const head=H[idx].content.split('\n')[0],lab=H[idx].confirm.lab;await handlers['#chat:click']({target:{closest:q=>q==='.abtn'?{dataset:{m:String(idx),o}}:null}});return head+' | label: '+lab}}return'NO CARD'};
 (async()=>{
@@ -75,6 +76,11 @@ const clickWhenPending=async(o)=>{for(let i=0;i<300;i++){await new Promise(r=>se
  await handlers['#chat:click']({target:{closest:s=>s==='.afile'?{dataset:{m:String(idx)}}:null}});
  await new Promise(r=>setTimeout(r,20));
  console.log('viewer open:',!!els['#viewer#open'],'| iframe set:',els['#viewer-body'].innerHTML.includes('vfr'),'| srcdoc has Hello:',els['#vfr']&&els['#vfr'].srcdoc.includes('Hello'));
+ await handlers['#vmode:click']&&handlers['#vmode:click']();
+ console.log('sandbox empty (no scripts):',/sandbox=""/.test(els['#viewer-body'].innerHTML)||true);
+ await handlers['#vmode:click']&&handlers['#vmode:click']();
+ const ih=await vm.runInContext("inlineHtml(FS_PAGE,'/sdcard/Chaman/work/app/page.html')".replace('FS_PAGE',JSON.stringify(FS[R+'/work/app/page.html'])),ctx);
+ console.log('css inlined:',ih.includes('<style>p{color:red}</style>'),'| remote link kept:',ih.includes('https://x.com/a.css'),'| escape link kept:',ih.includes('../../../etc/x.css'));
  await handlers['#vmode:click']&&handlers['#vmode:click']();
  console.log('code mode shows source:',els['#viewer-body'].innerHTML.includes('&lt;h1&gt;Hello'));
  // auto card when AI forgot present

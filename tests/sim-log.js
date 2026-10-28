@@ -6,7 +6,7 @@ const ctx={document:{querySelector:()=>mk(),documentElement:{dataset:{}}},localS
 ctx.window=ctx;
 ctx.Capacitor={nativePromise:async(pl,m,o)=>{if(pl==='Termux'){if(fail)throw Object.assign(new Error('x'),{code:'PERMISSION'});cmds.push(o.command);return{stdout:'LOGGED\n',exitCode:0}}return{}}};
 vm.createContext(ctx);
-for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','fast','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx);
+for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','notes','slash','fast','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx);
 const R=s=>vm.runInContext(s,ctx);
 (async()=>{
  R("logAdd('you','pdf padho gsk_abcdefghijklmnopqrstuvwxyz123456 aur kuch');logAdd('tool',logTool('screen_type',{text:'secret123',submit:true}));logAdd('tool',logTool('send_sms',{contact:'Rahul',text:'private msg'}));logAdd('termux','$ ls -la (exit 0)','a\\nb ```fence``` it\\'s');");
