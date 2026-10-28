@@ -12,6 +12,8 @@ function logTool(name,a){
     case'termux_write_file':return name+' '+cut(a.path,120)+' ('+String(a.content==null?'':a.content).length+' chars)';
     case'termux_run':return name+' (details in termux entry)';
     case'memory_save':return name+' '+cut(a.project,40);
+    case'open_url':return name+' '+cut(String(a.uri||'').replace(/([?&]text=).*/i,'$1...'),80)+(a.contact?' contact '+cut(a.contact,30):'')+(a.text?' ('+String(a.text).length+' chars)':'');
+    case'run_flow':return name+' ['+(Array.isArray(a.steps)?a.steps.map(s=>s&&s.do).join(','):'')+']';
   }
   const o=Object.assign({},a);delete o.status;
   const j=JSON.stringify(o);

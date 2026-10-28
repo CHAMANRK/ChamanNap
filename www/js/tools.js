@@ -31,6 +31,9 @@ function pillText(name,a){
     case'call':return'Preparing call';
     case'send_sms':return'Preparing SMS';
     case'read_sms':return'Reading SMS';
+    case'open_url':return'Opening link';
+    case'tap_when_visible':return'Tapping '+cut(a.text||'',30);
+    case'run_flow':return'Running steps';
     case'screen_read':return'Reading screen';
     case'screen_click':return'Tapping '+cut(a.text||'',30);
     case'screen_type':return'Typing';
@@ -130,6 +133,7 @@ async function execTool0(name,a,steps,fl){
   const say=(content,x)=>H.push(Object.assign({role:'assistant',content,by:'Phone',local:1},x||{}));
   try{
     if(name.indexOf('screen_')===0||name==='ask_user'||name==='wait_for_user')return await screenTool(name,a,note,fl);
+    if(name==='open_url'||name==='tap_when_visible'||name==='run_flow')return await fastTool(name,a,note,fl);
     if(name.indexOf('termux_')===0)return await termuxTool(name,a,note,fl);
     if(name.indexOf('memory_')===0)return await memoryTool(name,a,note,fl);
     if(name==='torch'){const r=await NP('torch',a.state==='on'?{on:true}:a.state==='off'?{on:false}:{});return note('Torch '+(r.on?'on':'off')+' hai.')}
@@ -177,7 +181,7 @@ async function execTool0(name,a,steps,fl){
 async function execTool(name,a,steps){
   a=a||{};
   const fl={bad:false},own=name==='ask_user'||name==='wait_for_user',txt=pillText(name,a);
-  if(name==='open_app'||name.indexOf('screen_')===0||own)LEFT_APP=true;
+  if(name==='open_app'||name.indexOf('screen_')===0||own||/^(open_url|tap_when_visible|run_flow)$/.test(name))LEFT_APP=true;
   if(!own)pillShow(txt,12000,'pill','run');
   const res=await execTool0(name,a,steps,fl);
   logAdd(fl.bad?'tool FAIL':'tool',logTool(name,a)+((name.indexOf('termux_')===0||name==='screen_read')?'':' -> '+cut(String(res).replace(/\s+/g,' '),140)));

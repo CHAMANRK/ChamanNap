@@ -23,7 +23,7 @@ ctx.Capacitor={nativePromise:async(pl,m,o)=>{log.push(pl+'.'+m+(o&&Object.keys(o
  if(m==='click')return{label:o.text||'Rahul'};
  return{}}};
 ctx.window=ctx;vm.createContext(ctx);
-for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
+for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','fast','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
 (async()=>{
  vm.runInContext("S.keys.groq='gsk_t';S.prov='groq';",ctx);
  els['#in'].value='whatsapp pe rahul ko Hii bhejo';

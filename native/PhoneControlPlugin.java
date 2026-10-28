@@ -1,6 +1,7 @@
 package com.chaman.nap;
 
 import android.Manifest;
+import android.content.ActivityNotFoundException;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
@@ -302,6 +303,40 @@ public class PhoneControlPlugin extends Plugin {
             call.resolve(r);
         } catch (Exception e) {
             call.reject("App kholne me dikkat: " + e.getMessage());
+        }
+    }
+
+    // ---------- deep links ----------
+
+    @PluginMethod
+    public void openUrl(PluginCall call) {
+        String uri = call.getString("uri", "");
+        String pkg = call.getString("app", "");
+        if (uri == null || uri.trim().isEmpty()) {
+            call.reject("Link khali hai");
+            return;
+        }
+        try {
+            Uri u = Uri.parse(uri.trim());
+            String sc = u.getScheme() == null ? "" : u.getScheme().toLowerCase();
+            String[] ok = { "http", "https", "tel", "sms", "smsto", "mailto", "geo", "whatsapp", "tg", "upi", "market", "google.navigation", "youtube", "vnd.youtube", "spotify" };
+            boolean allowed = false;
+            for (String s : ok) {
+                if (s.equals(sc)) allowed = true;
+            }
+            if (!allowed) {
+                call.reject("Ye link type allowed nahi hai", "BAD_URI");
+                return;
+            }
+            Intent i = new Intent(Intent.ACTION_VIEW, u);
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            if (pkg != null && !pkg.trim().isEmpty()) i.setPackage(pkg.trim());
+            getContext().startActivity(i);
+            call.resolve();
+        } catch (ActivityNotFoundException e) {
+            call.reject("Is link ko kholne wala app nahi mila", "NOT_FOUND");
+        } catch (Exception e) {
+            call.reject("Link kholne me dikkat: " + e.getMessage());
         }
     }
 
