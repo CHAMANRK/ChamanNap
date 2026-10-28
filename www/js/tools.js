@@ -40,6 +40,15 @@ function pillText(name,a){
     case'screen_type':return'Typing';
     case'screen_scroll':return'Scrolling '+(a.direction||'');
     case'screen_key':return'Pressing '+(a.key||'');
+    case'file_list':return'Looking in folder';
+    case'file_read':return'Reading file';
+    case'file_search':return'Searching files';
+    case'file_write':return'Writing file';
+    case'edit_file':return'Editing file';
+    case'file_mkdir':return'Making folder';
+    case'file_move':return'Moving file';
+    case'file_delete':return'Deleting file';
+    case'file_present':return'Showing file';
     case'termux_run':return'Running command';
     case'termux_write_file':return'Writing file';
     case'termux_read_file':return'Reading file';
@@ -135,6 +144,7 @@ async function execTool0(name,a,steps,fl){
   try{
     if(name.indexOf('screen_')===0||name==='ask_user'||name==='wait_for_user')return await screenTool(name,a,note,fl);
     if(name==='open_url'||name==='tap_when_visible'||name==='run_flow')return await fastTool(name,a,note,fl);
+    if(name.indexOf('file_')===0||name==='edit_file')return await fileTool(name,a,note,fl);
     if(name==='rules_read')return rulesTool(a,note,fl);
     if(name.indexOf('termux_')===0)return await termuxTool(name,a,note,fl);
     if(name.indexOf('memory_')===0)return await memoryTool(name,a,note,fl);
@@ -186,7 +196,7 @@ async function execTool(name,a,steps){
   if(name==='open_app'||name.indexOf('screen_')===0||own||/^(open_url|tap_when_visible|run_flow)$/.test(name))LEFT_APP=true;
   if(!own)pillShow(txt,12000,'pill','run');
   const res=await execTool0(name,a,steps,fl);
-  logAdd(fl.bad?'tool FAIL':'tool',logTool(name,a)+((name.indexOf('termux_')===0||name==='screen_read')?'':' -> '+cut(String(res).replace(/\s+/g,' '),140)));
+  logAdd(fl.bad?'tool FAIL':'tool',logTool(name,a)+((name.indexOf('termux_')===0||name.indexOf('file_')===0||name==='edit_file'||name==='screen_read')?'':' -> '+cut(String(res).replace(/\s+/g,' '),140)));
   if(!own){
     pillShow(txt,fl.bad?3000:6000,'pill',fl.bad?'fail':'ok');
     if(fl.bad)await sleep(1500);

@@ -12,8 +12,8 @@ async function runLoop(p){
   const rb=rulesBlock();if(rb)msgs[0].content+=rb;
   const guard={n:0};
   let tools=TOOLS;
-  SCR_STOP=false;LEFT_APP=false;PILL_ERR='';NS('reset').catch(()=>{});
-  const fin=async c=>{if(tools)await autoMem(p,msgs,used,c,steps);return{content:c,by,steps}};
+  FILE_TURN={w:'',p:{}};SCR_STOP=false;LEFT_APP=false;PILL_ERR='';NS('reset').catch(()=>{});
+  const fin=async c=>{if(tools){await autoMem(p,msgs,used,c,steps);if(typeof autoPresent==='function')await autoPresent()}return{content:c,by,steps}};
   const finChk=async c=>{
     if(fakeOut(c)){
       if(!guard.n){guard.n=1;msgs.push({role:'assistant',content:c},{role:'user',content:FAKE_MSG});logAdd('guard','AI ne khud tool-output jaisa likha, ek baar dobara pucha');return null}

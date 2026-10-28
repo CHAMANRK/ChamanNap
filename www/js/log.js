@@ -10,6 +10,9 @@ function logTool(name,a){
     case'screen_type':return name+' ('+String(a.text==null?'':a.text).length+' chars'+(a.submit?', enter':'')+')';
     case'send_sms':return name+' to '+cut(a.contact,40)+' ('+String(a.text||'').length+' chars)';
     case'termux_write_file':return name+' '+cut(a.path,120)+' ('+String(a.content==null?'':a.content).length+' chars)';
+    case'file_write':return name+' '+cut(a.path,120)+' ('+String(a.content==null?'':a.content).length+' chars)';
+    case'edit_file':return name+' '+cut(a.path,120)+' ('+(Array.isArray(a.edits)?a.edits.length:1)+' edits)';
+    case'file_search':return name+' '+cut(a.path,80)+' ('+String(a.query||'').length+' chars query)';
     case'termux_run':return name+' (details in termux entry)';
     case'memory_save':return name+' '+cut(a.project,40);
     case'open_url':return name+' '+cut(String(a.uri||'').replace(/([?&]text=).*/i,'$1...'),80)+(a.contact?' contact '+cut(a.contact,30):'')+(a.text?' ('+String(a.text).length+' chars)':'');

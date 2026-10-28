@@ -80,3 +80,22 @@ b{font-weight:700}i{font-style:italic}del{opacity:.65}
 :not(pre)>code{background:var(--code);border:1px solid var(--border);border-radius:6px;padding:1px 5px;font-size:13px}
 .lang{margin-right:auto;align-self:center;padding-left:8px;font:12px ui-monospace,Menlo,monospace;color:var(--muted)}
 .lnk{text-decoration:underline;color:var(--accent)}
+
+.afile{display:flex;align-items:center;gap:12px;width:100%;margin-top:8px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;text-align:left;white-space:normal}
+.afile:active{background:var(--code)}
+.aico{flex:none;width:38px;height:38px;border-radius:10px;background:var(--user);color:var(--accent);display:grid;place-items:center}
+.aico svg,.ago svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.atx{flex:1;min-width:0;display:flex;flex-direction:column}
+.atx b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.atx small{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ago{flex:none;color:var(--muted)}
+#viewer{position:fixed;inset:0;background:var(--bg);display:none;flex-direction:column;padding-top:env(safe-area-inset-top,0px);z-index:7}
+#viewer.open{display:flex}
+#viewer header h1{font-size:17px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#viewer-body{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
+#vfr{flex:1;width:100%;border:0;background:#fff}
+.vm{border:1px solid var(--border);border-radius:10px;padding:6px 12px;font-size:14px;color:var(--text)}
+.vmd,.vcodew{padding:14px 14px calc(24px + env(safe-area-inset-bottom,0px))}
+.vcodew .code{margin-top:0}
+.vimgw{padding:14px;display:grid;place-items:center}
+.vimgw img{max-width:100%;max-height:100%;border-radius:10px;background:#fff}

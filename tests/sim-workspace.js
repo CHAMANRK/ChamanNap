@@ -31,7 +31,7 @@ ctx.Capacitor={nativePromise:async(pl,m,o)=>{
  return{}}};
 vm.createContext(ctx);
 process.chdir(__dirname+'/../www');
-for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','fast','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
+for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','fast','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
 const cards=[];
 const clickWhenPending=async(o)=>{for(let i=0;i<300;i++){await new Promise(r=>setTimeout(r,5));const H=vm.runInContext('H',ctx);const idx=H.findIndex(m=>m.confirm&&m.confirm.state==='pending');if(idx>=0){const head=H[idx].content.split('\n')[0],why=H[idx].content.split('Wajah: ')[1];await handlers['#chat:click']({target:{closest:()=>({dataset:{m:String(idx),o}})}});return head+' | wajah: '+why}}return 'NO CARD'};
 (async()=>{

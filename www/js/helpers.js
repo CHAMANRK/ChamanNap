@@ -29,6 +29,6 @@ function aiText(m){
 }
 function acts(m,hi){
   if(!m.confirm||m.confirm.state!=='pending')return'';
-  const c=m.confirm,lab=c.type==='sms'?'Bhejo':c.type==='termux'?'Chalao':'Call karo';
+  const c=m.confirm,lab=c.lab||(c.type==='sms'?'Bhejo':c.type==='termux'?'Chalao':'Call karo');
   return'<div class="acts">'+c.opts.map((o,i)=>'<button type="button" class="abtn" data-m="'+hi+'" data-o="'+i+'">'+esc(c.opts.length>1?lab+': '+o.name:lab)+'</button>').join('')+'<button type="button" class="abtn x" data-m="'+hi+'" data-o="x">Cancel</button></div>';
 }

@@ -9,7 +9,7 @@ const $=s=>document.querySelector(s);
 const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}};
 const sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
 let S=Object.assign({theme:'auto',prov:'auto',system:DEF_SYS,keys:{},models:{},ptr:{},vision:{provider:'openrouter',model:'openrouter/free'},ch:{url:'https://chamanvip-chaman.hf.space',key:'',hf:''},ws:{auto:true},lg:{on:true},cc:'91'},ld('nap_s',{}));
-if([OLD_SYS,PREV_SYS,PREV2_SYS,PREV3_SYS,PREV4_SYS,PREV5_SYS,PREV6_SYS,PREV7_SYS,PREV8_SYS,PREV9_SYS,PREV10_SYS,PREV11_SYS,PREV12_SYS,PREV13_SYS].includes(S.system)){S.system=DEF_SYS;sv('nap_s',S)}
+if([OLD_SYS,PREV_SYS,PREV2_SYS,PREV3_SYS,PREV4_SYS,PREV5_SYS,PREV6_SYS,PREV7_SYS,PREV8_SYS,PREV9_SYS,PREV10_SYS,PREV11_SYS,PREV12_SYS,PREV13_SYS,PREV14_SYS].includes(S.system)){S.system=DEF_SYS;sv('nap_s',S)}
 const OLDM={groq:'llama-3.3-70b-versatile',cerebras:'llama-3.3-70b',openrouter:'meta-llama/llama-3.3-70b-instruct:free',nvidia:'meta/llama-3.3-70b-instruct'};
 Object.keys(OLDM).forEach(k=>{if(S.models&&S.models[k]===OLDM[k]){delete S.models[k];sv('nap_s',S)}});
 if(S.vision&&S.vision.provider==='nvidia'&&['nvidia/nemotron-3-ultra-550b-a55b','google/gemma-3-27b-it'].includes(S.vision.model)){S.vision={provider:'openrouter',model:'openrouter/free'};sv('nap_s',S)}
@@ -81,6 +81,6 @@ const stepsH=m=>m.steps&&m.steps.length?'<div class="steps">'+m.steps.map(esc).j
 function render(){
   const c=$('#chat');
   if(!H.length){c.innerHTML='<div class="empty"><b>Chaman</b>Kuch bhi pucho. Pehle Settings me keys daal do.</div>';return}
-  c.innerHTML=H.map((m,hi)=>m.role==='user'?'<div class="msg me">'+esc(m.content||'')+att(m)+'</div>':'<div class="msg ai'+(m.err?' err':'')+'">'+stepsH(m)+fmt(m.content)+acts(m,hi)+(m.by?'<span class="by">'+esc(m.by)+'</span>':'')+'</div>').join('');
+  c.innerHTML=H.map((m,hi)=>m.role==='user'?'<div class="msg me">'+esc(m.content||'')+att(m)+'</div>':'<div class="msg ai'+(m.err?' err':'')+'">'+stepsH(m)+fmt(m.content)+acts(m,hi)+(typeof artH==='function'?artH(m,hi):'')+(m.by?'<span class="by">'+esc(m.by)+'</span>':'')+'</div>').join('');
   c.scrollTop=c.scrollHeight;
 }

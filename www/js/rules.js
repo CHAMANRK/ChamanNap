@@ -1,13 +1,15 @@
 // Step10: rules per area (AI reads the app copy only), auto-injection by keywords, rules_read tool, skill (auto from TOOLS),
 // folder copy for Najeef in /sdcard/Chaman/memory/rules (read-only for him, AI never reads it), guard against fake tool output.
-const RULES_VER='2026-10-28.1';
+const RULES_VER='2026-10-28.2';
 const RULES={
-files:`FILES (needs Termux)
-- Workspace: /sdcard/Chaman. work/<project>/ for your files, memory/ for notes, backup/ (the app copies the old file there before an overwrite), logs/ (the app writes it, you never do). Always use full paths.
-- Look first: before editing a file you have not seen in this chat, use termux_read_file (shows lines and size) or ls -la and wc -l. Read big files in parts (start_line, max_lines) or find the spot with grep -n.
-- Smallest change: sed -i or a small patch. termux_write_file with full content only for a new file or when the whole file really changes. Never replace a big file with a shorter version of it.
-- Verify: read the changed part again or run a check (node --check, python -m py_compile, grep, wc -l) and report what it really shows.
-- Delete, or write outside the workspace, only with the confirm card. If he cancels, do not retry, ask what to do.
+files:`FILES (workspace /sdcard/Chaman; the file_* tools need no Termux, only the All files access permission for Chaman)
+- Layout: work/<project>/ your files, memory/ notes, backup/ (the app copies the old file there before every overwrite or edit), .trash/ (deleted items), logs/ (the app writes it, you never do). Paths: /sdcard/Chaman/... or relative to it. The file tools cannot go outside this folder.
+- Look first: file_list for a folder, file_read (start_line, max_lines) for a file you have not seen in this chat, file_search to find the spot in a big file. Read big files in parts.
+- Smallest change: edit_file (old must match exactly once: add surrounding lines; several changes in one call via edits, all or none). file_write only for a new file or when the whole file really changes. Never replace a big file with a shorter version of it.
+- Verify: edit_file returns the changed lines, so report from that. For code also run a check through Termux when it is set up (node --check, python -m py_compile). Report only what a tool result shows.
+- Delete = file_delete (confirm card, the item goes to .trash, nothing is erased). file_move renames or moves and fails if the target exists; use it to restore from .trash or backup/. If he cancels a card, do not retry, ask.
+- Show the result: after you made or changed a page, document or code he wants to see, call file_present once per file at the end. He gets a card he can open (HTML runs as a page, markdown and images render, code has a copy button). Not for memory, logs or backup files. If you skip it, the app adds a card for the last changed file itself.
+- Outside the workspace, zip, pdf, running code, many-file jobs: Termux (termux_run). Error NO_ACCESS: tell him to allow All files access for Chaman (Settings is opened for him).
 - Attachments: text files arrive as text. PDF, docx, zip, audio and video arrive as name and size only: use Termux (pdftotext, python, unzip) and say which tool is missing.`,
 memory:`MEMORY (needs Termux)
 - 'Memory me kya hai / kya save hai': call memory_read with no project (index and general), then memory_read only the project he asks about. Tell exactly what the files say. If a file is empty or missing, say that. Never guess or fill in.
@@ -53,7 +55,7 @@ const RULE_KW={
   skill:/kya\s*(kya\s*)?kar\s*sakt|tu kya|tum kya|capabilit|\bskills?\b|\btools?\b|features?|kya aata|what can you/i,
   links:/whatsapp|wa\.me|telegram|\blinks?\b|\burl\b|maps?\b|youtube|spotify|message|\bmsg\b|\bbhej|\bsms\b|\bmail|navigate|raasta|route|deep ?link/i,
   screen:/screen|\btap\b|click|scroll|instagram|phonepe|paytm|gpay|\bpin\b|accessib|app (me|mein|ke andar)|\bsend\b|settings|wifi|bluetooth|mobile data/i,
-  files:/\bfiles?\b|folder|\bcode\b|script|\bedit\b|bana(o|do|na)|\blikh|\bwrite\b|\bcreate\b|\bzip\b|\bpdf\b|project|\bwork\b|\.(py|js|html|css|txt|md|json|csv|apk)\b|\brename\b|\bmove\b|\bcopy\b|delete/i,
+  files:/\bfiles?\b|folder|artifact|preview|trash|\bcode\b|script|\bedit\b|bana(o|do|na)|\blikh|\bwrite\b|\bcreate\b|\bzip\b|\bpdf\b|project|\bwork\b|\.(py|js|html|css|txt|md|json|csv|apk)\b|\brename\b|\bmove\b|\bcopy\b|delete/i,
   memory:/memory|yaad|remember|\bsave\b|\bnotes?\b|\bindex\b|pichl|pehle|\bkal\b|history|\blogs?\b|kya save|recipes?/i,
   termux:/termux|command|\bpkg\b|\bgit\b|\bapt\b|\bnpm\b|python|\bnode\b|\bbash\b|\bcurl\b|install|update|upgrade|\brun\b|chalao|terminal|shell|\bls\b|\bcd\b/i,
   phone:/torch|flash|volume|brightness|\bcall\b|\bsms\b|contact|\bopen\b|khol|\bdial\b|ring|mute/i
@@ -93,7 +95,7 @@ function skillText(){
     return'- '+f.name+'('+ps.join(', ')+'): '+cut(String(f.description||'').split(/\.\s/)[0],170);
   });
   return'SKILL (what you can do; built from the tools of this app version)\n'+L.join('\n')
-   +'\nWorks without Termux: chat, phone tools, open_url, screen control (with Accessibility), reading text attachments. Needs Termux: files, running code, PDF/docx/zip, internet, memory notes between chats.'
+   +'\nWorks without Termux: chat, phone tools, open_url, screen control (with Accessibility), reading text attachments, files in /sdcard/Chaman (file_* tools and edit_file, needs All files access; file_present shows a file card). Needs Termux: running code, PDF/docx/zip, internet, memory notes between chats, files outside /sdcard/Chaman.'
    +'\nProviders with tools: Groq, Cerebras, OpenRouter, NVIDIA, Mistral. The Chaman model is chat-only.'
    +'\nNot possible yet: Termux:API (battery, camera, location...), Shizuku (wifi/bluetooth toggles), secrets vault, face lock. Do not claim them.';
 }

@@ -6,7 +6,7 @@ const pkgDir = path.join(root, 'android/app/src/main/java/com/chaman/nap');
 const resDir = path.join(root, 'android/app/src/main/res');
 fs.mkdirSync(pkgDir, { recursive: true });
 
-for (const f of ['PhoneControlPlugin.java', 'ScreenControlPlugin.java', 'ChamanAccessibilityService.java', 'TermuxPlugin.java', 'TermuxResultReceiver.java']) {
+for (const f of ['PhoneControlPlugin.java', 'ScreenControlPlugin.java', 'ChamanAccessibilityService.java', 'TermuxPlugin.java', 'TermuxResultReceiver.java', 'FilesPlugin.java']) {
   fs.copyFileSync(path.join(root, 'native', f), path.join(pkgDir, f));
 }
 
@@ -35,6 +35,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(PhoneControlPlugin.class);
         registerPlugin(ScreenControlPlugin.class);
         registerPlugin(TermuxPlugin.class);
+        registerPlugin(FilesPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
@@ -52,6 +53,9 @@ if (!m.includes('android.permission.READ_SMS')) {
     <uses-permission android:name="android.permission.WRITE_SETTINGS" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
     <queries>
         <package android:name="com.termux" />

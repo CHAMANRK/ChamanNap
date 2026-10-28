@@ -27,12 +27,12 @@ function liveRender(){
   $('#chat').scrollTop=1e9;
 }
 // Shows a confirm card in the chat and waits for the tap. Brings Chaman to the front if it is in the background.
-function tconfirm(head,body,why){
+function tconfirm(head,body,why,lab){
   return new Promise(res=>{
     const id='t'+Date.now()+Math.random().toString(36).slice(2,6);
     TCONF[id]=res;
     logAdd('confirm?',head+': '+cut(body,200)+' | wajah: '+why.join(', '));
-    H.push({role:'assistant',by:'Termux',local:1,content:head+':\n```\n'+noFence(cut(body,1500))+'\n```\nWajah: '+why.join(', '),confirm:{type:'termux',id,opts:[{name:''}],state:'pending'}});
+    H.push({role:'assistant',by:'Termux',local:1,content:head+':\n```\n'+noFence(cut(body,1500))+'\n```\nWajah: '+why.join(', '),confirm:{type:'termux',id,opts:[{name:''}],state:'pending',lab:lab||''}});
     NS('finish',{quiet:true}).catch(()=>{});
     liveRender();
     setTimeout(()=>{
