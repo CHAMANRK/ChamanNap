@@ -23,8 +23,8 @@ const NT=(m,o)=>NPx('Termux',m,o);
 const errMsg=e=>(e&&(e.message||e.errorMessage))||String(e);
 function persist(){sv('nap_h',H.map(m=>m.role==='user'?Object.assign({},m,{imgs:undefined,files:(m.files||[]).map(a=>({name:a.name,size:a.size,kind:a.kind}))}):m))}
 function aiText(m){
-  if(m.confirm)return'[Phone] '+(m.confirm.type==='sms'?'SMS bhejne ka confirm':m.confirm.type==='termux'?'Termux command/file ka confirm':'Call karne ka confirm')+' - '+m.confirm.state;
-  if(m.local)return'[Phone] '+(m.aiNote||m.content);
+  if(m.confirm)return'[app log] '+(m.confirm.type==='sms'?'SMS bhejne ka confirm':m.confirm.type==='termux'?'Termux command/file ka confirm':'Call karne ka confirm')+' - '+m.confirm.state;
+  if(m.local)return'[app log] '+(m.aiNote||m.content);
   return m.content;
 }
 function acts(m,hi){

@@ -13,7 +13,7 @@ const TOOLS=[
   fn('screen_click','Tap an element by id from the latest screen_read, or by its visible text.',{id:{type:'integer'},text:{type:'string'}}),
   fn('screen_type','Type text into a text box (id from screen_read, otherwise the focused or first text box). submit=true presses the keyboard Enter/Send key afterwards.',{text:{type:'string'},id:{type:'integer'},submit:{type:'boolean'}},['text']),
   fn('screen_scroll','Scroll the current screen.',{direction:{type:'string',enum:['up','down','left','right']}},['direction']),
-  fn('ask_user','Ask Najeef to do a simple action on the screen (for example tap the text area, open a menu, pick an option) and wait until he does it. message is shown over the screen as text; after is the short line shown once he is done. Use this instead of writing the request in your final reply. For PIN, password, OTP or fingerprint use wait_for_user.',{message:{type:'string'},after:{type:'string'},timeout_s:{type:'integer',minimum:10,maximum:300}},['message']),
+  fn('ask_user','Ask Najeef to do a simple action on the screen (for example tap the text area, open a menu, pick an option) and wait until he does it. message is shown over the screen as text; after is the short line shown once he is done. Only for actions on the screen, never for yes/no questions to Najeef (ask those in your reply). Use this instead of writing the request in your final reply. For PIN, password, OTP or fingerprint use wait_for_user.',{message:{type:'string'},after:{type:'string'},timeout_s:{type:'integer',minimum:10,maximum:300}},['message']),
   fn('wait_for_user','Pause until Najeef finishes something only he can do on screen: PIN, UPI PIN, password, pattern, fingerprint, OTP, captcha. reason is shown over the screen. Returns when the screen changes (or on timeout). Never tap or type on such screens yourself.',{reason:{type:'string'},timeout_s:{type:'integer',minimum:10,maximum:300}},['reason']),
   fn('screen_key','Press a system key or action.',{key:{type:'string',enum:['back','home','recents','notifications','quick_settings','lock','screenshot','enter']}},['key'])
 ];
@@ -31,6 +31,7 @@ function pillText(name,a){
     case'call':return'Preparing call';
     case'send_sms':return'Preparing SMS';
     case'read_sms':return'Reading SMS';
+    case'rules_read':return'Reading rules';
     case'open_url':return'Opening link';
     case'tap_when_visible':return'Tapping '+cut(a.text||'',30);
     case'run_flow':return'Running steps';
@@ -134,6 +135,7 @@ async function execTool0(name,a,steps,fl){
   try{
     if(name.indexOf('screen_')===0||name==='ask_user'||name==='wait_for_user')return await screenTool(name,a,note,fl);
     if(name==='open_url'||name==='tap_when_visible'||name==='run_flow')return await fastTool(name,a,note,fl);
+    if(name==='rules_read')return rulesTool(a,note,fl);
     if(name.indexOf('termux_')===0)return await termuxTool(name,a,note,fl);
     if(name.indexOf('memory_')===0)return await memoryTool(name,a,note,fl);
     if(name==='torch'){const r=await NP('torch',a.state==='on'?{on:true}:a.state==='off'?{on:false}:{});return note('Torch '+(r.on?'on':'off')+' hai.')}

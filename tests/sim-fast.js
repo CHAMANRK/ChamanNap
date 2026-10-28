@@ -32,7 +32,7 @@ ctx.Capacitor={nativePromise:async(pl,m,o)=>{log.push(pl+'.'+m+(o&&Object.keys(o
  if(m==='click')return{label:'Send'};
  return{}}};
 vm.createContext(ctx);
-for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','fast','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
+for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','fast','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
 (async()=>{
  vm.runInContext("S.keys.groq='gsk_t';S.prov='groq';",ctx);
  els['#in'].value='whatsapp pe rahul ko hii bhejo';
@@ -44,6 +44,6 @@ for(const f of ['prompts','core','providers','chat','settings','attach','keys','
  console.log('number leaked to AI:',/9876543210|919876543210|9111122222/.test(all));
  console.log('typed text leaked to AI:',/secret-msg-123/.test(all));
  console.log('tools registered:',vm.runInContext("TOOLS.filter(t=>/open_url|tap_when_visible|run_flow/.test(t.function.name)).length",ctx));
- console.log('DEF_SYS has FAST PATH:',vm.runInContext("DEF_SYS.includes('FAST PATH')&&!PREV12_SYS.includes('FAST PATH')",ctx));
+ console.log('DEF_SYS has FAST PATH:',vm.runInContext("RULES.links.includes('FAST PATH')&&PREV13_SYS.includes('FAST PATH')",ctx));
  const lg=vm.runInContext("LOGQ.map(x=>x.text).join('\\n')",ctx);console.log('log leaks text:',/Hii bhai|secret-msg/.test(lg));
 })().catch(e=>{console.error('ERR',e);process.exit(1)});

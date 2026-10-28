@@ -13,7 +13,7 @@ const RISKS=[
   [/\b(apt|apt-get|pkg|pip3?|npm|yarn|cargo|gem)\s+(install|i|add|upgrade|full-upgrade|dist-upgrade|remove|uninstall|purge|autoremove)\b/i,'package install/upgrade/remove'],
   [/\b(curl|wget)\b[^|;]*\|\s*(sudo\s+)?(ba|z)?sh\b/,'download karke chalana'],
   [/\b(mv|cp|rsync)\b[^;|&]*\/(sdcard|storage)\b/,'sdcard me move/copy'],
-  [/>>?\s*\/(sdcard|storage|data|system|dev)\b/,'bahar ki jagah likhna'],
+  [/>>?\s*\/(sdcard|storage|data|system|dev(?!\/(null|stderr|stdout)\b))\b/,'bahar ki jagah likhna'],
   [/\bfind\s+\/(\s|$)|\b(grep|du|ls)\b[^;|&]*\s-\w*[rR]\w*\s+\/(\s|$)/,'poori disk scan'],
   [/\bwhile\s+(true|:)\b|:\s*\(\s*\)\s*\{|\bfor\s*\(\(/,'infinite loop ho sakta hai'],
   [/\b(make|cmake|cargo\s+build|gradle|ffmpeg|tar|zip|7z|git\s+clone|docker)\b/,'heavy kaam']

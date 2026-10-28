@@ -9,17 +9,26 @@ async function runWithTools(p){
 async function runLoop(p){
   const msgs=apiMsgs(false),steps=[],by=p.name.replace(' (optional)',''),used={run:0,write:false,mem:false};
   const mem=await wsLoadMem();if(mem)msgs[0].content+=mem;
+  const rb=rulesBlock();if(rb)msgs[0].content+=rb;
+  const guard={n:0};
   let tools=TOOLS;
   SCR_STOP=false;LEFT_APP=false;PILL_ERR='';NS('reset').catch(()=>{});
   const fin=async c=>{if(tools)await autoMem(p,msgs,used,c,steps);return{content:c,by,steps}};
+  const finChk=async c=>{
+    if(fakeOut(c)){
+      if(!guard.n){guard.n=1;msgs.push({role:'assistant',content:c},{role:'user',content:FAKE_MSG});logAdd('guard','AI ne khud tool-output jaisa likha, ek baar dobara pucha');return null}
+      c=FAKE_WARN+c;
+    }
+    return await fin(c);
+  };
   for(let n=0;n<20;n++){
     let out;
     try{out=await callOpenAI(p,msgs,undefined,tools)}
     catch(e){if(e.noTools&&tools){tools=null;n--;continue}throw e}
     if(out===null)return null;
-    if(typeof out==='string')return await fin(out.trim());
+    if(typeof out==='string'){const r=await finChk(out.trim());if(r)return r;continue}
     const tc=out.tool_calls||[];
-    if(!tc.length)return await fin((out.content||'').trim()||'(khaali jawab)');
+    if(!tc.length){const r=await finChk((out.content||'').trim()||'(khaali jawab)');if(r)return r;continue}
     msgs.push({role:'assistant',content:out.content||'',tool_calls:tc});
     for(const c of tc){
       let args={};try{args=JSON.parse(c.function.arguments||'{}')}catch(e){}

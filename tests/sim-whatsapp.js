@@ -23,7 +23,7 @@ ctx.Capacitor={nativePromise:async(pl,m,o)=>{log.push(pl+'.'+m+(o&&Object.keys(o
  if(m==='click')return{label:o.text||'Rahul'};
  return{}}};
 ctx.window=ctx;vm.createContext(ctx);
-for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','fast','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
+for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','fast','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
 (async()=>{
  vm.runInContext("S.keys.groq='gsk_t';S.prov='groq';",ctx);
  els['#in'].value='whatsapp pe rahul ko Hii bhejo';
@@ -31,5 +31,5 @@ for(const f of ['prompts','core','providers','chat','settings','attach','keys','
  console.log(log.join('\n'));
  const H=vm.runInContext('H',ctx);const last=H[H.length-1];
  console.log('FINAL:',last.content,'| by',last.by);console.log('STEPS:',last.steps.join(' / '));
- console.log('DEF_SYS has screen:',vm.runInContext("DEF_SYS.includes('SCREEN CONTROL')&&!DEF_SYS.includes('Other phone control: wifi')",ctx));
+ console.log('DEF_SYS has screen:',vm.runInContext("RULES.screen.includes('SCREEN CONTROL')&&DEF_SYS.includes('WORKFLOW')",ctx));
 })().catch(e=>{console.error('ERR',e);process.exit(1)});
