@@ -21,7 +21,7 @@ const NP=(m,o)=>NPx('PhoneControl',m,o);
 const NS=(m,o)=>NPx('ScreenControl',m,o);
 const NT=(m,o)=>NPx('Termux',m,o);
 const errMsg=e=>(e&&(e.message||e.errorMessage))||String(e);
-function persist(){sv('nap_h',H.map(m=>m.role==='user'?Object.assign({},m,{imgs:undefined,files:(m.files||[]).map(a=>({name:a.name,size:a.size,kind:a.kind}))}):m))}
+function persist(){sv('nap_h',H.map(m=>m.role==='user'?Object.assign({},m,{imgs:undefined,files:(m.files||[]).map(a=>({name:a.name,size:a.size,kind:a.kind,path:a.path}))}):m))}
 function aiText(m){
   if(m.confirm)return'[app log] '+(m.confirm.type==='sms'?'SMS bhejne ka confirm':m.confirm.type==='termux'?'Termux command/file ka confirm':'Call karne ka confirm')+' - '+m.confirm.state;
   if(m.local)return'[app log] '+(m.aiNote||m.content);

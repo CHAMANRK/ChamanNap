@@ -208,6 +208,7 @@ function drawViewer(){
   $('#vmode').style.display=canToggle?'':'none';
   $('#vmode').textContent=v.mode==='preview'?'Code':'Preview';
   $('#vcopy').style.display=(!v.load&&!v.err&&v.text!=null)?'':'none';
+  $('#vsave').style.display=(!v.load&&!v.err)?'':'none';
   if(v.load){b.innerHTML='<p class="hint" style="padding:16px">Khul raha hai...</p>';return}
   if(v.err){b.innerHTML='<p class="hint" style="padding:16px">'+esc(v.err)+'</p>';return}
   if(v.a.kind==='img'){b.innerHTML='<div class="vimgw"><img alt="" src="'+v.img+'"></div>';return}
@@ -234,3 +235,44 @@ $('#viewer-body').addEventListener('click',e=>{
   const c=b.closest('.code').querySelector('code');
   copyTxt(c.textContent).then(()=>{b.innerHTML=ICO_OK;setTimeout(()=>{b.innerHTML=ICO_COPY},1500)});
 });
+
+// ---- uploads: every attached file is copied to /sdcard/Chaman/work/uploads so the file tools can edit it ----
+const UP_DIR=WS_ROOT+'/work/uploads',UP_CHUNK=393216,UP_MAX=8*1024*1024;
+const upClean=n=>String(n||'file').replace(/[\\/:*?"<>|\u0000-\u001f]+/g,'_').replace(/^\.+/,'').trim().slice(-80)||'file';
+function upB64(u8){let s='';for(let i=0;i<u8.length;i+=8192)s+=String.fromCharCode.apply(null,u8.subarray(i,i+8192));return btoa(s)}
+async function upUnique(name){
+  let p=UP_DIR+'/'+name;
+  if(!(await NF('stat',{path:p})).exists)return p;
+  const m=name.match(/^(.*?)(\.[^.]*)?$/),d=new Date(),z=n=>String(n).padStart(2,'0'),ts=z(d.getHours())+z(d.getMinutes())+z(d.getSeconds());
+  for(let k=0;k<20;k++){
+    p=UP_DIR+'/'+m[1]+'-'+ts+(k?'-'+k:'')+(m[2]||'');
+    if(!(await NF('stat',{path:p})).exists)return p;
+  }
+  throw new Error('Naam nahi mila');
+}
+// Saves the original bytes of each attachment (a.file) and sets a.path, or a.saveErr. Never throws: sending the message must not fail because of this.
+async function saveUploads(list){
+  for(const a of list){
+    if(!a||!a.file)continue;
+    try{
+      if(a.size>UP_MAX){a.saveErr='file 8MB se badi hai';continue}
+      const p=await upUnique(upClean(a.name)),buf=new Uint8Array(await a.file.arrayBuffer());
+      for(let i=0;;i+=UP_CHUNK){
+        await NF('writeB64',{path:p,b64:upB64(buf.subarray(i,i+UP_CHUNK)),append:i>0});
+        if(i+UP_CHUNK>=buf.length)break;
+      }
+      a.path=p;
+    }catch(e){
+      a.saveErr=e&&e.code==='NO_ACCESS'?'All files access nahi hai':errMsg(e);
+      if(e&&e.code==='NO_ACCESS'&&!FILES_HINTED){FILES_HINTED=true;NF('requestAccess').catch(()=>{})}
+    }
+  }
+}
+// Viewer button: copy the open file to the phone's Download folder (a tap by Najeef, there is no AI tool for it).
+$('#vsave').onclick=async()=>{
+  if(!VW||VW.load||VW.err)return;
+  const t=$('#vtitle'),keep=VW.a.title||VW.a.name;
+  try{const r=await NF('exportTo',{path:VW.a.path});t.textContent='Saved: '+r.to.replace('/sdcard/','')}
+  catch(e){t.textContent=e&&e.code==='NOT_FOUND'?'File nahi mili':'Save fail: '+cut(errMsg(e),40)}
+  setTimeout(()=>{if(VW&&(VW.a.title||VW.a.name)===keep)t.textContent=keep},3000);
+};

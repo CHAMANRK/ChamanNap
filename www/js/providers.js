@@ -35,10 +35,11 @@ async function callChaman(msgs){
 function userText(m,vision,last){
   let t=m.content||'';
   (m.files||[]).forEach(a=>{
-    if(a.kind==='text'&&a.body!=null)t+='\n\n[File: '+a.name+' ('+kb(a.size)+')'+(a.cut?', sirf pehla hissa':'')+']\n'+a.body;
-    else if(a.kind==='text')t+='\n\n[File '+a.name+' pehle attach hui thi, ab uska content available nahi]';
-    else if(a.kind==='img'){if(!(vision&&last&&m.imgs&&m.imgs.length))t+='\n\n[Image attached: '+a.name+' - tumhe ye dikhti nahi]'}
-    else t+='\n\n[File attached: '+a.name+', '+kb(a.size)+'. App iska content padh nahi sakta, sirf naam aur size pata hai]';
+    const sv=a.path?'\n[Saved copy: '+a.path+' - file_read / edit_file work on this copy, the original on his phone is not changed]':(a.saveErr?'\n[Copy could not be saved in the workspace: '+a.saveErr+']':'');
+    if(a.kind==='text'&&a.body!=null)t+='\n\n[File: '+a.name+' ('+kb(a.size)+')'+(a.cut?', sirf pehla hissa; baaki file_read se padho':'')+']'+sv+'\n'+a.body;
+    else if(a.kind==='text')t+='\n\n[File '+a.name+' pehle attach hui thi, ab chat me uska content nahi]'+(a.path?sv:'')+(a.path?'':'\n[Content available nahi]');
+    else if(a.kind==='img'){if(!(vision&&last&&m.imgs&&m.imgs.length))t+='\n\n[Image attached: '+a.name+' - tumhe ye dikhti nahi]'+sv}
+    else t+='\n\n[File attached: '+a.name+', '+kb(a.size)+'. Content chat me nahi hai'+(a.path?'; use the saved copy: Termux (pdftotext, unzip, python) or file tools if it is text':', sirf naam aur size pata hai')+']'+sv;
   });
   return t.trim()||'(attachment)';
 }

@@ -596,6 +596,63 @@ public class FilesPlugin extends Plugin {
         }
     }
 
+    // writeB64: write (append=false, the file must not exist yet) or append (append=true) a chunk of base64 data. Used for uploads.
+    @PluginMethod
+    public void writeB64(PluginCall call) {
+        try {
+            need();
+            File c = resolve(call.getString("path", ""));
+            writable(c);
+            String b64 = call.getString("b64", "");
+            boolean app = Boolean.TRUE.equals(call.getBoolean("append", false));
+            byte[] data = (b64 == null || b64.isEmpty()) ? new byte[0] : Base64.decode(b64, Base64.DEFAULT);
+            if (c.isDirectory()) throw new Fail("NOT_FILE", "Is naam ka folder hai, file nahi.");
+            if (!app && c.exists()) throw new Fail("EXISTS", "File pehle se hai, kuch nahi badla.");
+            if (app && !c.isFile()) throw new Fail("NOT_FOUND", "Append ke liye file nahi mili.");
+            if (c.length() + data.length > MAX_FILE) throw new Fail("TOO_BIG", "File 8MB se badi hai.");
+            File dir = c.getParentFile();
+            if (dir != null) dir.mkdirs();
+            OutputStream out = new FileOutputStream(c, app);
+            try {
+                out.write(data);
+            } finally {
+                out.close();
+            }
+            JSObject r = new JSObject();
+            r.put("path", shown(c));
+            r.put("size", c.length());
+            call.resolve(r);
+        } catch (Exception e) {
+            fail(call, e);
+        }
+    }
+
+    // exportTo: copy a workspace file to the phone's Download folder (the user taps a button; the AI has no tool for this).
+    @PluginMethod
+    public void exportTo(PluginCall call) {
+        try {
+            need();
+            File c = resolve(call.getString("path", ""));
+            if (!c.isFile()) throw new Fail("NOT_FOUND", "File nahi mili.");
+            if (c.length() > MAX_FILE) throw new Fail("TOO_BIG", "File 8MB se badi hai.");
+            File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+            if (!dir.isDirectory() && !dir.mkdirs()) throw new Fail("MKDIR", "Download folder nahi mila.");
+            String name = c.getName();
+            int dot = name.lastIndexOf('.');
+            String base = dot > 0 ? name.substring(0, dot) : name, ex = dot > 0 ? name.substring(dot) : "";
+            File d = new File(dir, name);
+            int k = 1;
+            while (d.exists()) d = new File(dir, base + " (" + (k++) + ")" + ex);
+            copyFile(c, d);
+            JSObject r = new JSObject();
+            r.put("to", "/sdcard/Download/" + d.getName());
+            r.put("bytes", d.length());
+            call.resolve(r);
+        } catch (Exception e) {
+            fail(call, e);
+        }
+    }
+
     @PluginMethod
     public void mkdir(PluginCall call) {
         try {

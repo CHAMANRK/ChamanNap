@@ -1,6 +1,6 @@
 // Step10: rules per area (AI reads the app copy only), auto-injection by keywords, rules_read tool, skill (auto from TOOLS),
 // folder copy for Najeef in /sdcard/Chaman/memory/rules (read-only for him, AI never reads it), guard against fake tool output.
-const RULES_VER='2026-10-28.4';
+const RULES_VER='2026-10-28.5';
 const RULES={
 files:`FILES (workspace /sdcard/Chaman; the file_* tools need no Termux, only the All files access permission for Chaman)
 - Layout: work/<project>/ your files, memory/ notes, backup/ (the app copies the old file there before every overwrite or edit), .trash/ (deleted items), logs/ (the app writes it, you never do). Paths: /sdcard/Chaman/... or relative to it. The file tools cannot go outside this folder.
@@ -10,7 +10,7 @@ files:`FILES (workspace /sdcard/Chaman; the file_* tools need no Termux, only th
 - Delete = file_delete (confirm card, the item goes to .trash, nothing is erased). file_move renames or moves and fails if the target exists; use it to restore from .trash or backup/. If he cancels a card, do not retry, ask.
 - Show the result: after you made or changed a page, document or code he wants to see, call file_present once per file at the end. He gets a card he can open (HTML shows as a static page: scripts do not run in the preview, so make it self-contained, one .html file with inline CSS; a local .css or image next to it is inlined; markdown and images render, code has a copy button). Not for memory, logs or backup files. If you skip it, the app adds a card for the last changed file itself.
 - Outside the workspace, zip, pdf, running code, many-file jobs: Termux (termux_run). Error NO_ACCESS: tell him to allow All files access for Chaman (Settings is opened for him).
-- Attachments: text files arrive as text. PDF, docx, zip, audio and video arrive as name and size only: use Termux (pdftotext, python, unzip) and say which tool is missing.`,
+- Attachments: every attached file is copied to /sdcard/Chaman/work/uploads/ (the message says the exact path). To change an attached file, edit THAT copy with file_read / edit_file (his original on the phone is not touched), then show it with file_present: the card has a button that saves the result to his Download folder. Text files also arrive in the chat (big ones only the start: read the rest with file_read). PDF, docx, zip, audio and video arrive as name and size only: use Termux on the saved path (pdftotext, python, unzip) and say which tool is missing. If the message says the copy could not be saved, tell him (usually All files access).`,
 notes:`NOTES (Najeef's own text that must come back exactly: a command, link, snippet; works without Termux)
 - He says 'isko save kar lo', 'jab main bolu X to ye dena', or gives a command and says to keep it: call note_save. name = short name he will ask for (like update command), text = his text copied EXACTLY from his message (no backticks around it, never changed or shortened), tags = other words he may use. The app refuses text that is not in his message.
 - He asks for it later ('update command do', 'wo command dena'): call note_get with his words. The app shows the note card itself and you never get the text, so never write the command yourself. After the card say one short line.
