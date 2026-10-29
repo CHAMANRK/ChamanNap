@@ -1,10 +1,10 @@
 // Step9 fast path: open_url (deep links), tap_when_visible (wait + tap, no AI calls), run_flow (many screen steps, no AI calls).
 const FAST_SCH=/^(https?|tel|sms|smsto|mailto|geo|whatsapp|tg|upi|market|google\.navigation|youtube|vnd\.youtube|spotify):/i;
-const FAST_DO=['open_app','open_url','wait','wait_for','click','type','key','scroll'];
+const FAST_DO=['open_app','open_url','open_intent','wait','wait_for','click','type','key','scroll'];
 TOOLS.push(
   fn('open_url','Open a link or deep link directly in the right app, with no screen reading (the cheapest way). In uri you may use {number} (the app fills the phone number of contact itself, in international format; you never see numbers) and {text} (replaced by the url-encoded text param). Allowed: https, http, tel and sms (these only open the dialer or composer, nothing is called or sent), mailto, geo, whatsapp, tg, upi, market, google.navigation, youtube, spotify. app = optional Android package name (com.whatsapp, org.telegram.messenger) so no app chooser appears. Example WhatsApp message: uri https://wa.me/{number}?text={text}, contact Rahul, text Hii, app com.whatsapp. That only opens the chat with the text filled in; sending needs tap_when_visible on Send.',{uri:{type:'string'},contact:{type:'string'},text:{type:'string'},app:{type:'string'}},['uri']),
   fn('tap_when_visible','Wait until a button or text shows on screen, then tap it. The app checks the screen by itself, so it costs no extra AI calls. text can hold alternatives separated by | (for example Send|भेजें). app = optional package name the screen must belong to (com.whatsapp), so a button in the wrong app is never tapped. Needs Accessibility.',{text:{type:'string'},app:{type:'string'},timeout_s:{type:'integer',minimum:2,maximum:60}},['text']),
-  fn('run_flow','Run many steps by itself, without asking the AI after each one. Plan the whole task once, then call this. steps (max 15), each an object with do = open_app {name} | open_url {uri, contact, text, app} | wait {seconds} | wait_for {text, app, timeout_s} (until text is visible) | click {text, app, timeout_s} (waits until visible, then taps) | type {text, submit} | key {key: back/home/recents/notifications/quick_settings/lock/screenshot/enter} | scroll {direction}. It stops at the first failure and returns the reason with the current screen. On success it returns the final screen so you can verify without another screen_read. There are no call or SMS steps: use the call and send_sms tools. PIN and password screens pause for Najeef automatically.',{steps:{type:'array',maxItems:15,items:{type:'object',properties:{do:{type:'string',enum:FAST_DO},name:{type:'string'},uri:{type:'string'},contact:{type:'string'},text:{type:'string'},app:{type:'string'},seconds:{type:'number'},timeout_s:{type:'integer'},submit:{type:'boolean'},key:{type:'string'},direction:{type:'string',enum:['up','down','left','right']}},required:['do']}}},['steps'])
+  fn('run_flow','Run many steps by itself, without asking the AI after each one. Plan the whole task once, then call this. steps (max 15), each an object with do = open_app {name} | open_url {uri, contact, text, app} | open_intent {name, params, app} | wait {seconds} | wait_for {text, app, timeout_s} (until text is visible) | click {text, app, timeout_s} (waits until visible, then taps) | type {text, submit} | key {key: back/home/recents/notifications/quick_settings/lock/screenshot/enter} | scroll {direction}. It stops at the first failure and returns the reason with the current screen. On success it returns the final screen so you can verify without another screen_read. There are no call or SMS steps: use the call and send_sms tools. PIN and password screens pause for Najeef automatically.',{steps:{type:'array',maxItems:15,items:{type:'object',properties:{do:{type:'string',enum:FAST_DO},name:{type:'string'},uri:{type:'string'},contact:{type:'string'},text:{type:'string'},app:{type:'string'},seconds:{type:'number'},timeout_s:{type:'integer'},submit:{type:'boolean'},key:{type:'string'},direction:{type:'string',enum:['up','down','left','right']}},required:['do']}}},['steps'])
 );
 function fastNum(n){
   let d=String(n||'').trim();
@@ -86,6 +86,7 @@ async function fastStep(s){
   const d=String(s.do||'');
   if(d==='open_app'){const r=await NP('openApp',{name:String(s.name||'')});await sleep(1500);return r.label+' khul gaya.'}
   if(d==='open_url')return await fastUrl(s);
+  if(d==='open_intent')return await intentStep(s);
   if(d==='wait'){const sec=Math.min(10,Math.max(0.5,+s.seconds||1));await sleep(sec*1000);return sec+'s ruka.'}
   if(d==='wait_for'||d==='click'){
     const tg=fastTg(s.text);if(!tg.length)throw new Error('text nahi diya.');
@@ -106,16 +107,16 @@ async function fastStep(s){
 }
 const fastScr=d=>d==='wait_for'||d==='click'||d==='type'||d==='key'||d==='scroll';
 async function fastTool(name,a,note,fl){
-  const st=name==='run_flow'?(Array.isArray(a.steps)?a.steps.slice(0,15):[]):[name==='open_url'?{do:'open_url',uri:a.uri,contact:a.contact,text:a.text,app:a.app}:{do:'click',text:a.text,app:a.app,timeout_s:a.timeout_s}];
+  const st=name==='run_flow'?(Array.isArray(a.steps)?a.steps.slice(0,15):[]):[name==='open_url'?{do:'open_url',uri:a.uri,contact:a.contact,text:a.text,app:a.app}:name==='open_intent'?{do:'open_intent',name:a.name,params:a.params,app:a.app}:{do:'click',text:a.text,app:a.app,timeout_s:a.timeout_s}];
   if(!st.length){fl.bad=true;return note('Flow me steps nahi diye.')}
-  const t0=Date.now(),many=st.length>1;let scr=false,done=0;
+  const t0=Date.now(),many=st.length>1;let scr=false,done=0,lastMsg='';
   for(let i=0;i<st.length;i++){
     const s=st[i]||{},d=String(s.do||'');
     if(Date.now()-t0>150000){fl.bad=true;return note('Flow ka time limit (150s) ho gaya, step '+(i+1)+' se pehle ruka.')+' '+done+' step ho chuke.'}
     if(many)pillShow('Step '+(i+1)+'/'+st.length+': '+(d==='click'||d==='wait_for'?cut(s.text||'',24):d.replace('_',' ')),12000,'pill','run');
     try{
       const m=await fastStep(s);
-      note(many?(i+1)+'/'+st.length+' '+m:m);done++;
+      note(many?(i+1)+'/'+st.length+' '+m:m);done++;lastMsg=m;
       if(fastScr(d))scr=true;
     }catch(e){
       const c=e&&e.code;
@@ -129,5 +130,5 @@ async function fastTool(name,a,note,fl){
   }
   let snap='';
   if(scr){await sleep(600);try{snap=fastSnap(await NS('read'))}catch(x){}}
-  return(many?'Flow poora ('+done+' steps).':'Ho gaya.')+(snap?' Final screen (isse verify karo):'+snap:' Screen verify nahi hui (koi screen step nahi tha).');
+  return(many?'Flow poora ('+done+' steps).':(lastMsg||'Ho gaya.'))+(snap?' Final screen (isse verify karo):'+snap:' Screen verify nahi hui (koi screen step nahi tha).');
 }

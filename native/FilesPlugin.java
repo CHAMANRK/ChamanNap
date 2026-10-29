@@ -489,7 +489,7 @@ public class FilesPlugin extends Plugin {
             if (c.isDirectory()) throw new Fail("NOT_FILE", "Is naam ka folder hai, file nahi.");
             boolean existed = c.isFile();
             long old = existed ? c.length() : 0;
-            boolean backed = existed && backup(c);
+            boolean backed = existed && !Boolean.FALSE.equals(call.getBoolean("backup", true)) && backup(c);
             writeText(c, content);
             JSObject r = new JSObject();
             r.put("path", shown(c));
@@ -590,6 +590,37 @@ public class FilesPlugin extends Plugin {
             r.put("newBytes", c.length());
             r.put("totalLines", countLines(cur));
             r.put("snippet", sn.toString());
+            call.resolve(r);
+        } catch (Exception e) {
+            fail(call, e);
+        }
+    }
+
+    // append: add text at the end of a file (created when missing), no backup. Used for memory notes and the memory index.
+    @PluginMethod
+    public void append(PluginCall call) {
+        try {
+            need();
+            File c = resolve(call.getString("path", ""));
+            writable(c);
+            String content = call.getString("content", "");
+            if (content == null) content = "";
+            if (c.isDirectory()) throw new Fail("NOT_FILE", "Is naam ka folder hai, file nahi.");
+            byte[] data = content.getBytes(StandardCharsets.UTF_8);
+            boolean existed = c.isFile();
+            if (c.length() + data.length > MAX_FILE) throw new Fail("TOO_BIG", "File 8MB se badi ho jayegi.");
+            File dir = c.getParentFile();
+            if (dir != null) dir.mkdirs();
+            OutputStream out = new FileOutputStream(c, true);
+            try {
+                out.write(data);
+            } finally {
+                out.close();
+            }
+            JSObject r = new JSObject();
+            r.put("path", shown(c));
+            r.put("created", !existed);
+            r.put("size", c.length());
             call.resolve(r);
         } catch (Exception e) {
             fail(call, e);

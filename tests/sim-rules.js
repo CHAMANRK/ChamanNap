@@ -4,6 +4,8 @@ const mk=sel=>{const o={value:'',style:{},dataset:{},options:[],classList:{add()
  let h='';Object.defineProperty(o,'innerHTML',{get(){return h},set(v){h=v;if(sel==='#prov')o.options=v.split('<option').slice(1)}});return o};
 const doc={querySelector:s=>els[s]||(els[s]=mk(s)),createElement:()=>mk('c'),body:mk('body'),documentElement:{dataset:{}}};
 const store={};let n=0;const tcmds=[],reqs=[];
+const FS={'/sdcard/Chaman/memory/_index.md':'# Memory index\n- x - y\n','/sdcard/Chaman/memory/general.md':'# general\n'};
+const FILES=require('./files-fake.js')(FS,{});
 const tc=(id,name,args)=>({id,type:'function',function:{name,arguments:JSON.stringify(args)}});
 const script=[
  'Aapke repo me ye hua:\n[Phone] $ git log --oneline (exit 0)\n4bd7b7f Implement Angular 17.3',            // 1 fake -> guard retry
@@ -19,6 +21,7 @@ const ctx={document:doc,localStorage:{getItem:k=>store[k]||null,setItem:(k,v)=>{
  fetch:async(u,o)=>{reqs.push(JSON.parse(o.body));const s=script[n++];const msg=typeof s==='string'?{role:'assistant',content:s}:{role:'assistant',content:null,tool_calls:s};return{ok:true,status:200,json:async()=>({choices:[{message:msg}]}),text:async()=>''}}};
 ctx.window=ctx;
 ctx.Capacitor={nativePromise:async(pl,m,o)=>{
+ if(pl==='Files')return FILES(m,o);
  if(pl==='Termux'&&m==='run'){tcmds.push(o.command);const c=o.command;
   if(c.includes('echo NEEDDESC'))return{stdout:'NEEDDESC',exitCode:0};
   if(c.includes('echo SAVED')||c.includes('SAVED $('))return{stdout:'SAVED 120',exitCode:0};
@@ -27,7 +30,7 @@ ctx.Capacitor={nativePromise:async(pl,m,o)=>{
   return{stdout:'',exitCode:0}}
  return{}}};
 vm.createContext(ctx);
-for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','notes','slash','fast','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
+for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','notes','slash','fast','intents','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
 const ev=s=>vm.runInContext(s,ctx);
 const send=async t=>{els['#in'].value=t;await handlers['#f:submit']({preventDefault(){}})};
 (async()=>{
@@ -59,6 +62,6 @@ const send=async t=>{els['#in'].value=t;await handlers['#f:submit']({preventDefa
  const sk=ev('skillText()');
  console.log('skill lists all tools:',ev("TOOLS.every(t=>skillText().includes('- '+t.function.name+'('))"),'| skill chars:',sk.length);
  await new Promise(r=>setTimeout(r,200));
- console.log('rules folder sync wrote files:',tcmds.filter(c=>c.includes('RW_OK')).length,'| S.rv set:',ev('S.rv===RULES_VER'),'| index line added:',tcmds.some(c=>c.includes('- rules/ -')));
- console.log('rules copy has header:',tcmds.some(c=>c.includes('AI app wali padhta hai')));
+ console.log('rules folder sync wrote files:',Object.keys(FS).filter(k=>k.includes('/memory/rules/')).length,'| S.rv set:',ev('S.rv===RULES_VER'),'| index line added:',FS['/sdcard/Chaman/memory/_index.md'].includes('- rules/ -'));
+ console.log('rules copy has header:',Object.values(FS).some(c=>c.includes('AI app wali padhta hai')));
 })().catch(e=>{console.error('ERR',e);process.exit(1)});

@@ -14,6 +14,8 @@ TOOLS.push(
 );
 let FILES_HINTED=false,FILE_TURN={w:'',p:{}};
 const fNotes=q=>q===WS_ROOT+'/notes'||q.indexOf(WS_ROOT+'/notes/')===0;
+const fMem=q=>q===WS_ROOT+'/memory'||q.indexOf(WS_ROOT+'/memory/')===0;
+const memGate=(p,verb,body)=>tconfirm('memory/ me seedha '+verb+' - confirm',fRel(p)+'\n\n'+cut(body,300),['memory/ AI ke yaad rakhne ke notes hain, normal raasta memory_save hai; ye seedha badlav hai'],'Badlo');
 const NOTES_MSG='notes/ Najeef ke notes ka folder hai, file tools yahan nahi chalte. Notes ke liye note_save / note_get use karo.';
 const fRel=p=>String(p==null?'':p).replace(WS_ROOT+'/','');
 // Normalises to /sdcard/Chaman/...; '' when the path is outside the workspace.
@@ -73,6 +75,7 @@ async function fileTool(name,a,note,fl){
       const f=String(a.from||'').trim()?fpath(a.from):'',t=String(a.to||'').trim()?fpath(a.to):'';
       if(!f||!t)return bad('from aur to dono /sdcard/Chaman ke andar ke path hone chahiye.');
       if(fNotes(f)||fNotes(t))return bad(NOTES_MSG);
+      if((fMem(f)||fMem(t))&&!(await memGate(f,'move karna',fRel(f)+' -> '+fRel(t))))return bad('Najeef ne move cancel kiya.')+' Dobara mat karo, pucho kya karna hai.';
       const r=await NF('move',{from:f,to:t});
       fSay('Move: `'+fRel(r.from)+'` -> `'+fRel(r.to)+'`','file_move '+fRel(r.from)+' -> '+fRel(r.to));
       return note('Move: '+fRel(r.from)+' -> '+fRel(r.to));
@@ -105,7 +108,8 @@ async function fileTool(name,a,note,fl){
       const old=await NF('stat',{path:p});
       if(old.dir)return bad('Is path pe folder hai, file nahi.');
       if(!old.exists&&p.lastIndexOf('/')===WS_ROOT.length)return bad('Workspace root me nayi file nahi banti. work/<project>/ me likho (ya yaad rakhne wale text ke liye note_save).');
-      if(old.exists&&old.size>=400&&content.length<old.size*0.5&&!(await tconfirm('File likhne se pehle confirm',fRel(p)+' ('+old.size+' bytes -> '+content.length+' chars)\n\n'+cut(content,300),['file ka size aadhe se kam ho raha hai'],'Likho')))
+      if(fMem(p)&&!(await memGate(p,'likhna',content)))return bad('Najeef ne file likhna cancel kiya.')+' Dobara mat likho, pucho kya karna hai.';
+      else if(!fMem(p)&&old.exists&&old.size>=400&&content.length<old.size*0.5&&!(await tconfirm('File likhne se pehle confirm',fRel(p)+' ('+old.size+' bytes -> '+content.length+' chars)\n\n'+cut(content,300),['file ka size aadhe se kam ho raha hai'],'Likho')))
         return bad('Najeef ne file likhna cancel kiya.')+' Dobara mat likho, pucho kya karna hai.';
       const r=await NF('write',{path:p,content});
       if(r.created)(FILE_TURN.c=FILE_TURN.c||{})[p]=1;
@@ -123,7 +127,8 @@ async function fileTool(name,a,note,fl){
       const old=await NF('stat',{path:p});
       if(!old.exists||old.dir)return bad('File nahi mili: '+fRel(p)+'. Nayi file ke liye file_write.');
       const net=ed.reduce((s,e)=>s+Math.max(0,e.old.length-e.new.length),0);
-      if(old.size>=400&&net>old.size*0.5&&!(await tconfirm('File badalne se pehle confirm',fRel(p)+' ('+old.size+' bytes me se ~'+net+' hat rahe)\n\n'+cut(ed[0].old,300),['file ka aadhe se zyada hissa hat raha hai'],'Badlo')))
+      if(fMem(p)&&!(await memGate(p,'badalna',ed[0].new)))return bad('Najeef ne edit cancel kiya.')+' Dobara mat karo, pucho kya karna hai.';
+      else if(!fMem(p)&&old.size>=400&&net>old.size*0.5&&!(await tconfirm('File badalne se pehle confirm',fRel(p)+' ('+old.size+' bytes me se ~'+net+' hat rahe)\n\n'+cut(ed[0].old,300),['file ka aadhe se zyada hissa hat raha hai'],'Badlo')))
         return bad('Najeef ne edit cancel kiya.')+' Dobara mat karo, pucho kya karna hai.';
       const r=await NF('edit',{path:p,edits:ed,replaceAll:!!a.replace_all});
       fTouched(p);

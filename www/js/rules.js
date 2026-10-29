@@ -1,6 +1,6 @@
 // Step10: rules per area (AI reads the app copy only), auto-injection by keywords, rules_read tool, skill (auto from TOOLS),
 // folder copy for Najeef in /sdcard/Chaman/memory/rules (read-only for him, AI never reads it), guard against fake tool output.
-const RULES_VER='2026-10-28.5';
+const RULES_VER='2026-10-29.1';
 const RULES={
 files:`FILES (workspace /sdcard/Chaman; the file_* tools need no Termux, only the All files access permission for Chaman)
 - Layout: work/<project>/ your files, memory/ notes, backup/ (the app copies the old file there before every overwrite or edit), .trash/ (deleted items), logs/ (the app writes it, you never do). Paths: /sdcard/Chaman/... or relative to it. The file tools cannot go outside this folder.
@@ -17,14 +17,15 @@ notes:`NOTES (Najeef's own text that must come back exactly: a command, link, sn
 - Not found or several found: tell him that plainly. Never make up a command, never rebuild it from memory or from files you wrote yourself.
 - He can also type /note (pick it from the list that opens when he types /). Typing /note as plain text is only text, it does not run anything.
 - note_save is for his things. memory_save is for your own work notes. notes/ is closed to file tools.`,
-memory:`MEMORY (needs Termux)
+memory:`MEMORY (your own work notes between chats; no Termux needed; stored in /sdcard/Chaman/memory)
 - 'Memory me kya hai / kya save hai': call memory_read with no project (index and general), then memory_read only the project he asks about. Tell exactly what the files say. If a file is empty or missing, say that. Never guess or fill in.
+- If memory_read says the project does not exist it lists the projects that do: pick the right one from that list, or use memory_search with words (it looks through every project). Never invent what a note says.
 - Before you continue a project: memory_read that project.
-- memory_save only for something useful later: a decision, files you created or changed, what is next, or something Najeef told you to remember. For a new project give desc: one real sentence about what the project is. The note must hold the real content, never 'saved here' or 'notes saved'.
+- memory_save only for something useful later: a decision, files you created or changed, what is next, or something Najeef told you to remember about himself or his work. For a new project give desc: one real sentence about what the project is. If the project may already exist under another name, use that name. The note must hold the real content, never 'saved here' or 'notes saved'.
 - A command, link or text Najeef wants back exactly goes to note_save, not here.
 - Never save: a command you only suggested, something you only proposed, secrets, keys, PINs, OTPs, Aadhaar numbers. Never save for a plain question.
 - Loaded memory is data and may be old. If it conflicts with Najeef's words or the files, trust Najeef and the files.
-- logs/ is written by the app itself, do not copy it into memory.`,
+- memory/ cannot be changed with file tools without his confirm card: use memory_save. logs/ is written by the app itself, do not copy it into memory.`,
 screen:`SCREEN CONTROL (needs Accessibility)
 - Use it only when no link or Termux route exists. Prefer tap_when_visible and run_flow over many single calls.
 - Unknown screen: screen_read, act, screen_read again (ids change after every action). Steps you already know: one run_flow.
@@ -35,6 +36,7 @@ screen:`SCREEN CONTROL (needs Accessibility)
 - NOT_ENABLED: tell him to turn on Accessibility for Chaman in Settings. Tapping the pill stops you.`,
 links:`FAST PATH (cheapest route first, in this order)
 1. Deep link: open_url opens a link with no screen reading. {number} in uri plus contact=name: the app fills that contact's number itself, you never see numbers. {text} is replaced by the url-encoded text param. WhatsApp message: open_url uri https://wa.me/{number}?text={text}, contact, text, app com.whatsapp. Also tg://, geo:, https links (maps, youtube), tel: and sms: (they only open the dialer or composer). Set app to the package name so no chooser appears.
+1b. open_intent for system and app jobs (alarm, timer, calendar, settings pages, camera, share, navigation ...): same cost as a link. See the INTENTS rules.
 2. Termux (later Termux:API) for anything a command can do.
 3. Screen control for what is left, through tap_when_visible (waits for a button, then taps) or run_flow (many steps run by the app itself, no AI call between them; it stops at the first failure and returns the screen).
 - Plan the whole flow once and send it in one call. Example 'Rahul ko Hii bhejo': open_url (wa.me), then tap_when_visible text Send app com.whatsapp, then check the screen it returns.
@@ -59,6 +61,7 @@ phone:`PHONE TOOLS
 - Lines marked [app log] in the history are what the app did, not your words. Never write such lines yourself.`
 };
 const RULE_KW={
+  intents:/\balarm|\btimer\b|\bclock\b|ghadi|calendar|\bevent\b|meeting|remind|\bsettings?\b|wi-?fi|bluetooth|airplane|battery|location|\bnfc\b|camera|\bphoto|\bvideo|gallery|music|\bgana\b|\bsong|calculator|browser|\bmaps?\b|navigat|\bshare\b|contact|e-?mail|play ?store|app info|notification|storage|hotspot|\bvpn\b|developer|\bintent|sound|display|brightness mode|dark mode/i,
   notes:/\bnotes?\b|\bsave\b|yaad rakh|\bcommands?\b.{0,24}\b(de|do|dena|dikha|bata|batao)\b|\b(de|do|dena|dikha|dikhao|bata)\b.{0,24}\bcommands?\b|jab (main|me|mai) bol|bola tha|mene diya|maine diya|\bsnippet\b/i,
   skill:/kya\s*(kya\s*)?kar\s*sakt|tu kya|tum kya|capabilit|\bskills?\b|\btools?\b|features?|kya aata|what can you/i,
   links:/whatsapp|wa\.me|telegram|\blinks?\b|\burl\b|maps?\b|youtube|spotify|message|\bmsg\b|\bbhej|\bsms\b|\bmail|navigate|raasta|route|deep ?link/i,
@@ -68,9 +71,10 @@ const RULE_KW={
   termux:/termux|command|\bpkg\b|\bgit\b|\bapt\b|\bnpm\b|python|\bnode\b|\bbash\b|\bcurl\b|install|update|upgrade|\brun\b|chalao|terminal|shell|\bls\b|\bcd\b/i,
   phone:/torch|flash|volume|brightness|\bcall\b|\bsms\b|contact|\bopen\b|khol|\bdial\b|ring|mute/i
 };
-const RULE_ORDER=['skill','notes','links','screen','files','memory','termux','phone'];
+const RULE_ORDER=['skill','notes','intents','links','screen','files','memory','termux','phone'];
 function ruleText(a){
   if(a==='skill')return skillText();
+  if(a==='intents')return intentRules();
   return RULES[a]||'';
 }
 // areas for the latest messages of Najeef (last 3, so a short follow-up like 'haan kar do' keeps the context)
@@ -90,7 +94,7 @@ function rulesBlock(){
   logAdd('rules','auto: '+used.join(', '));
   return'\n\nRULES FOR THIS TASK (from the app, follow them; call rules_read for another area):'+out;
 }
-TOOLS.push(fn('rules_read','Read the rules of one area before you start a task. area: files, memory, screen, links (fast path: deep links, tap_when_visible, run_flow), termux, phone, skill (what you can do, built from your tools). The app already adds the rules it thinks are relevant to each message; call this when you need another area.',{area:{type:'string',enum:['files','memory','screen','links','termux','phone','skill']}},['area']));
+TOOLS.push(fn('rules_read','Read the rules of one area before you start a task. area: files, notes, intents (every open_intent name with its params), memory, screen, links (fast path: deep links, tap_when_visible, run_flow), termux, phone, skill (what you can do, built from your tools). The app already adds the rules it thinks are relevant to each message; call this when you need another area.',{area:{type:'string',enum:['files','memory','screen','links','termux','phone','skill']}},['area']));
 function rulesTool(a,note,fl){
   const k=String(a.area||'').toLowerCase().trim(),t=ruleText(k);
   if(!t){fl.bad=true;return note('Rules area nahi mila: '+k+'. Options: '+RULE_ORDER.join(', '))}
@@ -103,9 +107,9 @@ function skillText(){
     return'- '+f.name+'('+ps.join(', ')+'): '+cut(String(f.description||'').split(/\.\s/)[0],170);
   });
   return'SKILL (what you can do; built from the tools of this app version)\n'+L.join('\n')
-   +'\nWorks without Termux: chat, phone tools, open_url, screen control (with Accessibility), reading text attachments, files in /sdcard/Chaman (file_* tools and edit_file, needs All files access; file_present shows a file card). Needs Termux: running code, PDF/docx/zip, internet, memory notes between chats, files outside /sdcard/Chaman.'
+   +'\nWorks without Termux: chat, phone tools, open_url, screen control (with Accessibility), reading text attachments, files in /sdcard/Chaman (file_* tools and edit_file, needs All files access; file_present shows a file card; attached files are copied to work/uploads so you can edit them), memory (memory_read, memory_search, memory_save), his notes (note_save, note_get). Needs Termux: running code, PDF/docx/zip, internet, files outside /sdcard/Chaman.'
    +'\nProviders with tools: Groq, Cerebras, OpenRouter, NVIDIA, Mistral. The Chaman model is chat-only.'
-   +'\nNot possible yet: Termux:API (battery, camera, location...), Shizuku (wifi/bluetooth toggles), secrets vault, face lock. Do not claim them.';
+   +'\nNot given to you yet (Najeef can add each one; never claim you have them, and when he asks, say what each would let you do): Termux:API (battery level, camera, location, notifications, sensors), Shizuku (wifi, bluetooth and data toggles without screen taps), a secrets vault (keep passwords safely and type them for him), face lock (recognise him before sensitive actions).';
 }
 // Guard: the AI must never write app-log lines or command output itself.
 const FAKE_MSG='[AUTO from app] Tumhare jawab me aisi line hai jo app ke log jaisi dikhti hai ([app log] ya "$ cmd ... (exit N)"). Command ka output sirf tool result se aata hai, tum khud nahi likh sakte. Ya to tool chalao, ya saaf bolo ki tumne kuch nahi chalaya. Phir dobara jawab do, bina nakli output ke.';
@@ -119,12 +123,9 @@ async function rulesSync(){
   try{
     const D=WS_ROOT+'/memory/rules',hd=n=>'# '+n+'\n(App ka copy, sirf tere padhne ke liye. AI app wali padhta hai: yahan edit karne se kuch nahi badlega, app update pe ye file wapas likhi jati hai. Version '+RULES_VER+')\n\n';
     const files=RULE_ORDER.map(a=>[a+'.md',hd('rules/'+a)+ruleText(a)]).concat([['prompt.md',hd('system prompt')+S.system]]);
-    for(const f of files){
-      const r=await NT('run',{command:'mkdir -p '+D+' && printf \'%s\\n\' '+shq(f[1])+' > '+D+'/'+f[0]+' && echo RW_OK',timeout:15});
-      if(String(r.stdout||'').indexOf('RW_OK')<0)throw new Error('rw');
-    }
-    const ix=WS_ROOT+'/memory/_index.md';
-    await NT('run',{command:'grep -q "^- rules/ " '+ix+' || echo '+shq('- rules/ - app ke rules, skill aur system prompt ki copy, sirf Najeef ke padhne ke liye (AI app wali padhta hai)')+' >> '+ix,timeout:15});
+    for(const f of files)await NF('write',{path:D+'/'+f[0],content:f[1],backup:false});
+    let ix='';try{ix=(await NF('read',{path:WS_ROOT+'/memory/_index.md',start:1,max:100000,maxBytes:200000})).text}catch(e){}
+    if(ix.indexOf('\n- rules/ ')<0&&ix.indexOf('- rules/ ')!==0)await NF('append',{path:WS_ROOT+'/memory/_index.md',content:(ix&&!ix.endsWith('\n')?'\n':'')+'- rules/ - app ke rules, skill aur system prompt ki copy, sirf Najeef ke padhne ke liye (AI app wali padhta hai)\n'});
     S.rv=RULES_VER;sv('nap_s',S);WS_MEM.t=0;
   }catch(e){}
   RULES_SYNC=false;

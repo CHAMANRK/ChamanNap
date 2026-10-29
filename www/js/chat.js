@@ -33,7 +33,7 @@ async function runLoop(p){
     for(const c of tc){
       let args={};try{args=JSON.parse(c.function.arguments||'{}')}catch(e){}
       const nm=c.function.name;
-      if(nm==='termux_run')used.run++;else if(nm==='termux_write_file')used.write=true;else if(nm==='memory_save')used.mem=true;
+      if(nm==='termux_run')used.run++;else if(nm==='termux_write_file'||nm==='file_write'||nm==='edit_file')used.write=true;else if(nm==='memory_save')used.mem=true;
       msgs.push({role:'tool',tool_call_id:c.id,content:await execTool(nm,args,steps)});
     }
     if(SCR_STOP)return{content:'Stop dabaya gaya, kaam rok diya.',by,steps};

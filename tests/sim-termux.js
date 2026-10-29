@@ -17,7 +17,7 @@ ctx.Capacitor={nativePromise:async(pl,m,o)=>{
    return{stdout:'x',exitCode:0}}
  return{}}};
 vm.createContext(ctx);
-for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','notes','slash','fast','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
+for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','notes','slash','fast','intents','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
 const clickWhenPending=async(o)=>{for(let i=0;i<200;i++){await new Promise(r=>setTimeout(r,5));const H=vm.runInContext('H',ctx);const idx=H.findIndex(m=>m.confirm&&m.confirm.state==='pending');if(idx>=0){await handlers['#chat:click']({target:{closest:()=>({dataset:{m:String(idx),o}})}});return H[idx].content.split('\n')[0]}}return 'NO CARD'};
 (async()=>{
  vm.runInContext("S.keys.groq='k';S.prov='groq';",ctx);

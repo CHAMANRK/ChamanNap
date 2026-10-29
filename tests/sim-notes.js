@@ -25,7 +25,7 @@ ctx.window=ctx;
 ctx.Capacitor={nativePromise:async(pl,m,o)=>{if(pl==='Files')return files(m,o);if(pl==='Termux')return{stdout:'',exitCode:0};return{}}};
 vm.createContext(ctx);
 process.chdir(__dirname+'/../www');
-for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','notes','slash','fast','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
+for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','notes','slash','fast','intents','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
 const t=s=>vm.runInContext(s,ctx),getH=()=>t('H');
 let fails=0;const ok=(c,l)=>{console.log((c?'PASS ':'FAIL ')+l);if(!c)fails++};
 const typeIn=v=>{els['#in'].value=v;return handlers['#in:input']&&handlers['#in:input']({target:els['#in']})};
@@ -43,7 +43,7 @@ const CMD='mv Ja.zip ~/ && cd && unzip Ja.zip && cd chaman-nap && ls && git add 
  script=['AI jawab'];n=0;nfetch=0;
  await typeIn('/note update command');await send();
  ok(nfetch===1,'typed /note without picking goes to the AI as text (fetch='+nfetch+')');
- ok(Object.keys(FS).length===0,'typed /note did not touch notes');
+ ok(!Object.keys(FS).some(k=>k.indexOf(ND)===0),'typed /note did not touch notes');
  // 3. picked -> command runs, no AI
  nfetch=0;
  await typeIn('/n');await pick('note');ok(els['#in'].value==='/note ','pick fills "/note "');

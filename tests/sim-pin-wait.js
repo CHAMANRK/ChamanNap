@@ -17,7 +17,7 @@ ctx.Capacitor={nativePromise:async(pl,m,o)=>{log.push(m+(m==='pill'?':'+o.text:'
  if(m==='pill')return{ok:false,err:'app overlay: SecurityException'};
  return{}}};
 vm.createContext(ctx);
-for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','notes','slash','fast','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
+for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','notes','slash','fast','intents','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
 (async()=>{
  vm.runInContext("S.keys.groq='k';S.prov='groq';",ctx);
  els['#in'].value='phonepe se balance dekho';

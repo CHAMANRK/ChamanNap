@@ -33,6 +33,7 @@ function pillText(name,a){
     case'read_sms':return'Reading SMS';
     case'rules_read':return'Reading rules';
     case'open_url':return'Opening link';
+    case'open_intent':return'Opening '+cut(String(a.name||'').replace(/_/g,' '),24);
     case'tap_when_visible':return'Tapping '+cut(a.text||'',30);
     case'run_flow':return'Running steps';
     case'screen_read':return'Reading screen';
@@ -54,6 +55,7 @@ function pillText(name,a){
     case'termux_read_file':return'Reading file';
     case'memory_read':return'Reading memory';
     case'memory_save':return'Saving memory';
+    case'memory_search':return'Searching memory';
     case'note_save':return'Saving note';
     case'note_get':return'Finding note';
   }
@@ -145,7 +147,7 @@ async function execTool0(name,a,steps,fl){
   const say=(content,x)=>H.push(Object.assign({role:'assistant',content,by:'Phone',local:1},x||{}));
   try{
     if(name.indexOf('screen_')===0||name==='ask_user'||name==='wait_for_user')return await screenTool(name,a,note,fl);
-    if(name==='open_url'||name==='tap_when_visible'||name==='run_flow')return await fastTool(name,a,note,fl);
+    if(name==='open_url'||name==='open_intent'||name==='tap_when_visible'||name==='run_flow')return await fastTool(name,a,note,fl);
     if(name.indexOf('file_')===0||name==='edit_file')return await fileTool(name,a,note,fl);
     if(name==='rules_read')return rulesTool(a,note,fl);
     if(name.indexOf('note_')===0)return await noteTool(name,a,note,fl);
@@ -196,7 +198,7 @@ async function execTool0(name,a,steps,fl){
 async function execTool(name,a,steps){
   a=a||{};
   const fl={bad:false},own=name==='ask_user'||name==='wait_for_user',txt=pillText(name,a);
-  if(name==='open_app'||name.indexOf('screen_')===0||own||/^(open_url|tap_when_visible|run_flow)$/.test(name))LEFT_APP=true;
+  if(name==='open_app'||name.indexOf('screen_')===0||own||/^(open_url|open_intent|tap_when_visible|run_flow)$/.test(name))LEFT_APP=true;
   if(!own)pillShow(txt,12000,'pill','run');
   const res=await execTool0(name,a,steps,fl);
   logAdd(fl.bad?'tool FAIL':'tool',logTool(name,a)+((name.indexOf('termux_')===0||name.indexOf('file_')===0||name.indexOf('note_')===0||name==='edit_file'||name==='screen_read')?'':' -> '+cut(String(res).replace(/\s+/g,' '),140)));

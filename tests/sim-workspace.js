@@ -1,9 +1,11 @@
 // Workspace + memory wiring: workspace write (backup, no confirm), shrink guard, risk exemption, memory auto-load, memory_read/save, auto memory pass.
 const vm=require('vm'),fs=require('fs');
 const els={},handlers={};
-const mk=sel=>{const o={value:'',style:{},dataset:{},options:[],classList:{add(){},remove(){},toggle(){}},addEventListener(t,f){handlers[sel+':'+t]=f},insertAdjacentHTML(){},querySelector(){return mk('x')},closest(){return null},appendChild(){},remove(){},select(){},click(){},set onclick(f){handlers[sel+':click']=f},set onchange(f){},scrollHeight:0,scrollTop:0,disabled:false,textContent:''};let h='';Object.defineProperty(o,'innerHTML',{get(){return h},set(v){h=v;if(sel==='#prov')o.options=v.split('<option').slice(1)}});return o};
+const mk=sel=>{const o={value:'',style:{},dataset:{},options:[],classList:{add(){},remove(){},toggle(){}},addEventListener(t,f){const k=sel+':'+t,pv=handlers[k];handlers[k]=pv?async e=>{await pv(e);await f(e)}:f},insertAdjacentHTML(){},querySelector(){return mk('x')},closest(){return null},appendChild(){},remove(){},select(){},click(){},set onclick(f){handlers[sel+':click']=f},set onchange(f){},scrollHeight:0,scrollTop:0,disabled:false,textContent:''};let h='';Object.defineProperty(o,'innerHTML',{get(){return h},set(v){h=v;if(sel==='#prov')o.options=v.split('<option').slice(1)}});return o};
 const doc={querySelector:s=>els[s]||(els[s]=mk(s)),createElement:()=>mk('c'),body:mk('body'),documentElement:{dataset:{}}};
 const store={};let n=0;const log=[],bodies=[];
+const FS={'/sdcard/Chaman/memory/_index.md':'# Memory index\n- carrom - carrom game MEMMARK\n','/sdcard/Chaman/memory/general.md':'# general\n- Najeef likes short answers\n'};
+const FILES=require('./files-fake.js')(FS,{log});
 const tc=(id,name,args)=>({id,type:'function',function:{name,arguments:JSON.stringify(args)}});
 const BIG='x'.repeat(1000);
 const script=[
@@ -21,6 +23,7 @@ const ctx={document:doc,localStorage:{getItem:k=>store[k]||null,setItem:(k,v)=>{
  fetch:async(u,o)=>{bodies.push(JSON.parse(o.body));const s=script[n++];const msg=typeof s==='string'?{role:'assistant',content:s}:{role:'assistant',content:null,tool_calls:s};return{ok:true,status:200,json:async()=>({choices:[{message:msg}]}),text:async()=>''}}};
 ctx.window=ctx;
 ctx.Capacitor={nativePromise:async(pl,m,o)=>{
+ if(pl==='Files')return FILES(m,o);
  if(pl==='Termux'){const c=o.command||o.path||'';log.push('NT.'+m+' '+c.slice(0,70).replace(/\n/g,' '));
    if(c.includes('WS_OK')&&c.includes('head -c 1200'))return{stdout:'WS_OK\n# Memory index\n- carrom - carrom game MEMMARK\n',exitCode:0};
    if(c.includes('BACKED')&&c.includes('index.html'))return{stdout:'BACKED 1000\n',exitCode:0};
@@ -31,9 +34,9 @@ ctx.Capacitor={nativePromise:async(pl,m,o)=>{
  return{}}};
 vm.createContext(ctx);
 process.chdir(__dirname+'/../www');
-for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','notes','slash','fast','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
+for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','notes','slash','fast','intents','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
 const cards=[];
-const clickWhenPending=async(o)=>{for(let i=0;i<300;i++){await new Promise(r=>setTimeout(r,5));const H=vm.runInContext('H',ctx);const idx=H.findIndex(m=>m.confirm&&m.confirm.state==='pending');if(idx>=0){const head=H[idx].content.split('\n')[0],why=H[idx].content.split('Wajah: ')[1];await handlers['#chat:click']({target:{closest:()=>({dataset:{m:String(idx),o}})}});return head+' | wajah: '+why}}return 'NO CARD'};
+const clickWhenPending=async(o)=>{for(let i=0;i<300;i++){await new Promise(r=>setTimeout(r,5));const H=vm.runInContext('H',ctx);const idx=H.findIndex(m=>m.confirm&&m.confirm.state==='pending');if(idx>=0){const head=H[idx].content.split('\n')[0],why=H[idx].content.split('Wajah: ')[1];await handlers['#chat:click']({target:{closest:q=>q==='.abtn'?{dataset:{m:String(idx),o}}:null}});return head+' | wajah: '+why}}return 'NO CARD'};
 (async()=>{
  vm.runInContext("S.keys.groq='k';S.prov='groq';",ctx);
  console.log('risk ws cp   :',JSON.stringify(vm.runInContext("riskOf('cp ~/a /sdcard/Chaman/work/x/',60)",ctx)));
@@ -56,5 +59,5 @@ const clickWhenPending=async(o)=>{for(let i=0;i<300;i++){await new Promise(r=>se
  console.log('STEPS:',l.steps.join(' / '));console.log('FINAL:',l.content);
  console.log('system has memory block:',bodies[0].messages[0].content.includes('MEMMARK'));
  console.log('fetch calls:',bodies.length,'| last call tools:',(bodies[bodies.length-1].tools||[]).map(t=>t.function.name).join(','));
- console.log('memory cmd slug ok:',log.some(x=>x.includes('app-test')||x.includes('SAVED'))); 
+ console.log('memory saved natively (no Termux):',FS['/sdcard/Chaman/memory/app-test.md']&&FS['/sdcard/Chaman/memory/app-test.md'].includes('index.html chhota kiya | new.txt banayi'),'| index has project:',FS['/sdcard/Chaman/memory/_index.md'].includes('- app-test - test app')); 
 })().catch(e=>{console.error('ERR',e);process.exit(1)});

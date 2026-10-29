@@ -15,9 +15,11 @@ function logTool(name,a){
     case'file_search':return name+' '+cut(a.path,80)+' ('+String(a.query||'').length+' chars query)';
     case'termux_run':return name+' (details in termux entry)';
     case'memory_save':return name+' '+cut(a.project,40);
+    case'memory_search':return name+' ('+String(a.query||'').length+' chars query)';
     case'note_save':return name+' '+cut(a.name,40)+' ('+String(a.text==null?'':a.text).length+' chars)';
     case'note_get':return name+' '+cut(a.query,40);
     case'open_url':return name+' '+cut(String(a.uri||'').replace(/([?&]text=).*/i,'$1...'),80)+(a.contact?' contact '+cut(a.contact,30):'')+(a.text?' ('+String(a.text).length+' chars)':'');
+    case'open_intent':return name+' '+cut(a.name,40)+' ['+Object.keys(a.params&&typeof a.params==='object'?a.params:{}).join(',')+']';
     case'run_flow':return name+' ['+(Array.isArray(a.steps)?a.steps.map(s=>s&&s.do).join(','):'')+']';
   }
   const o=Object.assign({},a);delete o.status;
