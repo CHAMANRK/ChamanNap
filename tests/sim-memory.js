@@ -13,7 +13,7 @@ function boot(FS,seedStore,opt){
   ctx.Capacitor={nativePromise:async(pl,m,o)=>{if(pl==='Files'){if(opt.noAccess&&m!=='requestAccess')return Promise.reject(Object.assign(new Error('Chaman ko All files access nahi mili.'),{code:'NO_ACCESS'}));return FILES(m,o)}if(pl==='Termux'){nt.push(m+' '+String(o.command||o.path||'').slice(0,60));return{stdout:'BACKED 1000',exitCode:0}}return{}}};
   vm.createContext(ctx);
   process.chdir(__dirname+'/../www');
-  for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','notes','slash','fast','intents','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
+  for(const f of ['prompts','core','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','notes','slash','fast','intents','termuxapi','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
   return{ctx,els,handlers,bodies,nt,calls,store,t:s=>vm.runInContext(s,ctx),setN:v=>{n=v}};
 }
 let fails=0;const ok=(c,l)=>{console.log((c?'PASS ':'FAIL ')+l);if(!c)fails++};
@@ -70,7 +70,7 @@ const run=async(b,tool,args)=>{const steps=[];const res=await b.t('execTool')(to
  const D=b.t('DEF_SYS');
  ok(D.includes('NAJEEF AND YOU')&&D.includes('developer and controller')&&/not given you yet|has not given you yet/.test(D)&&D.includes('ye feature abhi nahi aaya'),'DEF_SYS: Najeef is the developer/controller, missing = not given yet, forbidden phrases named');
  ok(/Ye abhi aapne mujhe diya nahi hai/.test(D),'DEF_SYS: Hinglish template for "not given yet"');
- ok(b.t('skillText()').includes('Not given to you yet')&&b.t('skillText()').includes('Termux:API (battery level'),'skill lists what each missing piece would add');
+ ok(b.t('skillText()').includes('Not given to you yet')&&b.t('skillText()').includes('Shizuku (silent system toggles')&&b.t('skillText()').includes('device_api('),'skill lists what each missing piece would add');
  ok(b.t('RULES.memory').includes('memory_search')&&!/needs Termux/.test(b.t('RULES.memory').split('\n')[0]),'memory rules updated (no Termux, memory_search)');
  // migration: a phone that still has the old default gets the new one
  const old=b.t('PREV15_SYS');const bm=boot(mkFS(),{nap_s:JSON.stringify({system:old})});

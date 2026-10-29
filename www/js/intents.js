@@ -12,6 +12,10 @@ const INT_OK={
 const A_='android.intent.action.',AL_='android.intent.extra.alarm.';
 const IN={};
 const idef=(name,g,d,p,build,o)=>{IN[name]=Object.assign({g,d,p:p||'',build},o||{})};
+// Accessibility does the last tap by itself: press = button text tried after the intent (Save on forms), set = on/off for pages that have a switch.
+const IPRESS={calendar_event_add:'Save|सेव|सेव करें|सहेजें|Done',contact_add:'Save|सेव|सेव करें|सहेजें|Done'};
+const PRESS_BAD=/pay|transfer|delete|uninstall|purchase|\bbuy\b|checkout|चुकाएं|हटाएं|डिलीट/i;
+const ISW={wifi_settings:'wi-?fi|वाई',bluetooth_settings:'bluetooth|ब्लूटूथ',airplane_settings:'airplane|flight|aeroplane|विमान|हवाई',location_settings:'location|लोकेशन|स्थान',nfc_settings:'nfc',battery_saver_settings:'battery saver|power saving|low power|बैटरी सेवर',data_roaming_settings:'roaming|mobile data|डेटा',wifi_panel:'wi-?fi|वाई',internet_panel:'wi-?fi|वाई|mobile data|डेटा',nfc_panel:'nfc'};
 const iStr=(p,k,req,max)=>{const v=String(p[k]==null?'':p[k]).trim();if(!v&&req)throw new Error(k+' chahiye.');return max?v.slice(0,max):v};
 const iInt=(p,k,lo,hi,def)=>{
   const raw=p[k];if((raw===undefined||raw===null||raw==='')&&def!==undefined)return def;
@@ -59,7 +63,7 @@ idef('calendar_day','calendar','open Calendar on a day','date? YYYY-MM-DD (defau
   const ms=p.date?iWhen(p.date):Date.now();
   return{action:A_+'VIEW',data:'content://com.android.calendar/time/'+ms};
 });
-idef('calendar_event_add','calendar','open a new event form (Najeef taps Save)','title, start "YYYY-MM-DD HH:MM", end?, location?, description?, all_day?',p=>{
+idef('calendar_event_add','calendar','open a new event form (Najeef taps Save)','title, start "YYYY-MM-DD HH:MM", end?, location?, description?, all_day?, press? (default: Save is tapped for him; false = only open the form)',p=>{
   const ex={title:iStr(p,'title',true,120)},st=iWhen(p.start);
   if(st===null)throw new Error('start chahiye ("YYYY-MM-DD HH:MM").');
   if(p.all_day){const d=new Date(st);d.setHours(0,0,0,0);ex.beginTime=d.getTime();ex.endTime=d.getTime()+86400000;ex.allDay=true}
@@ -67,14 +71,14 @@ idef('calendar_event_add','calendar','open a new event form (Najeef taps Save)',
   const lo=iStr(p,'location',false,200),de=iStr(p,'description',false,1000);
   if(lo)ex.eventLocation=lo;if(de)ex.description=de;
   return{action:A_+'INSERT',data:'content://com.android.calendar/events',extras:ex};
-},{note:'Event ka form khul gaya: Najeef Save dabayega. Save hua ya nahi, app ko nahi pata.'});
+},{note:'Event ka form khul gaya.'});
 // ---- contacts / phone / mail ----
 idef('contacts_open','phone','open the Contacts app','',()=>({category:'android.intent.category.APP_CONTACTS'}));
-idef('contact_add','phone','open a new contact form (Najeef taps Save)','name, phone?, email?, company?, notes?',p=>{
+idef('contact_add','phone','open a new contact form (Najeef taps Save)','name, phone?, email?, company?, notes?, press? (default: Save is tapped for him; false = only open the form)',p=>{
   const ex={name:iStr(p,'name',true,80)};
   ['phone','email','company','notes'].forEach(k=>{const v=iStr(p,k,false,200);if(v)ex[k]=v});
   return{action:A_+'INSERT',type:'vnd.android.cursor.dir/contact',extras:ex};
-},{note:'Contact ka form khul gaya: Najeef Save dabayega.'});
+},{note:'Contact ka form khul gaya.'});
 idef('call_log','phone','open the recent calls list','',()=>({action:A_+'VIEW',type:'vnd.android.cursor.dir/calls'}));
 idef('dialer_open','phone','open the dialer (no number)','',()=>({action:A_+'DIAL'}));
 idef('email_compose','phone','open an email draft (nothing is sent until he taps Send)','to?, subject?, body?, cc?',p=>{
@@ -146,7 +150,7 @@ idef('app_notification_settings','apps','open the notification settings of an ap
  ['wifi_panel','android.settings.panel.action.WIFI','quick panel: Wi-Fi toggle'],
  ['nfc_panel','android.settings.panel.action.NFC','quick panel: NFC toggle'],
  ['volume_panel','android.settings.panel.action.VOLUME','quick panel: volume sliders']
-].forEach(x=>idef(x[0],x[0].indexOf('_panel')>0?'panels':'settings',x[2],'',()=>({action:x[1]})));
+].forEach(x=>idef(x[0],x[0].indexOf('_panel')>0?'panels':'settings',x[2],ISW[x[0]]?'set? on|off (switch is set for him and checked), target? (label of the switch if the page has several)':'',()=>({action:x[1]})));
 
 TOOLS.push(fn('open_intent','Do a phone job through a system intent, with no screen reading (cheaper and surer than screen control): alarms and timers, calendar events, contacts, email drafts, camera, music, maps and navigation, web search, share sheet, Play Store, app info and ~35 settings pages or quick panels (Wi-Fi, Bluetooth, battery, location ...). name is from the list; params as that name needs (rules_read intents shows every name with its params). It opens the app or page; it cannot confirm the final result, so say what you sent, not that it is done. Nothing is called, sent, paid or deleted by an intent.',{name:{type:'string',enum:Object.keys(IN)},params:{type:'object',description:'for example {"hour":6,"minutes":30,"label":"gym"} for alarm_set'},app:{type:'string',description:'optional package to force (com.google.android.deskclock)'}},['name']));
 
@@ -170,6 +174,17 @@ function intentSpec(name,params){
 }
 async function intentStep(s){
   const nm=String(s.name||'').trim(),sp=intentSpec(nm,s.params),app=String(s.app||'').trim();
+  const P=s.params&&typeof s.params==='object'?s.params:{};
+  // checks before anything is sent
+  let set=null,press='';
+  if(P.set!==undefined&&P.set!==''){
+    set=String(P.set).toLowerCase();
+    if(set!=='on'&&set!=='off')throw new Error('set "on" ya "off" hona chahiye.');
+    if(!ISW[nm])throw new Error(nm+' me switch set nahi hota. set sirf wifi/bluetooth/airplane/location/nfc/battery saver/roaming settings aur wifi/internet/nfc panel ke liye hai. Baaki ke liye open_intent ke baad set_switch chalao.');
+  }else{
+    press=P.press===false?'':(typeof P.press==='string'?P.press.trim().slice(0,60):(IPRESS[nm]||''));
+    if(press&&PRESS_BAD.test(press))throw new Error('press me payment/delete/install jaisa button allowed nahi.');
+  }
   const o={action:sp.action||'',data:sp.data||'',type:sp.type||'',category:sp.category||'',extras:sp.extras||{},chooser:!!sp.chooser,pkg:app};
   try{await NI('start',o)}
   catch(e){
@@ -178,16 +193,27 @@ async function intentStep(s){
     else throw e;
   }
   await sleep(1200);
-  return 'Intent bheja: '+nm+(IN[nm].note?'. '+IN[nm].note:'. Page/app khul gaya.');
+  let msg='Intent bheja: '+nm+(IN[nm].note?'. '+IN[nm].note:'. Page/app khul gaya.');
+  if(set){
+    const tg=String(P.target||'').trim();
+    msg+=' '+await swSet({state:set,text:tg,re:tg?null:new RegExp(ISW[nm],'i'),timeout_s:8});
+  }else if(press){
+    const tg=fastTg(press),f=await fastPoll(r=>fastMatch(r.items||[],tg),10,'');
+    if(!f.item){const e=new Error(msg+' Par "'+cut(press,30)+'" button 10s me nahi dikha, kuch dabaya nahi.');e.snap=f.last;throw e}
+    await NS('click',{id:f.item.i});await sleep(1100);
+    let still=false;try{const r2=await NS('read');still=!!fastMatch(r2.items||[],tg)}catch(x){}
+    msg+=' "'+cut(f.item.t,20)+'" dabaya'+(still?', par form abhi bhi khula dikh raha hai (save hua ya nahi pakka nahi).':', form band ho gaya. App ne ise calendar/contacts me jaake verify nahi kiya.');
+  }
+  return msg;
 }
 // Text for the rules area "intents": every name, grouped.
 function intentRules(){
   const G={clock:'CLOCK',calendar:'CALENDAR',phone:'CONTACTS, PHONE, MAIL',media:'CAMERA, MEDIA',apps:'APPS, MAPS, WEB, SHARE',settings:'SETTINGS PAGES (no params)',panels:'QUICK PANELS (no params, toggles right there)'};
-  let out='INTENTS (open_intent {name, params}: the app starts the right page or app itself, so no screen reading)\n- Prefer open_intent over screen control when a name fits. It only opens the page/app: say what you sent, never that it is finished. If it fails with no app found, use open_app or the screen.\n- A settings page or quick panel gets Najeef to the toggle in one step; then tap_when_visible only if he wants you to flip it.';
+  let out='INTENTS (open_intent {name, params}: the app starts the right page or app itself, so no screen reading)\n- Prefer open_intent over screen control when a name fits. It only opens the page/app: say what you sent, never that it is finished. If it fails with no app found, use open_app or the screen.\n- Accessibility does the last tap, so never ask Najeef to press Save or a toggle: calendar_event_add and contact_add tap Save by themselves (press:false = only open the form), and the pages that have a switch take set:on|off (target = switch label if several), which taps the switch and checks the new state. Any other toggle or button: open the page, then set_switch {text,state} or tap_when_visible. He only does PIN, password, OTP, fingerprint, captcha. Never press pay, transfer, delete, install or Send on your own: only when he asked for exactly that in this chat.';
   Object.keys(G).forEach(g=>{
     const L=Object.keys(IN).filter(n=>IN[n].g===g);if(!L.length)return;
     out+='\n'+G[g]+': ';
     out+=(g==='settings'||g==='panels')?L.join(', '):L.map(n=>n+(IN[n].p?'('+IN[n].p+')':'')).join('; ');
   });
-  return out+'\nDates and times are local, written "YYYY-MM-DD HH:MM". Calendar event and new contact only open the form: he taps Save.';
+  return out+'\nDates and times are local, written "YYYY-MM-DD HH:MM". Alarm, timer, calendar and contact results cannot be confirmed by the app: say what you did and that the final result was not verified (alarms_show / timers_show to look).';
 }

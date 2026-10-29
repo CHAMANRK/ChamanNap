@@ -1,10 +1,11 @@
 // Step9 fast path: open_url (deep links), tap_when_visible (wait + tap, no AI calls), run_flow (many screen steps, no AI calls).
 const FAST_SCH=/^(https?|tel|sms|smsto|mailto|geo|whatsapp|tg|upi|market|google\.navigation|youtube|vnd\.youtube|spotify):/i;
-const FAST_DO=['open_app','open_url','open_intent','wait','wait_for','click','type','key','scroll'];
+const FAST_DO=['open_app','open_url','open_intent','wait','wait_for','click','toggle','type','key','scroll'];
 TOOLS.push(
   fn('open_url','Open a link or deep link directly in the right app, with no screen reading (the cheapest way). In uri you may use {number} (the app fills the phone number of contact itself, in international format; you never see numbers) and {text} (replaced by the url-encoded text param). Allowed: https, http, tel and sms (these only open the dialer or composer, nothing is called or sent), mailto, geo, whatsapp, tg, upi, market, google.navigation, youtube, spotify. app = optional Android package name (com.whatsapp, org.telegram.messenger) so no app chooser appears. Example WhatsApp message: uri https://wa.me/{number}?text={text}, contact Rahul, text Hii, app com.whatsapp. That only opens the chat with the text filled in; sending needs tap_when_visible on Send.',{uri:{type:'string'},contact:{type:'string'},text:{type:'string'},app:{type:'string'}},['uri']),
   fn('tap_when_visible','Wait until a button or text shows on screen, then tap it. The app checks the screen by itself, so it costs no extra AI calls. text can hold alternatives separated by | (for example Send|भेजें). app = optional package name the screen must belong to (com.whatsapp), so a button in the wrong app is never tapped. Needs Accessibility.',{text:{type:'string'},app:{type:'string'},timeout_s:{type:'integer',minimum:2,maximum:60}},['text']),
-  fn('run_flow','Run many steps by itself, without asking the AI after each one. Plan the whole task once, then call this. steps (max 15), each an object with do = open_app {name} | open_url {uri, contact, text, app} | open_intent {name, params, app} | wait {seconds} | wait_for {text, app, timeout_s} (until text is visible) | click {text, app, timeout_s} (waits until visible, then taps) | type {text, submit} | key {key: back/home/recents/notifications/quick_settings/lock/screenshot/enter} | scroll {direction}. It stops at the first failure and returns the reason with the current screen. On success it returns the final screen so you can verify without another screen_read. There are no call or SMS steps: use the call and send_sms tools. PIN and password screens pause for Najeef automatically.',{steps:{type:'array',maxItems:15,items:{type:'object',properties:{do:{type:'string',enum:FAST_DO},name:{type:'string'},uri:{type:'string'},contact:{type:'string'},text:{type:'string'},app:{type:'string'},seconds:{type:'number'},timeout_s:{type:'integer'},submit:{type:'boolean'},key:{type:'string'},direction:{type:'string',enum:['up','down','left','right']}},required:['do']}}},['steps'])
+  fn('set_switch','Turn a switch on or off on the current screen by itself (Wi-Fi, Bluetooth, a setting, a permission toggle) and check the new state. text = the label next to the switch (Wi-Fi, Bluetooth, Location...). state = on or off. Open the right page first (open_intent settings page or quick panel). It tells you if it was already in that state or if the tap did not change it. Needs Accessibility.',{text:{type:'string'},state:{type:'string',enum:['on','off']},app:{type:'string'}},['text','state']),
+  fn('run_flow','Run many steps by itself, without asking the AI after each one. Plan the whole task once, then call this. steps (max 15), each an object with do = open_app {name} | open_url {uri, contact, text, app} | open_intent {name, params, app} | wait {seconds} | wait_for {text, app, timeout_s} (until text is visible) | click {text, app, timeout_s} (waits until visible, then taps) | toggle {text, state on/off} (finds the switch next to text, sets it, checks) | type {text, submit} | key {key: back/home/recents/notifications/quick_settings/lock/screenshot/enter} | scroll {direction}. It stops at the first failure and returns the reason with the current screen. On success it returns the final screen so you can verify without another screen_read. There are no call or SMS steps: use the call and send_sms tools. PIN and password screens pause for Najeef automatically.',{steps:{type:'array',maxItems:15,items:{type:'object',properties:{do:{type:'string',enum:FAST_DO},name:{type:'string'},uri:{type:'string'},contact:{type:'string'},text:{type:'string'},app:{type:'string'},seconds:{type:'number'},timeout_s:{type:'integer'},submit:{type:'boolean'},key:{type:'string'},direction:{type:'string',enum:['up','down','left','right']}},required:['do']}}},['steps'])
 );
 function fastNum(n){
   let d=String(n||'').trim();
@@ -56,7 +57,8 @@ function fastMatch(items,tg){
   return best;
 }
 // polls the screen every 0.7s (no AI call). Stop is honoured, PIN/password screens pause for the user.
-async function fastFind(tg,tmo,pkg){
+// pick(r) returns the wanted item (or a falsy value) for one screen read.
+async function fastPoll(pick,tmo,pkg){
   const max=Math.min(60,Math.max(2,+tmo||15))*1000;let t0=Date.now(),last=null;
   for(;;){
     const u=await NS('activity',{}).catch(()=>({}));
@@ -68,12 +70,47 @@ async function fastFind(tg,tmo,pkg){
       t0=Date.now();continue;
     }
     if(!pkg||String(r.pkg||'').toLowerCase().indexOf(String(pkg).toLowerCase())>=0){
-      const m=fastMatch(r.items||[],tg);
+      const m=pick(r);
       if(m)return{item:m,last:r};
     }
     if(Date.now()-t0>=max)return{last:r};
     await sleep(700);
   }
+}
+const fastFind=(tg,tmo,pkg)=>fastPoll(r=>fastMatch(r.items||[],tg),tmo,pkg);
+// ---- switches: find the switch next to a label, set it, check the new state ----
+const SW_K=/switch|toggle|checkbox/i;
+const reEsc=s=>String(s).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+function swPick(items,re){
+  const sw=items.filter(x=>SW_K.test(x.k||''));
+  if(!sw.length)return null;
+  if(re){
+    // the label is the item before the switch (or the switch's own text); the item after it only counts when nothing comes before
+    for(const x of sw){
+      const j=items.indexOf(x),prev=items.slice(Math.max(0,j-2),j).filter(y=>!SW_K.test(y.k||'')&&y.t);
+      const win=[x].concat(prev,prev.length?[]:items.slice(j+1,j+2).filter(y=>!SW_K.test(y.k||'')));
+      if(win.some(y=>re.test(String(y.t||''))))return x;
+    }
+    return null;
+  }
+  return sw.length===1?sw[0]:null;
+}
+async function swSet(o){
+  const st=String(o.state||'').toLowerCase(),want=st==='on'?true:st==='off'?false:null;
+  if(want===null)throw new Error('state "on" ya "off" hona chahiye.');
+  let re=o.re||null;
+  const lab=String(o.text||'').trim();
+  if(!re&&lab)re=new RegExp(lab.split('|').map(x=>reEsc(x.trim())).filter(Boolean).join('|'),'i');
+  const f=await fastPoll(r=>swPick(r.items||[],re),o.timeout_s||10,o.app);
+  if(!f.item){const e=new Error((lab?'"'+cut(lab,30)+'" ke paas':'Screen pe')+' koi switch nahi mila ya kai hain (pata nahi kaun sa). Screen dekho.');e.snap=f.last;throw e}
+  const nm=cut(lab||'switch',30),cur=String(f.item.f||'').indexOf('x')>=0;
+  if(cur===want)return nm+' pehle se '+(want?'ON':'OFF')+' tha, kuch nahi dabaya.';
+  await NS('click',{id:f.item.i});await sleep(1000);
+  const r2=await NS('read'),x2=swPick(r2.items||[],re);
+  if(!x2){const e=new Error('Switch dabaya par ab screen pe nahi dikh raha, state verify nahi hui.');e.snap=r2;throw e}
+  const now=String(x2.f||'').indexOf('x')>=0;
+  if(now!==want){const e=new Error('Switch dabaya par state nahi badli (ab '+(now?'ON':'OFF')+'). Shayad dusri tap ya permission chahiye.');e.snap=r2;throw e}
+  return nm+' ab '+(want?'ON':'OFF')+' (screen se verify kiya).';
 }
 function fastSnap(r){
   if(!r||!(r.items||[]).length)return'';
@@ -96,6 +133,7 @@ async function fastStep(s){
     const r=await NS('click',{id:f.item.i});await sleep(900);
     return'Click: '+cut((r&&r.label)||f.item.t,40);
   }
+  if(d==='toggle')return await swSet({text:s.text,state:s.state,app:s.app});
   if(d==='type'){
     const o={text:String(s.text==null?'':s.text),submit:!!s.submit};
     await NS('type',o);await sleep(500);
@@ -105,9 +143,9 @@ async function fastStep(s){
   if(d==='scroll'){await NS('scroll',{direction:s.direction||'down'});await sleep(600);return'Scroll '+(s.direction||'down')}
   throw new Error('Unknown step: '+d);
 }
-const fastScr=d=>d==='wait_for'||d==='click'||d==='type'||d==='key'||d==='scroll';
+const fastScr=d=>d==='wait_for'||d==='click'||d==='toggle'||d==='type'||d==='key'||d==='scroll';
 async function fastTool(name,a,note,fl){
-  const st=name==='run_flow'?(Array.isArray(a.steps)?a.steps.slice(0,15):[]):[name==='open_url'?{do:'open_url',uri:a.uri,contact:a.contact,text:a.text,app:a.app}:name==='open_intent'?{do:'open_intent',name:a.name,params:a.params,app:a.app}:{do:'click',text:a.text,app:a.app,timeout_s:a.timeout_s}];
+  const st=name==='run_flow'?(Array.isArray(a.steps)?a.steps.slice(0,15):[]):[name==='open_url'?{do:'open_url',uri:a.uri,contact:a.contact,text:a.text,app:a.app}:name==='open_intent'?{do:'open_intent',name:a.name,params:a.params,app:a.app}:name==='set_switch'?{do:'toggle',text:a.text,state:a.state,app:a.app}:{do:'click',text:a.text,app:a.app,timeout_s:a.timeout_s}];
   if(!st.length){fl.bad=true;return note('Flow me steps nahi diye.')}
   const t0=Date.now(),many=st.length>1;let scr=false,done=0,lastMsg='';
   for(let i=0;i<st.length;i++){
@@ -117,7 +155,7 @@ async function fastTool(name,a,note,fl){
     try{
       const m=await fastStep(s);
       note(many?(i+1)+'/'+st.length+' '+m:m);done++;lastMsg=m;
-      if(fastScr(d))scr=true;
+      if(fastScr(d)||(d==='open_intent'&&s.params&&typeof s.params==='object'&&(s.params.set||s.params.press||IPRESS[s.name])))scr=true;
     }catch(e){
       const c=e&&e.code;
       if(c==='STOPPED'||c==='NOT_ENABLED')throw e;

@@ -34,6 +34,7 @@ function pillText(name,a){
     case'rules_read':return'Reading rules';
     case'open_url':return'Opening link';
     case'open_intent':return'Opening '+cut(String(a.name||'').replace(/_/g,' '),24);
+    case'set_switch':return'Switch '+cut(a.text||'',20)+' '+(a.state||'');
     case'tap_when_visible':return'Tapping '+cut(a.text||'',30);
     case'run_flow':return'Running steps';
     case'screen_read':return'Reading screen';
@@ -50,6 +51,8 @@ function pillText(name,a){
     case'file_move':return'Moving file';
     case'file_delete':return'Deleting file';
     case'file_present':return'Showing file';
+    case'api_check':return'Checking Termux:API';
+    case'device_api':return'Phone: '+cut(String(a.name||'').replace(/_/g,' '),22);
     case'termux_run':return'Running command';
     case'termux_write_file':return'Writing file';
     case'termux_read_file':return'Reading file';
@@ -147,10 +150,11 @@ async function execTool0(name,a,steps,fl){
   const say=(content,x)=>H.push(Object.assign({role:'assistant',content,by:'Phone',local:1},x||{}));
   try{
     if(name.indexOf('screen_')===0||name==='ask_user'||name==='wait_for_user')return await screenTool(name,a,note,fl);
-    if(name==='open_url'||name==='open_intent'||name==='tap_when_visible'||name==='run_flow')return await fastTool(name,a,note,fl);
+    if(name==='open_url'||name==='open_intent'||name==='set_switch'||name==='tap_when_visible'||name==='run_flow')return await fastTool(name,a,note,fl);
     if(name.indexOf('file_')===0||name==='edit_file')return await fileTool(name,a,note,fl);
     if(name==='rules_read')return rulesTool(a,note,fl);
     if(name.indexOf('note_')===0)return await noteTool(name,a,note,fl);
+    if(name==='api_check'||name==='device_api')return await apiTool(name,a,note,fl);
     if(name.indexOf('termux_')===0)return await termuxTool(name,a,note,fl);
     if(name.indexOf('memory_')===0)return await memoryTool(name,a,note,fl);
     if(name==='torch'){const r=await NP('torch',a.state==='on'?{on:true}:a.state==='off'?{on:false}:{});return note('Torch '+(r.on?'on':'off')+' hai.')}
@@ -198,10 +202,10 @@ async function execTool0(name,a,steps,fl){
 async function execTool(name,a,steps){
   a=a||{};
   const fl={bad:false},own=name==='ask_user'||name==='wait_for_user',txt=pillText(name,a);
-  if(name==='open_app'||name.indexOf('screen_')===0||own||/^(open_url|open_intent|tap_when_visible|run_flow)$/.test(name))LEFT_APP=true;
+  if(name==='open_app'||name.indexOf('screen_')===0||own||/^(open_url|open_intent|set_switch|tap_when_visible|run_flow)$/.test(name))LEFT_APP=true;
   if(!own)pillShow(txt,12000,'pill','run');
   const res=await execTool0(name,a,steps,fl);
-  logAdd(fl.bad?'tool FAIL':'tool',logTool(name,a)+((name.indexOf('termux_')===0||name.indexOf('file_')===0||name.indexOf('note_')===0||name==='edit_file'||name==='screen_read')?'':' -> '+cut(String(res).replace(/\s+/g,' '),140)));
+  logAdd(fl.bad?'tool FAIL':'tool',logTool(name,a)+((name.indexOf('termux_')===0||name==='device_api'||name==='api_check'||name.indexOf('file_')===0||name.indexOf('note_')===0||name==='edit_file'||name==='screen_read')?'':' -> '+cut(String(res).replace(/\s+/g,' '),140)));
   if(!own){
     pillShow(txt,fl.bad?3000:6000,'pill',fl.bad?'fail':'ok');
     if(fl.bad)await sleep(1500);
