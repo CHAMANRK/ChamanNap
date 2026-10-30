@@ -34,7 +34,9 @@ async function slashRun(sl,t){
   busy=true;$('#send').disabled=true;
   logAdd('you','/'+sl.cmd.name+' ('+sl.arg.length+' chars)');
   H.push({role:'user',content:t,info:1});
+  lnBegin('Command chal raha hai','wait');
   try{await sl.cmd.run(sl.arg)}catch(e){H.push({role:'assistant',by:'App',info:1,content:'Command fail: '+errMsg(e)})}
+  const lnWas=LN.on;lnEnd();if(lnWas)NS('finish',{open:false}).catch(()=>{});
   H=H.slice(-100);persist();busy=false;$('#send').disabled=false;render();logFlush();
 }
 $('#in').addEventListener('input',slashSync);

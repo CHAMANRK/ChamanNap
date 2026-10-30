@@ -109,3 +109,22 @@ b{font-weight:700}i{font-style:italic}del{opacity:.65}
 .nch{display:flex;flex-direction:column;gap:6px;margin-top:8px}
 .nchoice{text-align:left;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text)}
 .nchoice:active{background:var(--code)}
+/* step18: live status line (same look as the phone overlay: no box, dot + one line + arrow) */
+.msg.ln{padding:2px;background:none;white-space:normal}
+.lnl{display:flex;align-items:center;gap:8px;min-height:28px;cursor:pointer;color:var(--text);font-size:14px;-webkit-tap-highlight-color:transparent}
+.lnd{flex:none;width:9px;height:9px;border-radius:50%;background:#d98a3d}
+.lnd.ok{background:var(--accent)}
+.lnd.fail{background:#d4645c}
+.lnd.wait{animation:lnp .65s ease-in-out infinite alternate}
+.lnd.s{width:7px;height:7px;margin-top:0}
+.lnt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lnt.rl{animation:lnr .18s ease-out}
+.lnk{flex:none;display:grid;place-items:center;width:22px;height:22px;color:var(--muted)}
+.lna{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;transition:transform .18s ease}
+.lnk.o .lna{transform:rotate(90deg)}
+.lnx{margin:4px 0 2px 4px;padding-left:12px;border-left:1px solid var(--border);font-size:13px}
+.lni{display:flex;align-items:center;gap:8px;padding:2px 0;color:var(--text)}
+.lnr{padding:0 0 3px 15px;font-size:12px;color:var(--muted)}
+@keyframes lnr{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes lnp{from{opacity:1}to{opacity:.3}}
+@media(prefers-reduced-motion:reduce){.lnt.rl,.lnd.wait{animation:none}.lna{transition:none}}

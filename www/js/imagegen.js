@@ -88,6 +88,7 @@ async function imageCmd(arg){
   if(!pr){const c=imgCfg();say('Aise likho: /image ek shaant jheel pe subah ka suraj\nModel: '+c.model+' ('+c.w+'x'+c.h+', '+c.steps+' steps). Settings me badal sakte ho.');return}
   const wait={role:'assistant',by:'App',info:1,content:'Image ban rahi hai, 2 minute tak lag sakte hain...'};
   H.push(wait);liveRender();
+  lnSet('NVIDIA se image ban rahi hai','wait');
   try{
     const r=await genImage(pr);
     const i=H.indexOf(wait);if(i>=0)H.splice(i,1);

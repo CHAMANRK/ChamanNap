@@ -327,13 +327,24 @@ public class ChamanAccessibilityService extends AccessibilityService {
     }
 
     // ---------- status pill (overlay) ----------
-    // modes: 0 = pill (background, one line), 1 = ask (no background, text beside a dot), 2 = done (tap to open Chaman)
+    // modes: 0 = old pill (background, one line), 1 = ask (no background, text beside a dot), 2 = done (tap to open Chaman),
+    // 3 = status line (no background, dot + one rolling line + arrow; tap the text = list of steps)
     // dot states: run = orange, ok = green, fail = red, wait = orange pulsing
     private static final int C_ORANGE = 0xFFD98A3D;
     private static final int C_GREEN = 0xFF8DBF9C;
     private static final int C_RED = 0xFFD4645C;
 
     private int pillMode = 0;
+    private int pillWinType = 0;
+    private boolean lineActive = false;
+    private boolean listOpen = false;
+    private String lineText = "";
+    private String lineState = "run";
+    private final List<String[]> lineItems = new ArrayList<>();
+    private LinearLayout listWin;
+    private boolean listAttached = false;
+    private View arrowView;
+    private Runnable collapseTask;
     private View dotBox;
     private View dotView;
     private GradientDrawable dotDraw;
@@ -371,6 +382,29 @@ public class ChamanAccessibilityService extends AccessibilityService {
         pillText = new TextView(c);
         pillText.setEllipsize(TextUtils.TruncateAt.END);
         pill.addView(pillText, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        ArrowView arrow = new ArrowView(c);
+        arrow.setVisibility(View.GONE);
+        pill.addView(arrow, new LinearLayout.LayoutParams(dp(28), dp(34)));
+        arrowView = arrow;
+        pill.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+
+        // tap the text (or the arrow) = open / close the list of steps (status line only)
+        View.OnClickListener toggle = new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (pillMode == 2) {
+                    openSelf();
+                    removePill();
+                    return;
+                }
+                if (pillMode != 3 || lineItems.isEmpty()) return;
+                listOpen = !listOpen;
+                refreshList(true);
+            }
+        };
+        pillText.setOnClickListener(toggle);
+        arrow.setOnClickListener(toggle);
 
         // tap the dot while Chaman is waiting for you = "done"
         box.setOnClickListener(new View.OnClickListener() {
@@ -430,6 +464,17 @@ public class ChamanAccessibilityService extends AccessibilityService {
             pillText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
             pillText.setShadowLayer(dp(3), 0, dp(1), 0xFF000000);
             pillText.setMaxWidth((int) (w * 0.78f));
+            pillText.setMinWidth(0);
+        } else if (mode == 3) {
+            int tw = (int) (w * 0.76f) - dp(34) - dp(28) - dp(12);
+            pill.setBackground(null);
+            pill.setPadding(dp(4), dp(2), dp(8), dp(2));
+            pillText.setSingleLine(true);
+            pillText.setTextColor(0xFFFFFFFF);
+            pillText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+            pillText.setShadowLayer(dp(3), 0, dp(1), 0xFF000000);
+            pillText.setMinWidth(tw);
+            pillText.setMaxWidth(tw);
         } else {
             pill.setBackground(pillBg);
             pill.setPadding(dp(8), dp(4), dp(16), dp(4));
@@ -438,6 +483,7 @@ public class ChamanAccessibilityService extends AccessibilityService {
             pillText.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
             pillText.setShadowLayer(0, 0, 0, 0);
             pillText.setMaxWidth((int) (w * 0.66f));
+            pillText.setMinWidth(0);
         }
         pillText.setEllipsize(TextUtils.TruncateAt.END);
     }
@@ -462,6 +508,10 @@ public class ChamanAccessibilityService extends AccessibilityService {
         hideTask = new Runnable() {
             @Override
             public void run() {
+                if (pillMode == 3) {
+                    lineActive = false;
+                    listOpen = false;
+                }
                 removePill();
             }
         };
@@ -469,6 +519,7 @@ public class ChamanAccessibilityService extends AccessibilityService {
     }
 
     private void removePill() {
+        hideList();
         try {
             if (pulse != null) {
                 pulse.cancel();
@@ -494,9 +545,22 @@ public class ChamanAccessibilityService extends AccessibilityService {
                     return "build: " + e;
                 }
             }
+            if (mode == 3 && !lineActive) lineItems.clear();
             applyMode(mode);
             setDot(state);
-            pillText.setText(text);
+            pillText.animate().cancel();
+            pillText.setTranslationY(0f);
+            pillText.setAlpha(1f);
+            if (arrowView != null) {
+                arrowView.setVisibility(mode == 3 ? (lineItems.isEmpty() ? View.INVISIBLE : View.VISIBLE) : View.GONE);
+                arrowView.setRotation(listOpen ? 90f : 0f);
+            }
+            if (mode == 3) {
+                rollText(text);
+            } else {
+                pillText.setText(text);
+                hideList();
+            }
             if (!pillAttached) {
                 String err = "";
                 boolean ok = false;
@@ -504,6 +568,7 @@ public class ChamanAccessibilityService extends AccessibilityService {
                     try {
                         wm.addView(pill, pillParams(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY));
                         ok = true;
+                        pillWinType = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
                         lastPillType = "app_overlay";
                     } catch (Exception e) {
                         err = "app overlay: " + e;
@@ -513,6 +578,7 @@ public class ChamanAccessibilityService extends AccessibilityService {
                     try {
                         wm.addView(pill, pillParams(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY));
                         ok = true;
+                        pillWinType = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY;
                         lastPillType = "a11y_overlay";
                     } catch (Exception e) {
                         return err + " | a11y overlay: " + e;
@@ -544,6 +610,219 @@ public class ChamanAccessibilityService extends AccessibilityService {
             return "interrupted";
         }
         return res[0];
+    }
+
+    // ---------- status line (step18) ----------
+    // The app sends the whole line each time: text, dot state and the list of steps. Nothing here is written by the AI.
+    // The line is shown only while Chaman is NOT on screen (inside Chaman the chat draws the same line).
+
+    private class ArrowView extends View {
+        private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path path = new Path();
+
+        ArrowView(Context c) {
+            super(c);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(dp(2));
+            p.setStrokeCap(Paint.Cap.ROUND);
+            p.setStrokeJoin(Paint.Join.ROUND);
+            p.setColor(0xFFFFFFFF);
+            p.setShadowLayer(dp(3), 0, dp(1), 0xFF000000);
+            setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            float w = getWidth();
+            float h = getHeight();
+            path.reset();
+            path.moveTo(w * 0.40f, h * 0.32f);
+            path.lineTo(w * 0.62f, h * 0.50f);
+            path.lineTo(w * 0.40f, h * 0.68f);
+            canvas.drawPath(path, p);
+        }
+    }
+
+    // new text rolls in from below (the system "remove animations" setting turns this off by itself)
+    private void rollText(String t) {
+        if (pillText == null) return;
+        CharSequence cur = pillText.getText();
+        if (cur != null && cur.toString().equals(t)) return;
+        pillText.setText(t);
+        pillText.setTranslationY(dp(8));
+        pillText.setAlpha(0f);
+        pillText.animate().translationY(0f).alpha(1f).setDuration(180).start();
+    }
+
+    private void hideList() {
+        if (collapseTask != null) {
+            main.removeCallbacks(collapseTask);
+            collapseTask = null;
+        }
+        try {
+            if (listAttached && wm != null && listWin != null) wm.removeView(listWin);
+        } catch (Exception e) {
+            // ignore
+        }
+        listAttached = false;
+    }
+
+    private void buildList() {
+        if (listWin == null) {
+            listWin = new LinearLayout(this);
+            listWin.setOrientation(LinearLayout.VERTICAL);
+            listWin.setPadding(dp(14), dp(2), dp(8), dp(2));
+            listWin.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+        }
+        listWin.removeAllViews();
+        int from = Math.max(0, lineItems.size() - 6);
+        for (int i = from; i < lineItems.size(); i++) {
+            String[] it = lineItems.get(i);
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            View d = new View(this);
+            GradientDrawable g = new GradientDrawable();
+            g.setShape(GradientDrawable.OVAL);
+            g.setColor("ok".equals(it[1]) ? C_GREEN : ("fail".equals(it[1]) ? C_RED : C_ORANGE));
+            d.setBackground(g);
+            LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(dp(7), dp(7));
+            dl.rightMargin = dp(8);
+            row.addView(d, dl);
+            TextView t = new TextView(this);
+            t.setText(it[0]);
+            t.setSingleLine(true);
+            t.setEllipsize(TextUtils.TruncateAt.END);
+            t.setTextColor(0xFFFFFFFF);
+            t.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+            t.setShadowLayer(dp(3), 0, dp(1), 0xFF000000);
+            row.addView(t, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            listWin.addView(row, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            if (it[2] != null && it[2].length() > 0) {
+                TextView r = new TextView(this);
+                r.setText(it[2]);
+                r.setSingleLine(true);
+                r.setEllipsize(TextUtils.TruncateAt.END);
+                r.setTextColor(0xB3FFFFFF);
+                r.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f);
+                r.setShadowLayer(dp(3), 0, dp(1), 0xFF000000);
+                r.setPadding(dp(15), 0, 0, dp(3));
+                listWin.addView(r, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            }
+        }
+    }
+
+    // The list is a second window that cannot be touched, so taps meant for the app under it go through.
+    // It closes by itself 6 seconds after the user opened it.
+    private void refreshList(boolean byTap) {
+        if (arrowView != null) arrowView.animate().rotation(listOpen ? 90f : 0f).setDuration(160).start();
+        if (!listOpen || lineItems.isEmpty() || pillMode != 3 || !pillAttached || pillWinType == 0) {
+            hideList();
+            return;
+        }
+        buildList();
+        if (!listAttached) {
+            WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
+                (int) (getResources().getDisplayMetrics().widthPixels * 0.76f),
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                pillWinType,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                    | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                    | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                    | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.TRANSLUCENT
+            );
+            lp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+            lp.y = dp(44) + dp(36);
+            try {
+                wm.addView(listWin, lp);
+                listAttached = true;
+            } catch (Exception e) {
+                listAttached = false;
+            }
+        }
+        if (byTap) {
+            if (collapseTask != null) main.removeCallbacks(collapseTask);
+            collapseTask = new Runnable() {
+                @Override
+                public void run() {
+                    listOpen = false;
+                    refreshList(false);
+                }
+            };
+            main.postDelayed(collapseTask, 6000);
+        }
+    }
+
+    private String renderLine(boolean fromJs) {
+        if (!lineActive) return "";
+        if (!fromJs && pillAttached && pillMode != 3) return "";
+        if (ScreenControlPlugin.isAppVisible()) {
+            if (pillAttached && pillMode == 3) removePill();
+            return "";
+        }
+        String err = doShowPill(lineText, 150000, 3, lineState);
+        if (err.isEmpty() && listOpen) refreshList(false);
+        return err;
+    }
+
+    private String doLine(String text, String state, String itemsJson) {
+        lineActive = true;
+        lineText = text == null ? "" : text;
+        lineState = state == null ? "run" : state;
+        lineItems.clear();
+        try {
+            JSONArray arr = new JSONArray(itemsJson == null ? "[]" : itemsJson);
+            for (int i = 0; i < arr.length(); i++) {
+                JSONArray a = arr.optJSONArray(i);
+                if (a != null) lineItems.add(new String[] { a.optString(0, ""), a.optString(1, "run"), a.optString(2, "") });
+            }
+        } catch (Exception e) {
+            // bad items: show the line without the list
+        }
+        return renderLine(true);
+    }
+
+    // called from a plugin thread, same pattern as showPillSync
+    public String lineSync(final String text, final String state, final String itemsJson) {
+        final String[] res = { "" };
+        final CountDownLatch latch = new CountDownLatch(1);
+        main.post(new Runnable() {
+            @Override
+            public void run() {
+                res[0] = doLine(text, state, itemsJson);
+                latch.countDown();
+            }
+        });
+        try {
+            if (!latch.await(800, TimeUnit.MILLISECONDS)) return "main thread busy";
+        } catch (InterruptedException e) {
+            return "interrupted";
+        }
+        return res[0];
+    }
+
+    // the answer is ready (or the turn failed): the line goes away
+    public void lineOff() {
+        main.post(new Runnable() {
+            @Override
+            public void run() {
+                lineActive = false;
+                listOpen = false;
+                lineItems.clear();
+                if (pillAttached && pillMode == 3) removePill();
+            }
+        });
+    }
+
+    // Chaman came to the front (chat shows the line) or went to the back (overlay shows it)
+    public void lineVisibilityChanged() {
+        main.post(new Runnable() {
+            @Override
+            public void run() {
+                if (lineActive) renderLine(false);
+            }
+        });
     }
 
     public boolean openSelf() {

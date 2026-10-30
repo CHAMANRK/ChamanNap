@@ -14,6 +14,10 @@ public class ScreenControlPlugin extends Plugin {
 
     private static volatile boolean appVisible = true;
 
+    static boolean isAppVisible() {
+        return appVisible;
+    }
+
     @Override
     public void load() {
         appVisible = true;
@@ -23,12 +27,17 @@ public class ScreenControlPlugin extends Plugin {
     protected void handleOnResume() {
         appVisible = true;
         ChamanAccessibilityService s = ChamanAccessibilityService.get();
-        if (s != null) s.hideDonePill();
+        if (s != null) {
+            s.hideDonePill();
+            s.lineVisibilityChanged();
+        }
     }
 
     @Override
     protected void handleOnPause() {
         appVisible = false;
+        ChamanAccessibilityService s = ChamanAccessibilityService.get();
+        if (s != null) s.lineVisibilityChanged();
     }
 
     private ChamanAccessibilityService svc(PluginCall call) {
@@ -191,8 +200,32 @@ public class ScreenControlPlugin extends Plugin {
         }
         Integer ttl = call.getInt("ttl", 8000);
         String m = call.getString("mode", "pill");
-        int mode = "ask".equals(m) ? 1 : ("done".equals(m) ? 2 : 0);
+        int mode = "ask".equals(m) ? 1 : ("done".equals(m) ? 2 : 3);
         String err = s.showPillSync(call.getString("text", ""), ttl == null ? 8000 : ttl, mode, call.getString("state", "run"));
+        r.put("ok", err.isEmpty());
+        r.put("err", err);
+        r.put("type", s.lastPillType());
+        call.resolve(r);
+    }
+
+    // step18: the one status line (text, dot state, list of steps). {off:true} removes it.
+    @PluginMethod
+    public void line(PluginCall call) {
+        JSObject r = new JSObject();
+        ChamanAccessibilityService s = ChamanAccessibilityService.get();
+        if (s == null) {
+            r.put("ok", false);
+            r.put("err", "Accessibility service on nahi hai");
+            call.resolve(r);
+            return;
+        }
+        if (Boolean.TRUE.equals(call.getBoolean("off", false))) {
+            s.lineOff();
+            r.put("ok", true);
+            call.resolve(r);
+            return;
+        }
+        String err = s.lineSync(call.getString("text", ""), call.getString("state", "run"), call.getString("items", "[]"));
         r.put("ok", err.isEmpty());
         r.put("err", err);
         r.put("type", s.lastPillType());
@@ -209,7 +242,8 @@ public class ScreenControlPlugin extends Plugin {
             call.resolve(r);
             return;
         }
-        boolean launched = s.openSelf();
+        boolean open = !Boolean.FALSE.equals(call.getBoolean("open", true));
+        boolean launched = open && s.openSelf();
         if (!Boolean.TRUE.equals(call.getBoolean("quiet", false))) s.showPillSync("Done. Tap to open Chaman", 6000, 2, "ok");
         r.put("opened", launched);
         call.resolve(r);

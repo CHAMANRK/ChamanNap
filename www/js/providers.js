@@ -7,6 +7,7 @@ async function callOpenAI(p,msgs,mdl,tools){
   const n=ks.length,start=(S.ptr[p.id]||0)%n;let last='';
   for(let i=0;i<n;i++){
     const idx=(start+i)%n,k=ks[idx];
+    if(i>0)lnSet(p.name.replace(' (optional)','')+': dusri key try kar raha hu','wait');
     if((cool[k]||0)>Date.now()){last='keys cooldown me';continue}
     try{
       const r=await T(fetch(p.url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+k},body:JSON.stringify(Object.assign({model:mdl||S.models[p.id]||p.model,messages:msgs,max_tokens:1024},tools?{tools:tools,tool_choice:'auto'}:{}))}),TMO(p));

@@ -23,14 +23,14 @@ const TCONF={};
 const noFence=s=>String(s==null?'':s).replace(/```/g,"'''");
 function liveRender(){
   render();
-  if(busy)$('#chat').insertAdjacentHTML('beforeend','<div class="msg ai dots" id="ty"><span></span><span></span><span></span></div>');
   $('#chat').scrollTop=1e9;
 }
 // Shows a confirm card in the chat and waits for the tap. Brings Chaman to the front if it is in the background.
 function tconfirm(head,body,why,lab){
   return new Promise(res=>{
     const id='t'+Date.now()+Math.random().toString(36).slice(2,6);
-    TCONF[id]=res;
+    const done=v=>{lnSet(LN.items.length?LN.items[LN.items.length-1][0]:'Kaam chal raha hai','run');res(v)};
+    TCONF[id]=done;lnSet('Tumhare confirm ka wait','wait');
     logAdd('confirm?',head+': '+cut(body,200)+' | wajah: '+why.join(', '));
     H.push({role:'assistant',by:'Termux',local:1,content:head+':\n```\n'+noFence(cut(body,1500))+'\n```\nWajah: '+why.join(', '),confirm:{type:'termux',id,opts:[{name:''}],state:'pending',lab:lab||''}});
     NS('finish',{quiet:true}).catch(()=>{});
@@ -41,7 +41,7 @@ function tconfirm(head,body,why,lab){
       const m=H.find(x=>x.confirm&&x.confirm.id===id);
       if(m&&m.confirm.state==='pending'){m.confirm.state='expired';m.content+='\n\nTime khatam, cancel.'}
       logAdd('confirm','termux expired (cancel)');
-      liveRender();res(false);
+      liveRender();done(false);
     },180000);
   });
 }

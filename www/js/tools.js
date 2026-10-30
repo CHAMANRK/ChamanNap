@@ -1,6 +1,5 @@
 const STN={media:'Media',ring:'Ringtone',alarm:'Alarm'};
-const ST={status:{type:'string',description:'Very short status shown to the user over the screen, English, max 5 words, e.g. "Finding Rahul"'}};
-const fn=(name,description,properties,required)=>({type:'function',function:{name,description,parameters:{type:'object',properties:Object.assign({},properties,ST),required:required||[]}}});
+const fn=(name,description,properties,required)=>({type:'function',function:{name,description,parameters:{type:'object',properties:properties,required:required||[]}}});
 const TOOLS=[
   fn('torch','Turn the phone flashlight on or off, or toggle it.',{state:{type:'string',enum:['on','off','toggle']}},['state']),
   fn('set_volume','Set or change phone volume. Give level (0-100) to set it, or change up/down. level 0 = mute.',{stream:{type:'string',enum:['media','ring','alarm'],description:'default media'},level:{type:'integer',minimum:0,maximum:100},change:{type:'string',enum:['up','down']}}),
@@ -19,7 +18,10 @@ const TOOLS=[
 ];
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let SCR_STOP=false,A11Y_HINTED=false,LEFT_APP=false,PILL_ERR='';
-const pillShow=(text,ttl,mode,state)=>NS('pill',{text,ttl,mode:mode||'pill',state:state||'run'}).then(r=>{if(r&&r.err&&String(r.err).indexOf('Accessibility')<0&&!PILL_ERR)PILL_ERR=r.err}).catch(()=>{});
+const pillShow=(text,ttl,mode,state)=>{
+  if(mode!=='ask'){lnSet(text,state==='wait'?'wait':state==='fail'?'fail':state==='ok'?'ok':'run');return Promise.resolve()}
+  return NS('pill',{text,ttl,mode,state:state||'run'}).then(r=>{if(r&&r.err&&String(r.err).indexOf('Accessibility')<0&&!PILL_ERR)PILL_ERR=r.err}).catch(()=>{});
+};
 const cut=(t,n)=>{t=String(t==null?'':t);return t.length>n?t.slice(0,n)+'...':t};
 function pillText(name,a){
   if(a.status)return cut(a.status,60);
@@ -80,6 +82,10 @@ function jac(a,b){let i=0;a.forEach(x=>{if(b.has(x))i++});const u=a.size+b.size-
 // kind 'pin': waits until the screen changes (taps and typing are ignored, so PIN digits do not end the wait)
 // kind 'act': ends on any tap/focus/keyboard/screen change by the user. Tapping the dot always ends it.
 async function waitUser(kind,msg,after,tmo,baseR){
+  LN.hold=true;
+  try{return await waitUser0(kind,msg,after,tmo,baseR)}finally{LN.hold=false}
+}
+async function waitUser0(kind,msg,after,tmo,baseR){
   const max=Math.min(300,Math.max(10,+tmo||120))*1000,t0=Date.now();
   pillShow(cut(msg||'Waiting for you',140),max+5000,'ask','wait');
   await NS('activity',{reset:true}).catch(()=>{});
@@ -205,14 +211,15 @@ async function execTool0(name,a,steps,fl){
 // Pill dot: orange while a step runs, green when it worked, red when it failed. (ask/wait tools draw their own overlay.)
 async function execTool(name,a,steps){
   a=a||{};
-  const fl={bad:false},own=name==='ask_user'||name==='wait_for_user',txt=pillText(name,a);
+  const fl={bad:false},own=name==='ask_user'||name==='wait_for_user';
   if(name==='open_app'||name.indexOf('screen_')===0||own||/^(open_url|open_intent|set_switch|tap_when_visible|run_flow)$/.test(name))LEFT_APP=true;
-  if(!own)pillShow(txt,12000,'pill','run');
+  if(own)LN.hold=true;
+  const it=lnStep(name,a),n0=steps.length;
+  if(own){LN.state='wait';lnDraw()}
   const res=await execTool0(name,a,steps,fl);
   logAdd(fl.bad?'tool FAIL':'tool',logTool(name,a)+((name.indexOf('termux_')===0||name==='device_api'||name==='api_check'||name==='run_code'||name.indexOf('file_')===0||name.indexOf('note_')===0||name==='edit_file'||name==='screen_read')?'':' -> '+cut(String(res).replace(/\s+/g,' '),140)));
-  if(!own){
-    pillShow(txt,fl.bad?3000:6000,'pill',fl.bad?'fail':'ok');
-    if(fl.bad)await sleep(1500);
-  }
+  if(own)LN.hold=false;
+  lnStepEnd(it,name,a,fl.bad,res,steps.length>n0?steps[steps.length-1]:'');
+  await sleep(fl.bad?1500:200);
   return res;
 }
