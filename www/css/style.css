@@ -1,16 +1,16 @@
 :root{--bg:#f2f4f1;--surface:#fff;--border:#dce2da;--text:#19211c;--muted:#65726a;--accent:#2d6f52;--on-accent:#fff;--user:#dfece4;--code:#e8ece6;--danger:#a63f35;color-scheme:light}
 :root[data-theme=dark]{--bg:#0f1614;--surface:#171f1c;--border:#26312c;--text:#e4ebe6;--muted:#8a978f;--accent:#6fb08f;--on-accent:#0d1511;--user:#1f302a;--code:#0b100e;--danger:#e08c82;color-scheme:dark}
 *{box-sizing:border-box;margin:0}
-html,body{height:100%}
-body{background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
-header{display:flex;align-items:center;gap:4px;padding:10px 14px;border-bottom:1px solid var(--border)}
+html{height:100%;overflow:hidden;overscroll-behavior:none}
+body{position:fixed;top:0;left:0;right:0;height:var(--app-h,100%);transform:translateY(var(--app-top,0px));overflow:hidden;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
+header{flex:none;display:flex;align-items:center;gap:4px;padding:10px 14px;border-bottom:1px solid var(--border)}
 header h1{font:600 22px/1 ui-serif,Georgia,serif;letter-spacing:.2px;flex:1}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .ib{width:40px;height:40px;border-radius:10px;color:var(--muted);display:grid;place-items:center}
 .ib:active{background:var(--surface)}
 .ib svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-#chat{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px}
+#chat{flex:1;min-height:0;overscroll-behavior:contain;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px}
 .msg{border-radius:14px;padding:10px 14px;overflow-wrap:anywhere;white-space:pre-wrap}
 .ai{width:100%;padding:2px;background:none;border:0}
 .me{width:80%;align-self:flex-end;background:var(--user)}
@@ -29,7 +29,7 @@ code{font:14px ui-monospace,Menlo,monospace}
 .dots span:nth-child(2){animation-delay:.15s}.dots span:nth-child(3){animation-delay:.3s}
 @keyframes b{0%,60%,100%{opacity:.3}30%{opacity:1}}
 @media(prefers-reduced-motion:reduce){.dots span{animation:none}}
-form{display:flex;gap:8px;align-items:flex-end;padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--border)}
+form{flex:none;display:flex;gap:8px;align-items:flex-end;padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--border)}
 textarea,input,select{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 12px;width:100%}
 form textarea{resize:none;max-height:140px}
 #send{width:44px;height:44px;flex:none;border-radius:50%;background:var(--accent);color:var(--on-accent);display:grid;place-items:center}

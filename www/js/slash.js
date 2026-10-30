@@ -21,7 +21,7 @@ function slashSync(){
 }
 function slashPick(name){
   const i=$('#in');SL_ARM='/'+name;i.value=SL_ARM+' ';hideSlash();
-  i.style.height='auto';i.style.height=i.scrollHeight+'px';i.focus();
+  i.style.height='auto';i.style.height=i.scrollHeight+'px';i.focus({preventScroll:true});
 }
 // Returns {cmd,arg} when the text starts with the command that was picked from the list, else null (plain text).
 function slashTake(t){
