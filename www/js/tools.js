@@ -51,6 +51,7 @@ function pillText(name,a){
     case'file_move':return'Moving file';
     case'file_delete':return'Deleting file';
     case'file_present':return'Showing file';
+    case'run_code':return'Running '+({js:'JavaScript',sql:'SQL',py:'Python'}[a.lang]||'code');
     case'api_check':return'Checking Termux:API';
     case'device_api':return'Phone: '+cut(String(a.name||'').replace(/_/g,' '),22);
     case'termux_run':return'Running command';
@@ -154,6 +155,7 @@ async function execTool0(name,a,steps,fl){
     if(name.indexOf('file_')===0||name==='edit_file')return await fileTool(name,a,note,fl);
     if(name==='rules_read')return rulesTool(a,note,fl);
     if(name.indexOf('note_')===0)return await noteTool(name,a,note,fl);
+    if(name==='run_code')return await codeTool(name,a,note,fl);
     if(name==='api_check'||name==='device_api')return await apiTool(name,a,note,fl);
     if(name.indexOf('termux_')===0)return await termuxTool(name,a,note,fl);
     if(name.indexOf('memory_')===0)return await memoryTool(name,a,note,fl);
@@ -205,7 +207,7 @@ async function execTool(name,a,steps){
   if(name==='open_app'||name.indexOf('screen_')===0||own||/^(open_url|open_intent|set_switch|tap_when_visible|run_flow)$/.test(name))LEFT_APP=true;
   if(!own)pillShow(txt,12000,'pill','run');
   const res=await execTool0(name,a,steps,fl);
-  logAdd(fl.bad?'tool FAIL':'tool',logTool(name,a)+((name.indexOf('termux_')===0||name==='device_api'||name==='api_check'||name.indexOf('file_')===0||name.indexOf('note_')===0||name==='edit_file'||name==='screen_read')?'':' -> '+cut(String(res).replace(/\s+/g,' '),140)));
+  logAdd(fl.bad?'tool FAIL':'tool',logTool(name,a)+((name.indexOf('termux_')===0||name==='device_api'||name==='api_check'||name==='run_code'||name.indexOf('file_')===0||name.indexOf('note_')===0||name==='edit_file'||name==='screen_read')?'':' -> '+cut(String(res).replace(/\s+/g,' '),140)));
   if(!own){
     pillShow(txt,fl.bad?3000:6000,'pill',fl.bad?'fail':'ok');
     if(fl.bad)await sleep(1500);

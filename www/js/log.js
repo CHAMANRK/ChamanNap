@@ -21,6 +21,7 @@ function logTool(name,a){
     case'open_url':return name+' '+cut(String(a.uri||'').replace(/([?&]text=).*/i,'$1...'),80)+(a.contact?' contact '+cut(a.contact,30):'')+(a.text?' ('+String(a.text).length+' chars)':'');
     case'device_api':return name+' '+cut(a.name,30)+' ['+Object.keys(a.params&&typeof a.params==='object'?a.params:{}).join(',')+']';
     case'api_check':return name;
+    case'run_code':return name+' '+cut(a.lang,8)+' ('+String(a.code==null?'':a.code).length+' chars'+(a.csv?', csv':'')+(a.db?', db':'')+')';
     case'set_switch':return name+' '+cut(a.text,40)+' '+a.state;
     case'open_intent':return name+' '+cut(a.name,40)+' ['+Object.keys(a.params&&typeof a.params==='object'?a.params:{}).join(',')+']';
     case'run_flow':return name+' ['+(Array.isArray(a.steps)?a.steps.map(s=>s&&s.do).join(','):'')+']';

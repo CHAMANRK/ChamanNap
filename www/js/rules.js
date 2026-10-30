@@ -1,6 +1,6 @@
 // Step10: rules per area (AI reads the app copy only), auto-injection by keywords, rules_read tool, skill (auto from TOOLS),
 // folder copy for Najeef in /sdcard/Chaman/memory/rules (read-only for him, AI never reads it), guard against fake tool output.
-const RULES_VER='2026-10-29.3';
+const RULES_VER='2026-10-30.1';
 const RULES={
 files:`FILES (workspace /sdcard/Chaman; the file_* tools need no Termux, only the All files access permission for Chaman)
 - Layout: work/<project>/ your files, memory/ notes, backup/ (the app copies the old file there before every overwrite or edit), .trash/ (deleted items), logs/ (the app writes it, you never do). Paths: /sdcard/Chaman/... or relative to it. The file tools cannot go outside this folder.
@@ -63,6 +63,7 @@ phone:`PHONE TOOLS
 };
 const RULE_KW={
   intents:/\balarm|\btimer\b|\bclock\b|ghadi|calendar|\bevent\b|meeting|remind|\bsettings?\b|wi-?fi|bluetooth|airplane|battery|location|\bnfc\b|camera|\bphoto|\bvideo|gallery|music|\bgana\b|\bsong|calculator|browser|\bmaps?\b|navigat|\bshare\b|contact|e-?mail|play ?store|app info|notification|storage|hotspot|\bvpn\b|developer|\bintent|sound|display|brightness mode|dark mode/i,
+  code:/calculat|\bcalc\b|hisa+b|\bmath\b|\bsum\b|total|average|percent|convert|conversion|\bregex\b|\bjson\b|\bcsv\b|\bsql(ite)?\b|\bjs\b|javascript|python|\bpy\b|run_code|\bscript\b|\b(date|tarikh|time)\b|days? (left|between)|din (bache|baaki)|kitne (din|ghante|minute|paise)|\bcompute\b|\bexact\b/i,
   api:/battery|charge|clipboard|\bgps\b|location|torch|flash ?light|vibrat|volume|brightness|\btts\b|speak|\bbol\b.{0,12}\bsun|toast|notif|selfie|photo|\bpic(ture)?\b|record|\bmic\b|termux.?api|device_api|api_check|wifi info/i,
   notes:/\bnotes?\b|\bsave\b|yaad rakh|\bcommands?\b.{0,24}\b(de|do|dena|dikha|bata|batao)\b|\b(de|do|dena|dikha|dikhao|bata)\b.{0,24}\bcommands?\b|jab (main|me|mai) bol|bola tha|mene diya|maine diya|\bsnippet\b/i,
   skill:/kya\s*(kya\s*)?kar\s*sakt|tu kya|tum kya|capabilit|\bskills?\b|\btools?\b|features?|kya aata|what can you/i,
@@ -73,11 +74,12 @@ const RULE_KW={
   termux:/termux|command|\bpkg\b|\bgit\b|\bapt\b|\bnpm\b|python|\bnode\b|\bbash\b|\bcurl\b|install|update|upgrade|\brun\b|chalao|terminal|shell|\bls\b|\bcd\b/i,
   phone:/torch|flash|volume|brightness|\bcall\b|\bsms\b|contact|\bopen\b|khol|\bdial\b|ring|mute/i
 };
-const RULE_ORDER=['skill','notes','intents','links','screen','files','memory','api','termux','phone'];
+const RULE_ORDER=['skill','notes','code','intents','links','screen','files','memory','api','termux','phone'];
 function ruleText(a){
   if(a==='skill')return skillText();
   if(a==='intents')return intentRules();
   if(a==='api')return apiRules();
+  if(a==='code')return codeRules();
   return RULES[a]||'';
 }
 // areas for the latest messages of Najeef (last 3, so a short follow-up like 'haan kar do' keeps the context)
@@ -97,7 +99,7 @@ function rulesBlock(){
   logAdd('rules','auto: '+used.join(', '));
   return'\n\nRULES FOR THIS TASK (from the app, follow them; call rules_read for another area):'+out;
 }
-TOOLS.push(fn('rules_read','Read the rules of one area before you start a task. area: files, notes, intents (every open_intent name with its params), api (Termux:API device_api jobs and setup), memory, screen, links (fast path: deep links, tap_when_visible, run_flow), termux, phone, skill (what you can do, built from your tools). The app already adds the rules it thinks are relevant to each message; call this when you need another area.',{area:{type:'string',enum:['files','memory','screen','links','termux','phone','skill']}},['area']));
+TOOLS.push(fn('rules_read','Read the rules of one area before you start a task. area: files, notes, intents (every open_intent name with its params), api (Termux:API device_api jobs and setup), code (run_code: JavaScript, SQL, MicroPython in the app), memory, screen, links (fast path: deep links, tap_when_visible, run_flow), termux, phone, skill (what you can do, built from your tools). The app already adds the rules it thinks are relevant to each message; call this when you need another area.',{area:{type:'string',enum:['files','memory','screen','links','termux','phone','skill','code']}},['area']));
 function rulesTool(a,note,fl){
   const k=String(a.area||'').toLowerCase().trim(),t=ruleText(k);
   if(!t){fl.bad=true;return note('Rules area nahi mila: '+k+'. Options: '+RULE_ORDER.join(', '))}
@@ -110,8 +112,8 @@ function skillText(){
     return'- '+f.name+'('+ps.join(', ')+'): '+cut(String(f.description||'').split(/\.\s/)[0],170);
   });
   return'SKILL (what you can do; built from the tools of this app version)\n'+L.join('\n')
-   +'\nWorks without Termux: chat, phone tools, open_url, screen control (with Accessibility), reading text attachments, files in /sdcard/Chaman (file_* tools and edit_file, needs All files access; file_present shows a file card; attached files are copied to work/uploads so you can edit them), memory (memory_read, memory_search, memory_save), his notes (note_save, note_get). Needs Termux: device_api (phone hardware through Termux:API, check with api_check), running code, PDF/docx/zip, internet, files outside /sdcard/Chaman.'
-   +'\nRoutes: for any job try every ability above (Termux, device_api, open_intent, open_url, files, memory, screen control) and refuse only after all of them failed; then name what you tried. Internet: curl in Termux, or open_intent web_search / open_url. Date and time: date in Termux.'
+   +'\nWorks without Termux: chat, phone tools, open_url, screen control (with Accessibility), reading text attachments, small code runs with run_code (JavaScript, SQL on CSV or SQLite files, MicroPython; also the phone date and time via new Date()), files in /sdcard/Chaman (file_* tools and edit_file, needs All files access; file_present shows a file card; attached files are copied to work/uploads so you can edit them), memory (memory_read, memory_search, memory_save), his notes (note_save, note_get). Needs Termux: device_api (phone hardware through Termux:API, check with api_check), heavy code (full Python with pip or numpy, node packages, long jobs), PDF/docx/zip, internet, files outside /sdcard/Chaman.'
+   +'\nRoutes: for any job try every ability above (Termux, device_api, open_intent, open_url, files, memory, screen control) and refuse only after all of them failed; then name what you tried. Internet: curl in Termux, or open_intent web_search / open_url. Date and time: run_code js (new Date()) or date in Termux. Exact math and data queries: run_code.'
    +'\nProviders with tools: Groq, Cerebras, OpenRouter, NVIDIA, Mistral. The Chaman model is chat-only.'
    +'\nNot given to you yet (Najeef can add each one; never claim you have them, and when he asks, say what each would let you do): Shizuku (silent system toggles without screen taps), more Termux:API features (sensors, SMS/contacts through API, fingerprint), a secrets vault (keep passwords safely and type them for him), face lock (recognise him before sensitive actions).';
 }
