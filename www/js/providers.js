@@ -1,4 +1,5 @@
 const T=(p,ms)=>Promise.race([p,new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),ms))]);
+const TMO=p=>p.id==='nvidia'?130000:45000;
 const keysOf=id=>(S.keys[id]||'').split(/[\s,]+/).filter(Boolean);
 
 async function callOpenAI(p,msgs,mdl,tools){
@@ -8,7 +9,7 @@ async function callOpenAI(p,msgs,mdl,tools){
     const idx=(start+i)%n,k=ks[idx];
     if((cool[k]||0)>Date.now()){last='keys cooldown me';continue}
     try{
-      const r=await T(fetch(p.url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+k},body:JSON.stringify(Object.assign({model:mdl||S.models[p.id]||p.model,messages:msgs,max_tokens:1024},tools?{tools:tools,tool_choice:'auto'}:{}))}),45000);
+      const r=await T(fetch(p.url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+k},body:JSON.stringify(Object.assign({model:mdl||S.models[p.id]||p.model,messages:msgs,max_tokens:1024},tools?{tools:tools,tool_choice:'auto'}:{}))}),TMO(p));
       if(!r.ok){let bd='';try{bd=(await r.text()).replace(/\s+/g,' ').slice(0,140)}catch(e){}
         if(tools&&[400,404,422].includes(r.status)&&/tool|function/i.test(bd))throw Object.assign(new Error('HTTP '+r.status+' '+bd),{noTools:true});
         cool[k]=Date.now()+(r.status===429?60000:(r.status===401||r.status===403)?600000:15000);last='HTTP '+r.status+(bd?' '+bd:'');continue}
@@ -55,6 +56,6 @@ function apiMsgs(vision){
 }
 const provName=id=>id==='auto'?'Auto':id==='chaman'?'Chaman (sirf chat)':(P.find(p=>p.id===id)||{name:id}).name.replace(' (optional)','');
 function provOrder(){
-  const base=P.filter(p=>!p.g),sel=P.find(p=>p.id===S.prov);
+  const base=P.filter(p=>!p.g).sort((a,b)=>(b.id==='nvidia')-(a.id==='nvidia')),sel=P.find(p=>p.id===S.prov);
   return sel?[sel].concat(base.filter(p=>p!==sel)):base;
 }

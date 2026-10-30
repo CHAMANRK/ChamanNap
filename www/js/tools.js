@@ -51,6 +51,7 @@ function pillText(name,a){
     case'file_move':return'Moving file';
     case'file_delete':return'Deleting file';
     case'file_present':return'Showing file';
+    case'generate_image':return'Making image';
     case'run_code':return'Running '+({js:'JavaScript',sql:'SQL',py:'Python'}[a.lang]||'code');
     case'api_check':return'Checking Termux:API';
     case'device_api':return'Phone: '+cut(String(a.name||'').replace(/_/g,' '),22);
@@ -156,6 +157,7 @@ async function execTool0(name,a,steps,fl){
     if(name==='rules_read')return rulesTool(a,note,fl);
     if(name.indexOf('note_')===0)return await noteTool(name,a,note,fl);
     if(name==='run_code')return await codeTool(name,a,note,fl);
+    if(name==='generate_image')return await imageTool(a,note,fl);
     if(name==='api_check'||name==='device_api')return await apiTool(name,a,note,fl);
     if(name.indexOf('termux_')===0)return await termuxTool(name,a,note,fl);
     if(name.indexOf('memory_')===0)return await memoryTool(name,a,note,fl);
