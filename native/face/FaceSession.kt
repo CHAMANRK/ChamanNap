@@ -38,7 +38,8 @@ class FaceSession(
 ) {
     private companion object {
         const val WINDOW = 5
-        const val UNKNOWN_AFTER = 15 // scored frames, none of the 5-frame windows passed
+        const val UNKNOWN_AFTER = 15 // scored frames in one unbroken run, none of the 5-frame windows passed
+        const val UNKNOWN_MIN_MS = 3000L // ...and that run must also have lasted at least this long
         const val NO_FRAME_MS = 6000L
         const val NO_FACE_MS = 10000L
         const val BLINK_MS = 15000L
@@ -59,13 +60,23 @@ class FaceSession(
     private var blink = if (job.opts.blink) Blink.WAIT_OPEN else Blink.DONE
     private val recent = ArrayDeque<Float>()
     private var scored = 0
+    @Volatile private var runScored = 0 // scored frames since the face was last lost / turned away
+    private var runStartAt = 0L
     private var lastScore = 0f
     private var threshold = 0.5f
     private var lastFaceFrame: Bitmap? = null
     private var samples: List<FaceStore.Sample> = emptyList()
     private var spec: ModelSpec? = null
 
+    /** Face lost / turned away / not aligned: the "was it clearly someone else" evidence starts again. */
+    private fun resetRun() {
+        recent.clear()
+        runScored = 0
+        runStartAt = 0L
+    }
+
     fun start() {
+        job.hosted = true
         FaceBus.progress("Face check: camera dekh raha hu", "run")
         executor.execute {
             try {
@@ -158,14 +169,14 @@ class FaceSession(
         }
         val face = FaceDetect.largest(faces)
         if (face == null) {
-            recent.clear()
+            resetRun()
             FaceBus.progress("Camera ke saamne aao", "wait")
             return
         }
         lastFaceAt = now
         lastFaceFrame = frame
         if (face.boundingBox.width() < 90 || !FaceDetect.isFrontal(face, 25f, 25f)) {
-            recent.clear()
+            resetRun()
             FaceBus.progress("Seedha camera ki taraf dekho", "wait")
             return
         }
@@ -192,7 +203,7 @@ class FaceSession(
 
         val aligned = FaceDetect.align(frame, face)
         if (aligned == null) {
-            recent.clear()
+            resetRun()
             FaceBus.progress("Roshni me camera ki taraf dekho", "wait")
             return
         }
@@ -205,6 +216,8 @@ class FaceSession(
         val score = Matcher.score(samples, s.id, probe) ?: return
         lastScore = score
         scored++
+        if (runScored == 0) runStartAt = now
+        runScored++
         recent.addLast(score)
         if (recent.size > WINDOW) recent.removeFirst()
         FaceBus.progress("Face match " + minOf(recent.size, WINDOW) + "/" + WINDOW, "run")
@@ -216,12 +229,12 @@ class FaceSession(
                 return
             }
         }
-        if (scored >= UNKNOWN_AFTER) finish("unknown", recent.average().toFloat())
+        if (runScored >= UNKNOWN_AFTER && now - runStartAt >= UNKNOWN_MIN_MS) finish("unknown", recent.average().toFloat())
     }
 
     private fun decideOnTimeout() {
         when {
-            scored >= 8 -> finish("unknown", lastScore)
+            runScored >= 8 -> finish("unknown", lastScore)
             blink != Blink.DONE && blinkStartAt > 0 -> finish("noblink", null)
             frames > 0 && SystemClock.elapsedRealtime() - lastFaceAt > 3000 -> finish("noface", null)
             else -> finish("unclear", null)
@@ -325,7 +338,7 @@ class FaceSession(
     fun stop() {
         if (ended.compareAndSet(false, true)) {
             handler.removeCallbacksAndMessages(null)
-            FaceBus.finish(FaceBus.error("CANCELLED", "Face check beech me band ho gaya"))
+            if (FaceBus.job === job) FaceBus.finish(FaceBus.error("CANCELLED", "Face check beech me band ho gaya"))
             stopCamera()
             executor.execute {
                 try { detector.close() } catch (_: Exception) {}

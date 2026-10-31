@@ -6,6 +6,8 @@ import android.app.NotificationManager
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.LifecycleService
 
@@ -35,6 +37,7 @@ class FaceVerifyService : LifecycleService() {
             },
             onEnd = { stopSelf() },
         ).also { it.start() }
+        job.stopper = { Handler(Looper.getMainLooper()).post { session?.stop(); stopSelf() } }
         return START_NOT_STICKY
     }
 

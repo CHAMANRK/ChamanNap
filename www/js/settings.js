@@ -50,11 +50,20 @@ function sheet(){
   $('#rns').textContent=typeof rnStatus==='function'?rnStatus():'';
   $('#rnt').onclick=()=>{$('#rnr').textContent='Test chal raha hai...';rnTest().then(t=>{$('#rnr').textContent=t;$('#rns').textContent=rnStatus()}).catch(e=>{$('#rnr').textContent='Test fail: '+errMsg(e)})};
   if(typeof flBind==='function')flBind();
-  $('#save').onclick=()=>{
+  $('#save').onclick=async()=>{
+    // Face lock: a change that makes it weaker needs the owner first. If that fails nothing is saved and the sheet stays open.
+    let nfl=null;
+    if(typeof flRead==='function'){
+      nfl=flRead();
+      if(typeof flWeaker==='function'&&flWeaker(flCfg(),nfl)){
+        const g=await flGuard();
+        if(!g.ok){const e=$('#fls');if(e){e.textContent=g.text;const d=e.closest&&e.closest('details');if(d)d.open=true}return}
+      }
+    }
     S.ch={url:$('#c_url').value.trim(),key:$('#c_key').value.trim(),hf:$('#c_hf').value.trim()};
     P.filter(p=>!p.g).forEach(p=>{S.keys[p.id]=$('#k_'+p.id).value.trim();const m=$('#m_'+p.id).value.trim();S.models[p.id]=m||p.model});
     S.system=$('#sys').value.trim()||DEF_SYS;S.theme=$('#th').value;S.ws={auto:$('#ws_auto').value!=='off'};S.lg={on:$('#lg_on').value!=='off'};S.rn={on:$('#rn_on').value!=='off',warm:$('#rn_warm').value!=='off',netInit:true,net:$('#rn_net').value.split(/[\n,]+/).map(x=>rnClean(x)).filter(Boolean).slice(0,30)};S.ptr={};S.vision={provider:$('#v_p').value,model:$('#v_m').value.trim()||'openrouter/free'};S.img={model:$('#im_m').value.trim(),w:$('#im_w').value,h:$('#im_h').value,steps:$('#im_s').value};
-    if(typeof flRead==='function'){S.fl=flRead();flSync()}
+    if(nfl){S.fl=nfl;flSync()}
     sv('nap_s',S);theme();$('#sheet').classList.remove('open');
   };
 }

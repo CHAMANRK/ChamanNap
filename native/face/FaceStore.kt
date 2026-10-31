@@ -39,6 +39,9 @@ class FaceStore(ctx: Context) {
     @Synchronized
     fun count(): Int = load().size
 
+    /** A faces file exists but may be unreadable. Used so a damaged file locks things instead of switching the lock off. */
+    fun hasData(): Boolean = file.exists() && file.length() > 0L
+
     @Synchronized
     fun clear() {
         file.delete()

@@ -25,6 +25,7 @@ class FaceVerifyActivity : ComponentActivity() {
             },
             onEnd = { runOnUiThread { finish() } },
         ).also { it.start() }
+        job.stopper = { runOnUiThread { session?.stop(); finish() } }
     }
 
     override fun onDestroy() {

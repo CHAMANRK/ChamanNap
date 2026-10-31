@@ -6,6 +6,8 @@
 // No preview on screen: the status line says what to do ("Blink karo (ek baar)", "Face match 3/5"). Android shows its own green camera dot.
 // The AI cannot skip it: faceGate() runs inside execTool0, and the native ScreenControl plugin refuses screen actions without a valid check too.
 // App open itself is NOT gated. If no face is enrolled or the model is missing, nothing is gated (nothing to verify against).
+// Hardening (19.3.1): verify has a 45 s timeout (+ native cancel); a failing status call or a damaged faces file blocks instead of opening;
+// enrolling, deleting faces and weakening the settings need a fresh owner check once a face is enrolled (flGuard).
 const FLN=(m,o)=>NPx('FaceLock',m,o);
 const FL_AREAS=[
   {id:'screen',t:'Screen control (accessibility)'},
@@ -43,20 +45,24 @@ function flSync(){
   const c=flCfg();
   return FLN('config',{master:!!c.on,ttlMin:c.min,blink:!!c.blink,strictness:+c.strict||0,lockUnknown:!!c.lock,savePhoto:!!c.photo,areas:c.areas}).catch(()=>{});
 }
-let FL_BUSY=null,FL_DENY=0;
+let FL_BUSY=null,FL_DENY=0,FL_TIMEOUT=45000;
 // One check at a time. onProg(text,state) is called with the native status text while the camera runs.
+// If the native side never answers (host could not start), after FL_TIMEOUT ms the job is cancelled and the result is error/TIMEOUT.
 function flVerify(o,onProg){
   if(FL_BUSY)return FL_BUSY;
   FL_BUSY=(async()=>{
     lnSet('Face check: camera dekh raha hu','run');
-    let stop=false;
+    let stop=false,giveUp=null;
+    const t0=Date.now();
+    const timeout=new Promise(res=>{giveUp=res});
     (async()=>{
       while(!stop){
+        if(Date.now()-t0>FL_TIMEOUT){FLN('cancel').catch(()=>{});giveUp({result:'error',code:'TIMEOUT',message:'Face check ka time khatam ho gaya'});return}
         try{const p=await FLN('progress');if(!stop&&p&&p.active&&p.text){lnSet(p.text,p.state||'run');if(onProg)onProg(p.text,p.state||'run')}}catch(e){}
         await sleep(450);
       }
     })();
-    try{return await FLN('verify',o||{})}
+    try{return await Promise.race([FLN('verify',o||{}),timeout])}
     catch(e){return{result:'error',code:e&&e.code,message:errMsg(e)}}
     finally{stop=true}
   })().then(r=>{FL_BUSY=null;return r},e=>{FL_BUSY=null;throw e});
@@ -75,6 +81,12 @@ function flFinish(r){
 function flUnknownText(r){
   return'Camera ke saamne jo chehra tha wo Najeef ka nahi mila. '+(r.locked?'Phone lock kar diya gaya':'Phone lock nahi ho paya (Accessibility on hai?)')+(r.photo?', photo save ho gayi':'')+'.';
 }
+// status call failed: in the browser or an APK without the plugin there is nothing to gate (null); on a real Android app block the tool
+function flStatusFail(e){
+  const m=errMsg(e)||'';
+  if(/sirf Android/i.test(m)||(e&&e.code==='UNIMPLEMENTED'))return null;
+  return'FACE_ERROR: Face lock ki status nahi padh paya ('+m+'), isliye ye kaam band hai. Najeef Settings > Face lock me is area ko band kar sakta hai.';
+}
 // returns null = go ahead, or a text for the tool result (the tool does NOT run)
 async function faceGate(name,a){
   const area=flArea(name,a);
@@ -82,8 +94,8 @@ async function faceGate(name,a){
   const c=flCfg();
   if(!c.on||c.areas.indexOf(area)<0)return null;
   let st;
-  try{st=await FLN('status')}catch(e){return null}
-  if(!st||!st.modelOk||!st.enrolled)return null;
+  try{st=await FLN('status')}catch(e){return flStatusFail(e)}
+  if(!st||!st.modelOk||!(st.enrolled||st.hasData))return null;
   if(st.remainMs>0)return null;
   if(Date.now()-FL_DENY<60000)return'FACE_UNKNOWN: Abhi kuch der pehle unknown face mila tha, isliye ye kaam band hai. Tool dobara mat chalao, Najeef ko batao.';
   const r=await flVerify({grant:true});
@@ -98,6 +110,8 @@ async function faceGate(name,a){
     case'unclear':return'FACE_NOT_VERIFIED: Face saaf nahi dikha (roshni ya angle), isliye "'+name+'" nahi chala. Najeef se kaho seedha camera ki taraf dekhe aur dobara bole.';
   }
   const code=r&&r.code;
+  if(code==='NOT_ENROLLED')return'FACE_ERROR: Enrolled face data nahi mila ya kharab hai. Najeef Settings > Face lock > Face enroll dobara kare.';
+  if(code==='TIMEOUT')return'FACE_ERROR: Face check ka time khatam ho gaya (camera nahi khula). Najeef ko batao, tool dobara mat chalao.';
   if(code==='NO_CAMERA')return'FACE_ERROR: Camera permission nahi hai. Najeef Settings > Face lock me test button se allow kare, ya us area ko Face lock se hata de.';
   return'FACE_ERROR: Face check nahi ho paya ('+((r&&r.message)||code||'error')+'). Najeef Settings > Face lock me is area ko band kar sakta hai.';
 }
@@ -121,6 +135,31 @@ async function faceWho(a,note,fl){
 if(typeof TOOLS!=='undefined'&&!TOOLS.some(t=>t.function&&t.function.name==='who_is_there'))
   TOOLS.push(fn('who_is_there','Check with the front camera who is in front of the phone right now. Returns whether it is Najeef (owner), an unknown person, or no face. Use it when Najeef asks who is there / to verify him, or when you need to be sure it is him before something sensitive. The camera stays headless (nothing is shown).',{}));
 if(typeof LN_LAB!=='undefined')LN_LAB.who_is_there='Face check kar raha hu';
+
+// ---------- Owner guard for Settings > Face lock ----------
+// Once a face is enrolled, enrolling more faces, deleting faces and making the lock weaker need a fresh owner check
+// (camera runs; an unknown face is treated like in the tools: phone lock + photo). Returns {ok:true} or {ok:false,text}.
+async function flGuard(){
+  let st;
+  try{st=await FLN('status')}catch(e){const f=flStatusFail(e);return f?{ok:false,text:f}:{ok:true}}
+  if(!st||!st.modelOk||!(st.enrolled>0))return{ok:true};
+  const r=await flVerify({grant:true});
+  flFinish(r);
+  if(r&&r.result==='owner')return{ok:true};
+  const why=r&&r.result==='error'?((r.message||r.code||'error')):(FL_END[r&&r.result]||FL_END.error)[0];
+  return{ok:false,text:'Owner verify nahi hua ('+why+'). Face enroll, faces hatana aur Face lock ko dheela karna sirf verify ke baad hota hai.'};
+}
+// true if b (new settings) protects less than a (current)
+function flWeaker(a,b){
+  if(a.on&&!b.on)return true;
+  if(a.areas.some(x=>b.areas.indexOf(x)<0))return true;
+  if(b.min>a.min)return true;
+  if(a.blink&&!b.blink)return true;
+  if(a.lock&&!b.lock)return true;
+  if(a.photo&&!b.photo)return true;
+  if((+b.strict||0)<(+a.strict||0))return true;
+  return false;
+}
 
 // ---------- Settings > Face lock ----------
 function flHtml(){
@@ -163,7 +202,11 @@ function flBind(){
     try{
       const p=await FLN('checkPermissions');
       if(!p||p.camera!=='granted')await FLN('requestPermissions',{permissions:['camera']});
+      T('Owner check chal raha hai...');
+      const g=await flGuard();
+      if(!g.ok){T(g.text);return}
       await FLN('enroll');
+      T('Enroll screen khul gayi.');
     }catch(e){T('Enroll nahi khula: '+errMsg(e))}
   };
   $('#fl_test').onclick=async()=>{
@@ -182,7 +225,8 @@ function flBind(){
     const b=$('#fl_del');
     if(!armed){armed=1;b.textContent='Pakka hatao? Dobara tap karo';setTimeout(()=>{armed=0;b.textContent='Enrolled faces hatao'},4000);return}
     armed=0;b.textContent='Enrolled faces hatao';
-    FLN('clearFaces').then(refresh).catch(e=>T(errMsg(e)));
+    T('Owner check chal raha hai...');
+    flGuard().then(g=>{if(!g.ok){T(g.text);return}return FLN('clearFaces').then(refresh)}).catch(e=>T(errMsg(e)));
   };
   refresh();
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&$('#fls'))refresh()});

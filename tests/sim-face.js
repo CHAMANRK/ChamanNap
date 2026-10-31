@@ -7,15 +7,17 @@ const doc={querySelector:s=>els[s]||(els[s]=mk(s)),createElement:()=>mk('c'),bod
 const store={};
 let pass=0,fail=0;const ok=(c,m)=>{if(c){pass++;console.log('PASS',m)}else{fail++;console.log('FAIL',m)}};
 // ---- fake FaceLock plugin ----
-const F={enrolled:3,modelOk:true,remainMs:0,verifyResults:[],verifyCalls:[],cfg:null,progress:{active:false,text:'',state:'run'},missing:false,camera:true};
+const F={hasData:false,hang:false,cancelled:0,missingCode:undefined,enrolled:3,modelOk:true,remainMs:0,verifyResults:[],verifyCalls:[],cfg:null,progress:{active:false,text:'',state:'run'},missing:false,camera:true};
 const native=[],lines=[];
 const faceNative=async(m,o)=>{
- if(F.missing){const e=new Error('plugin missing');throw e}
- if(m==='status')return{modelOk:F.modelOk,enrolled:F.enrolled,camera:F.camera,remainMs:F.remainMs,active:F.modelOk&&F.enrolled>0,a11y:true,lastUnknownAt:0};
+ if(F.missing){const e=new Error('plugin missing');if(F.missingCode)e.code=F.missingCode;throw e}
+ if(m==='status')return{modelOk:F.modelOk,enrolled:F.enrolled,camera:F.camera,remainMs:F.remainMs,hasData:F.hasData,active:F.modelOk&&(F.enrolled>0||F.hasData),a11y:true,lastUnknownAt:0};
+ if(m==='cancel'){F.cancelled++;return{ok:true}}
  if(m==='config'){F.cfg=o;return{ok:true}}
  if(m==='progress')return F.progress;
  if(m==='verify'){
   F.verifyCalls.push(o);
+  if(F.hang)await new Promise(()=>{});
   F.progress={active:true,text:'Blink karo (ek baar)',state:'wait'};
   await new Promise(r=>setTimeout(r,30));
   const r=F.verifyResults.shift()||{result:'owner',score:0.7,threshold:0.5};
@@ -106,9 +108,15 @@ const nat=name=>native.filter(x=>x===name).length;
  F.enrolled=3;F.modelOk=false;x=await exec('screen_click',{id:6});
  ok(F.verifyCalls.length===0&&nat('ScreenControl.click')===c0+2,'model missing: no gate');
  F.modelOk=true;
- F.missing=true;x=await exec('screen_click',{id:7});
- ok(/Click/.test(x.r),'plugin missing (browser): no gate, tool runs');
+ F.missing=true;F.missingCode='UNIMPLEMENTED';x=await exec('screen_click',{id:7});
+ ok(/Click/.test(x.r),'plugin not in this APK (UNIMPLEMENTED): no gate, tool runs');
+ F.missingCode=undefined;c0=nat('ScreenControl.click');x=await exec('screen_click',{id:7});
+ ok(/FACE_ERROR/.test(x.r)&&nat('ScreenControl.click')===c0,'status call fails on Android: tool BLOCKED (fail closed)');
  F.missing=false;
+ F.enrolled=0;F.hasData=true;F.remainMs=0;F.verifyResults=[{result:'error',code:'NOT_ENROLLED',message:'Koi face enroll nahi hai'}];c0=nat('ScreenControl.click');
+ x=await exec('screen_click',{id:7});
+ ok(/FACE_ERROR/.test(x.r)&&/kharab/.test(x.r)&&nat('ScreenControl.click')===c0,'damaged faces file: tool blocked, not silently open');
+ F.enrolled=3;F.hasData=false;
 
  // 8. toggles: master off, area off, files on
  run("S.fl=Object.assign({},flCfg(),{on:false})");F.remainMs=0;F.verifyResults=[{result:'noface'}];
@@ -152,6 +160,41 @@ const nat=name=>native.filter(x=>x===name).length;
  const sh=run('sheet.toString()');
  ok(/flHtml/.test(sh)&&/flBind/.test(sh)&&/flRead/.test(sh),'settings.js is wired to face.js');
  ok(await run('flStatusText()').then(t=>/Enrolled samples: 3/.test(t)),'status text');
+
+ // 12b. hang: native never answers -> timeout, cancel, next verify works
+ run('FL_TIMEOUT=60');F.hang=true;F.remainMs=0;F.cancelled=0;c0=nat('ScreenControl.click');
+ x=await exec('screen_click',{id:11});
+ ok(/FACE_ERROR/.test(x.r)&&/time khatam/.test(x.r)&&nat('ScreenControl.click')===c0,'verify hang: times out, tool blocked');
+ ok(F.cancelled===1,'verify hang: native cancel called');
+ ok(run('FL_BUSY')===null,'verify hang: busy flag cleared');
+ F.hang=false;run('FL_TIMEOUT=45000');F.remainMs=0;F.verifyResults=[{result:'owner',score:0.7,threshold:0.5}];
+ x=await exec('screen_click',{id:12});
+ ok(/Click/.test(x.r),'after a timeout the next check works');
+
+ // 12c. owner guard
+ F.remainMs=0;F.verifyCalls.length=0;F.verifyResults=[{result:'owner',score:0.7,threshold:0.5}];
+ let g=await run('flGuard()');
+ ok(g.ok&&F.verifyCalls.length===1&&F.verifyCalls[0].grant===true,'guard: owner passes, camera ran');
+ F.remainMs=0;F.verifyResults=[{result:'unknown',score:0.1,threshold:0.5}];
+ g=await run('flGuard()');
+ ok(!g.ok&&/Owner verify nahi hua/.test(g.text),'guard: unknown face refused');
+ F.enrolled=0;F.verifyCalls.length=0;
+ g=await run('flGuard()');
+ ok(g.ok&&F.verifyCalls.length===0,'guard: nothing enrolled yet -> first enroll is free');F.enrolled=3;
+ const W=(a,b)=>run('flWeaker(Object.assign({},flCfg(),'+JSON.stringify(a)+'),Object.assign({},flCfg(),'+JSON.stringify(b)+'))');
+ ok(W({on:true},{on:false})&&W({areas:['screen','termux']},{areas:['screen']})&&W({min:5},{min:60})&&W({blink:true},{blink:false})&&W({lock:true},{lock:false})&&W({strict:0.05},{strict:0}),'weaker: off, area removed, longer window, blink/lock off, looser strictness');
+ ok(!W({on:true},{on:true})&&!W({areas:['screen']},{areas:['screen','files']})&&!W({min:30},{min:5})&&!W({strict:0},{strict:0.1}),'not weaker: same, area added, shorter window, stricter');
+
+ // 12d. Settings Save: weakening needs the owner, otherwise nothing is saved
+ run("S.fl=undefined");run('sheet()');
+ doc.querySelector('#fl_on').value='off';
+ F.remainMs=0;F.verifyCalls.length=0;F.verifyResults=[{result:'unknown',score:0.1,threshold:0.5}];
+ await els['#save'].onclick();
+ ok(F.verifyCalls.length===1&&(!run('S.fl')||run('S.fl.on!==false')),'save: master off by unknown face -> refused, setting unchanged');
+ F.remainMs=0;F.verifyResults=[{result:'owner',score:0.7,threshold:0.5}];
+ await els['#save'].onclick();
+ ok(run('S.fl&&S.fl.on===false'),'save: master off after owner check -> saved');
+ run("S.fl=undefined");
 
  // 13. other files unchanged behaviour: system prompt still migrated, version
  ok(/^19\.\d+\.\d+$/.test(run('APP_VER')),'APP_VER '+run('APP_VER'));

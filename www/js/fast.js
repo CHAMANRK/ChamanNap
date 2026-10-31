@@ -159,6 +159,7 @@ async function fastTool(name,a,note,fl){
     }catch(e){
       const c=e&&e.code;
       if(c==='STOPPED'||c==='NOT_ENABLED')throw e;
+      if(c==='FACE_REQUIRED')e=new Error('FACE_NOT_VERIFIED: Face verify ki meyad flow ke beech me khatam ho gayi. Najeef se kaho dobara bole, tab face check hoga.');
       fl.bad=true;
       note((many?(i+1)+'/'+st.length+' ':'')+'Fail: '+errMsg(e));
       let snap=e&&e.snap?fastSnap(e.snap):'';

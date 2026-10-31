@@ -57,6 +57,7 @@ class FaceLockPlugin : Plugin() {
         val r = JSObject()
         r.put("modelOk", models > 0)
         r.put("enrolled", FaceStore(context).count())
+        r.put("hasData", FaceStore(context).hasData())
         r.put("camera", cameraOk())
         r.put("master", c.master)
         r.put("active", FaceGate.active(context))
@@ -100,8 +101,31 @@ class FaceLockPlugin : Plugin() {
         FaceHost.start(context)
     }
 
+    /**
+     * Second lock for the JS owner check: with faces enrolled, changing them needs a valid owner window
+     * (the JS side verifies first and that starts the window).
+     */
+    private fun ownerNeeded(call: PluginCall): Boolean {
+        val models = try { ModelRegistry.load(context).models.isNotEmpty() } catch (e: Exception) { false }
+        if (!models || FaceStore(context).count() == 0 || FaceGate.remainMs() > 0) return false
+        call.reject("Face verify chahiye.", "FACE_REQUIRED")
+        return true
+    }
+
+    @PluginMethod
+    fun cancel(call: PluginCall) {
+        val j = FaceBus.job
+        if (j != null) {
+            j.stopper?.invoke()
+            // no host/session (it never started): nothing else will end this job
+            FaceBus.finish(FaceBus.error("CANCELLED", "Face check cancel hua"))
+        }
+        call.resolve(JSObject().put("ok", true))
+    }
+
     @PluginMethod
     fun enroll(call: PluginCall) {
+        if (ownerNeeded(call)) return
         try {
             val i = Intent(context, FaceEnrollActivity::class.java)
             val a = activity
@@ -114,6 +138,7 @@ class FaceLockPlugin : Plugin() {
 
     @PluginMethod
     fun clearFaces(call: PluginCall) {
+        if (ownerNeeded(call)) return
         FaceStore(context).clear()
         FaceGate.revoke()
         call.resolve(JSObject().put("ok", true))

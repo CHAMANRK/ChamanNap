@@ -30,7 +30,8 @@ object FaceGate {
         val c = FaceConfig.get(ctx)
         if (!c.master) return false
         if (ModelRegistry.load(ctx).models.isEmpty()) return false
-        return FaceStore(ctx).count() > 0
+        val store = FaceStore(ctx)
+        return store.count() > 0 || store.hasData()
     }
 
     /** true = go ahead. false = this area needs a face check and the owner is not verified. */
