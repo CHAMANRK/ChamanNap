@@ -1,8 +1,9 @@
 // Image generation (NVIDIA genai). URL = IMG_BASE + '/' + model id. Model id, size and steps are editable in Settings.
-// Uses the same NVIDIA key as chat. The image is saved to /sdcard/Chaman/work/images/ and shown as a file card.
+// Uses the same NVIDIA key as chat. Step19: the image is NOT written to disk. It stays in memory (IMG_PV), shows as a preview in chat,
+// and only the Save button (a tap by Najeef) writes it to /sdcard/Download via the native exportB64.
 const IMG_BASE='https://ai.api.nvidia.com/v1/genai';
 const IMG_DEF={model:'black-forest-labs/flux-3-image-klein',w:1024,h:1024,steps:50};
-const IMG_DIR=WS_ROOT+'/work/images',IMG_TMO=130000;
+const IMG_TMO=130000;
 function imgCfg(){
   const c=S.img||{},n=(v,d,lo,hi)=>{v=Math.round(+v);return isFinite(v)&&v>=lo&&v<=hi?v:d};
   return{model:String(c.model||'').trim().replace(/^\/+|\/+$/g,'')||IMG_DEF.model,w:n(c.w,IMG_DEF.w,64,2048),h:n(c.h,IMG_DEF.h,64,2048),steps:n(c.steps,IMG_DEF.steps,1,150)};
@@ -20,11 +21,6 @@ function imgPickJson(j){
 }
 const imgExt=b=>b.startsWith('/9j/')?'jpg':b.startsWith('UklGR')?'webp':'png';
 function imgName(ext){const d=new Date(),z=n=>String(n).padStart(2,'0');return'img-'+d.getFullYear()+z(d.getMonth()+1)+z(d.getDate())+'-'+z(d.getHours())+z(d.getMinutes())+z(d.getSeconds())+'.'+ext}
-async function imgUnique(ext){
-  const nm=imgName(ext);let p=IMG_DIR+'/'+nm;
-  for(let k=1;k<50&&(await NF('stat',{path:p})).exists;k++)p=IMG_DIR+'/'+nm.replace(/\.(\w+)$/,'-'+k+'.$1');
-  return p;
-}
 const u8b64=u8=>{let s='';for(let i=0;i<u8.length;i+=8192)s+=String.fromCharCode.apply(null,u8.subarray(i,i+8192));return btoa(s)};
 async function imgFetch(url,k,body){
   const h={'Content-Type':'application/json','Accept':'application/json','Authorization':'Bearer '+k};
@@ -38,7 +34,7 @@ async function imgFetch(url,k,body){
   }
   return r;
 }
-// Returns {path,size,model}. Throws Error with a short readable message.
+// Returns {b64,ext,size,model} (nothing is written to disk). Throws Error with a short readable message.
 async function genImage(prompt,o){
   o=o||{};const c=imgCfg();
   const ks=keysOf('nvidia');if(!ks.length)throw new Error('NVIDIA ki key Settings me daalo.');
@@ -57,29 +53,87 @@ async function genImage(prompt,o){
       if(/^image\//i.test(r.headers.get('content-type')||''))b64=u8b64(new Uint8Array(await r.arrayBuffer()));
       else b64=imgPickJson(await r.json()).replace(/^data:[^,]*,/,'');
       if(!b64){last='response me image nahi mili';continue}
-      const p=await imgUnique(imgExt(b64));
-      const raw=atob(b64),u=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)u[i]=raw.charCodeAt(i);
-      for(let i=0;;i+=UP_CHUNK){
-        await NF('writeB64',{path:p,b64:upB64(u.subarray(i,i+UP_CHUNK)),append:i>0});
-        if(i+UP_CHUNK>=u.length)break;
-      }
-      return{path:p,size:u.length,model:c.model};
+      b64=b64.replace(/\s+/g,'');
+      return{b64,ext:imgExt(b64),size:Math.floor(b64.length*3/4)-(b64.endsWith('==')?2:b64.endsWith('=')?1:0),model:c.model};
     }catch(e){
-      if(e&&e.code==='NO_ACCESS'){if(!FILES_HINTED){FILES_HINTED=true;NF('requestAccess').catch(()=>{})}throw new Error('Image save karne ke liye All files access chahiye.')}
-      cool[k]=Date.now()+15000;last=e.message||String(e);
+            cool[k]=Date.now()+15000;last=e.message||String(e);
     }
   }
   throw new Error(last||'image nahi bani');
 }
-TOOLS.push(fn('generate_image','Make an image from a text prompt with the NVIDIA image model (Najeef set the model in Settings). Write the prompt in English, detailed: subject, style, light, mood. It takes up to about 2 minutes. The image is saved in /sdcard/Chaman/work/images/ and shown to Najeef as a file card automatically, so do not call file_present for it. Call it once per image. Optional width and height (multiples of 64, 256-2048).',{prompt:{type:'string'},width:{type:'integer',minimum:256,maximum:2048},height:{type:'integer',minimum:256,maximum:2048}},['prompt']));
+
+// ---- preview in chat + Save to Download ----
+const IMG_PV={},IMG_SAVING={};
+const imgMime=e=>e==='jpg'?'image/jpeg':e==='webp'?'image/webp':'image/png';
+const ipBytes=b64=>{const raw=atob(b64),u=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)u[i]=raw.charCodeAt(i);return u};
+function ipUrl(p){
+  if(p.url)return p.url;
+  try{if(typeof Blob!=='undefined'&&typeof URL!=='undefined'&&URL.createObjectURL)return p.url=URL.createObjectURL(new Blob([ipBytes(p.b64)],{type:imgMime(p.ext)}))}catch(e){}
+  return p.url='data:'+imgMime(p.ext)+';base64,'+p.b64;
+}
+function ipDrop(id){
+  const p=IMG_PV[id];if(!p)return;
+  try{if(p.url&&p.url.indexOf('blob:')===0)URL.revokeObjectURL(p.url)}catch(e){}
+  delete IMG_PV[id];
+  H.forEach(m=>{if(m.imgp&&m.imgp.id===id&&m.imgp.state==='new')m.imgp.state='gone'});
+}
+function pushImgPreview(r,title){
+  const id='i'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+  IMG_PV[id]={b64:r.b64,ext:r.ext,size:r.size};
+  const ids=Object.keys(IMG_PV);while(ids.length>6)ipDrop(ids.shift());
+  H.push({role:'assistant',by:'Image',local:1,content:'',aiNote:'Image preview dikhaya (abhi save nahi hui; Najeef Save dabayega tab Download me jayegi)',imgp:{id,name:imgName(r.ext),size:r.size,model:r.model,title:cut(String(title||''),60),state:'new'}});
+  liveRender();return id;
+}
+function imgH(m,hi){
+  const a=m.imgp;if(!a)return'';
+  const p=IMG_PV[a.id],meta=esc((a.title?a.title+' - ':'')+kb(a.size||0));
+  if(!p)return'<div class="ipv"><small>'+(a.state==='saved'?'Download me save hui: '+esc(a.to||a.name):a.state==='gone'?'Image hata di, save nahi hui.':'Image ka preview ab nahi hai (app band hone ke baad chala jata hai), save nahi hui.')+'</small></div>';
+  return'<div class="ipv"><button type="button" class="ipi" data-ip="view" data-m="'+hi+'" aria-label="Image bada dekho"><img alt="" src="'+ipUrl(p)+'"></button><small>'+meta+'</small>'
+    +(a.err?'<small class="err">'+esc(a.err)+'</small>':'')
+    +'<div class="acts">'+(a.state==='saved'?'<span class="ipok">Saved: '+esc(a.to||'Download')+'</span>':a.busy?'<span class="ipok">Save ho rahi hai...</span>':'<button type="button" class="ibtn" data-ip="save" data-m="'+hi+'">Save (Download)</button><button type="button" class="ibtn x" data-ip="drop" data-m="'+hi+'">Hatao</button>')+'</div></div>';
+}
+// Writes the in-memory image to /sdcard/Download in chunks (native exportB64). Returns the saved path.
+async function imgSave(id){
+  if(IMG_SAVING[id])return IMG_SAVING[id];
+  const p=IMG_PV[id];if(!p)throw new Error('Preview ab nahi hai');
+  const m=H.find(x=>x.imgp&&x.imgp.id===id);
+  return IMG_SAVING[id]=(async()=>{
+    try{
+      const u=ipBytes(p.b64);let nm=m?m.imgp.name:imgName(p.ext),to='';
+      for(let i=0;;i+=UP_CHUNK){
+        const r=await NF('exportB64',{name:nm,b64:upB64(u.subarray(i,i+UP_CHUNK)),append:i>0});
+        nm=r.name||nm;to=r.to||to;
+        if(i+UP_CHUNK>=u.length)break;
+      }
+      if(m){m.imgp.state='saved';m.imgp.to=to.replace('/sdcard/','');delete m.imgp.err}
+      return to;
+    }catch(e){
+      if(e&&e.code==='NO_ACCESS'){if(!FILES_HINTED){FILES_HINTED=true;NF('requestAccess').catch(()=>{})}throw new Error('Save ke liye All files access chahiye.')}
+      throw e;
+    }finally{delete IMG_SAVING[id];persist()}
+  })();
+}
+function ipRefresh(){const c=$('#chat'),st=c.scrollTop;render();c.scrollTop=st}
+$('#chat').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-ip]');if(!b)return;
+  const m=H[+b.dataset.m],a=m&&m.imgp;if(!a)return;
+  if(b.dataset.ip==='view'){if(IMG_PV[a.id])openViewer({mem:a.id,name:a.name,title:a.title||'Image',kind:'img',size:a.size,path:''});return}
+  if(b.dataset.ip==='drop'){ipDrop(a.id);persist();ipRefresh();return}
+  if(b.dataset.ip==='save'){
+    a.busy=true;delete a.err;ipRefresh();
+    try{await imgSave(a.id)}catch(x){a.err='Save fail: '+cut(errMsg(x),80)}
+    a.busy=false;persist();ipRefresh();
+  }
+});
+TOOLS.push(fn('generate_image','Make an image from a text prompt with the NVIDIA image model (Najeef set the model in Settings). Write the prompt in English, detailed: subject, style, light, mood. It takes up to about 2 minutes. The image is shown to Najeef as a preview in the chat automatically (do not call file_present for it). It is NOT saved anywhere until Najeef taps Save, and you cannot read it with file tools. Call it once per image. Optional width and height (multiples of 64, 256-2048).',{prompt:{type:'string'},width:{type:'integer',minimum:256,maximum:2048},height:{type:'integer',minimum:256,maximum:2048}},['prompt']));
 async function imageTool(a,note,fl){
   const pr=String(a.prompt||'').trim();
   if(!pr){fl.bad=true;return note('Prompt nahi diya.')}
   const sz=v=>{v=Math.round((+v||0)/64)*64;return v>=256&&v<=2048?v:0};
   try{
     const r=await genImage(pr,{w:sz(a.width),h:sz(a.height)});
-    FILE_TURN.p[r.path]=1;pushCard(r.path,r.size,'Image');
-    return note('Image bani: '+r.path.split('/').pop())+' Card Najeef ko dikha diya, file '+r.path+'. Dobara mat banao jab tak woh na bole.';
+    const id=pushImgPreview(r,'Image');FILE_TURN.p['img:'+id]=1;
+    return note('Image bani, preview Najeef ko dikha diya')+' Abhi save nahi hui: Najeef Save dabayega tab Download me jayegi. Dobara mat banao jab tak woh na bole.';
   }catch(e){fl.bad=true;return note('Image fail: '+errMsg(e))}
 }
 async function imageCmd(arg){
@@ -92,7 +146,7 @@ async function imageCmd(arg){
   try{
     const r=await genImage(pr);
     const i=H.indexOf(wait);if(i>=0)H.splice(i,1);
-    pushCard(r.path,r.size,'Image: '+cut(pr,40));
+    pushImgPreview(r,'Image: '+cut(pr,40));
   }catch(e){const i=H.indexOf(wait);if(i>=0)H.splice(i,1);say('Image fail: '+errMsg(e))}
 }
 SLASH.push({name:'image',hint:'NVIDIA se image banao',run:a=>imageCmd(a)},{name:'img',hint:'/image ka short',run:a=>imageCmd(a)});

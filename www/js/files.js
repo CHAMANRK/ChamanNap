@@ -196,14 +196,15 @@ async function openViewer(a){
   VW={a,mode:'preview',load:true};
   $('#viewer').classList.add('open');drawViewer();
   try{
-    if(a.kind==='img'){const r=await NF('readB64',{path:a.path});VW.img='data:'+r.mime+';base64,'+r.b64}
+    if(a.kind==='img'&&a.mem){const p=IMG_PV[a.mem];if(!p)throw Object.assign(new Error('x'),{code:'GONE'});VW.img=ipUrl(p)}
+    else if(a.kind==='img'){const r=await NF('readB64',{path:a.path});VW.img='data:'+r.mime+';base64,'+r.b64}
     else{
       const r=await NF('read',{path:a.path,start:1,max:1000000,maxBytes:400000});
       VW.text=r.text;VW.lines=r.lines;VW.bytes=r.bytes;VW.trunc=!!r.truncated;
       if(a.kind==='html'){try{VW.prev=await inlineHtml(r.text,a.path)}catch(e){VW.prev=r.text}}
       if(a.kind==='code')VW.mode='code';
     }
-  }catch(e){VW.err=e&&e.code==='NOT_FOUND'?'File nahi mili (hat gayi ya naam badla).':e&&e.code==='BINARY'?'Ye binary file hai, preview nahi ho sakta.':errMsg(e)}
+  }catch(e){VW.err=e&&e.code==='GONE'?'Image ka preview ab nahi hai.':e&&e.code==='NOT_FOUND'?'File nahi mili (hat gayi ya naam badla).':e&&e.code==='BINARY'?'Ye binary file hai, preview nahi ho sakta.':errMsg(e)}
   VW.load=false;drawViewer();
 }
 function drawViewer(){
@@ -277,7 +278,10 @@ async function saveUploads(list){
 $('#vsave').onclick=async()=>{
   if(!VW||VW.load||VW.err)return;
   const t=$('#vtitle'),keep=VW.a.title||VW.a.name;
-  try{const r=await NF('exportTo',{path:VW.a.path});t.textContent='Saved: '+r.to.replace('/sdcard/','')}
+  try{
+    if(VW.a.mem){const to=await imgSave(VW.a.mem);t.textContent='Saved: '+to.replace('/sdcard/','');if(typeof ipRefresh==='function')ipRefresh()}
+    else{const r=await NF('exportTo',{path:VW.a.path});t.textContent='Saved: '+r.to.replace('/sdcard/','')}
+  }
   catch(e){t.textContent=e&&e.code==='NOT_FOUND'?'File nahi mili':'Save fail: '+cut(errMsg(e),40)}
   setTimeout(()=>{if(VW&&(VW.a.title||VW.a.name)===keep)t.textContent=keep},3000);
 };

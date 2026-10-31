@@ -684,6 +684,46 @@ public class FilesPlugin extends Plugin {
         }
     }
 
+    // exportB64: write base64 data straight into the phone's Download folder (no copy stays in the workspace). The first call
+    // (append=false) picks a free name and returns it in "name"; further chunks pass that name with append=true. Used by the image Save button.
+    @PluginMethod
+    public void exportB64(PluginCall call) {
+        try {
+            need();
+            String name = call.getString("name", "");
+            name = name == null ? "" : name.replaceAll("[\\\\/:*?\"<>|]+", "_").trim();
+            if (name.isEmpty() || name.startsWith(".")) throw new Fail("BAD_NAME", "Naam sahi nahi hai.");
+            String b64 = call.getString("b64", "");
+            boolean app = Boolean.TRUE.equals(call.getBoolean("append", false));
+            byte[] data = (b64 == null || b64.isEmpty()) ? new byte[0] : Base64.decode(b64, Base64.DEFAULT);
+            File dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+            if (!dir.isDirectory() && !dir.mkdirs()) throw new Fail("MKDIR", "Download folder nahi mila.");
+            File d = new File(dir, name);
+            if (!app) {
+                int dot = name.lastIndexOf('.');
+                String base = dot > 0 ? name.substring(0, dot) : name, ex = dot > 0 ? name.substring(dot) : "";
+                int k = 1;
+                while (d.exists()) d = new File(dir, base + " (" + (k++) + ")" + ex);
+            } else if (!d.isFile()) {
+                throw new Fail("NOT_FOUND", "Append ke liye file nahi mili.");
+            }
+            if (d.length() + data.length > MAX_FILE) throw new Fail("TOO_BIG", "File 8MB se badi hai.");
+            OutputStream out = new FileOutputStream(d, app);
+            try {
+                out.write(data);
+            } finally {
+                out.close();
+            }
+            JSObject r = new JSObject();
+            r.put("name", d.getName());
+            r.put("to", "/sdcard/Download/" + d.getName());
+            r.put("bytes", d.length());
+            call.resolve(r);
+        } catch (Exception e) {
+            fail(call, e);
+        }
+    }
+
     @PluginMethod
     public void mkdir(PluginCall call) {
         try {

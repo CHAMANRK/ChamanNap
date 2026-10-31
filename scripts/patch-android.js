@@ -90,4 +90,16 @@ if (!m.includes('TermuxResultReceiver')) {
   m = m.replace('</application>', '        <receiver android:name="com.chaman.nap.TermuxResultReceiver" android:exported="false" />\n    </application>');
 }
 fs.writeFileSync(mp, m);
+// App version: package.json is the source (scripts/bump.js). versionName = x.y.z, versionCode = x*10000 + y*100 + z.
+try {
+  const ver = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+  const vm = String(ver).match(/^(\d+)\.(\d+)\.(\d+)$/);
+  const gp = path.join(root, 'android/app/build.gradle');
+  if (vm && fs.existsSync(gp)) {
+    let g = fs.readFileSync(gp, 'utf8');
+    g = g.replace(/versionCode\s+\d+/, 'versionCode ' + (+vm[1] * 10000 + +vm[2] * 100 + +vm[3])).replace(/versionName\s+"[^"]*"/, 'versionName "' + ver + '"');
+    fs.writeFileSync(gp, g);
+    console.log('APK version set to ' + ver);
+  }
+} catch (e) { console.log('version patch skipped: ' + e.message); }
 console.log('PhoneControl + ScreenControl plugins and accessibility service patched into android project');

@@ -128,3 +128,12 @@ b{font-weight:700}i{font-style:italic}del{opacity:.65}
 @keyframes lnr{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes lnp{from{opacity:1}to{opacity:.3}}
 @media(prefers-reduced-motion:reduce){.lnt.rl,.lnd.wait{animation:none}.lna{transition:none}}
+
+/* step19: image preview card (in memory until Save) */
+.ipv{margin-top:8px;max-width:420px}
+.ipi{display:block;width:100%;padding:0;border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--code);-webkit-tap-highlight-color:transparent}
+.ipi img{display:block;width:100%;height:auto;max-height:60vh;object-fit:contain}
+.ipv small{display:block;font-size:12px;color:var(--muted);margin-top:6px}
+.ibtn{background:var(--accent);color:var(--on-accent);border-radius:10px;padding:9px 14px;font-weight:600;font-size:14px}
+.ibtn.x{background:none;border:1px solid var(--border);color:var(--text)}
+.ipok{font-size:14px;color:var(--accent);padding:9px 0}

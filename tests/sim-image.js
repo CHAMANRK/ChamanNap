@@ -1,4 +1,4 @@
-// Image generation: NVIDIA genai url + editable model id, response shapes, key rotation, 202 polling, tool, /image, file card.
+// Image generation: NVIDIA genai url + editable model id, response shapes, key rotation, 202 polling, tool, /image, preview card, Save to Download (nothing on disk before Save).
 // Step12b: attachments are copied to work/uploads (chunked base64), names do not clash, the AI is told the path, viewer saves to Download.
 const vm=require('vm'),fs=require('fs');
 const els={},handlers={};
@@ -6,7 +6,7 @@ const mk=sel=>{const o={value:'',style:{},dataset:{},options:[],classList:{add()
 const doc={querySelector:s=>els[s]||(els[s]=mk(s)),createElement:()=>mk('c'),body:mk('body'),documentElement:{dataset:{}},addEventListener(){}};
 const store={};let n=0;const bodies=[];
 const R='/sdcard/Chaman',UD=R+'/work/uploads/';
-const calls2=[];let FETCH=async()=>({ok:true,status:200,json:async()=>({}),text:async()=>'',headers:{get:()=>''}});const DISK={};let access=true;const calls=[];
+const calls2=[];let FETCH=async()=>({ok:true,status:200,json:async()=>({}),text:async()=>'',headers:{get:()=>''}});const DISK={},DL={};let access=true;const calls=[];
 const rej=(code,message)=>Promise.reject(Object.assign(new Error(message),{code,message}));
 const files=async(m,o)=>{
  calls.push(m+(o.append!=null?(o.append?'+':'0'):''));
@@ -16,6 +16,7 @@ const files=async(m,o)=>{
  if(m==='stat'){const t=DISK[p];return{path:p,exists:t!=null,dir:false,size:t==null?0:t.length}}
  if(m==='writeB64'){const d=Buffer.from(o.b64,'base64');if(!o.append){if(DISK[p]!=null)return rej('EXISTS','x');DISK[p]=d}else DISK[p]=Buffer.concat([DISK[p],d]);return{path:p,size:DISK[p].length}}
  if(m==='exportTo'){if(DISK[p]==null)return rej('NOT_FOUND','x');return{to:'/sdcard/Download/'+p.split('/').pop(),bytes:DISK[p].length}}
+ if(m==='exportB64'){const d=Buffer.from(o.b64,'base64');let nm=o.name;if(!o.append){let k=1;const b=nm.replace(/\.(\w+)$/,''),x=(nm.match(/\.\w+$/)||[''])[0];while(DL[nm])nm=b+' ('+(k++)+')'+x;DL[nm]=d}else DL[nm]=Buffer.concat([DL[nm],d]);return{name:nm,to:'/sdcard/Download/'+nm,bytes:DL[nm].length}}
  if(m==='read'){const t=DISK[p];if(t==null)return rej('NOT_FOUND','x');const s=t.toString();return{path:p,text:s,lines:1,bytes:t.length,from:1,to:1,truncated:false}}
  return{};
 };
@@ -26,7 +27,7 @@ ctx.window=ctx;
 ctx.Capacitor={nativePromise:async(pl,m,o)=>{if(pl==='Files')return files(m,o);if(pl==='Termux')return{stdout:'',exitCode:0};return{}}};
 vm.createContext(ctx);
 process.chdir(__dirname+'/../www');
-for(const f of ['prompts','core','status','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','notes','slash','fast','intents','termuxapi','runner','imagegen','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
+for(const f of ['version','prompts','core','status','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','notes','slash','fast','intents','termuxapi','runner','imagegen','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
 const t=s=>vm.runInContext(s,ctx),getH=()=>t('H');
 let fails=0;const ok=(c,l)=>{console.log((c?'PASS ':'FAIL ')+l);if(!c)fails++};
 const PNG=Buffer.concat([Buffer.from([0x89,0x50,0x4e,0x47]),Buffer.alloc(3000,7)]);
@@ -42,7 +43,8 @@ const jsonRes=j=>({ok:true,status:200,json:async()=>j,text:async()=>JSON.stringi
  const c=calls2[0],bd=JSON.parse(c.o.body);
  ok(c.u==='https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux-3-image-klein','url = genai base + default model id');
  ok(c.o.headers.Authorization==='Bearer nvapi-a'&&bd.prompt==='a red cat'&&bd.width===1024&&bd.height===1024&&bd.steps===50&&bd.seed===0,'payload matches NVIDIA sample');
- ok(/^\/sdcard\/Chaman\/work\/images\/img-\d{8}-\d{6}\.png$/.test(r.path)&&DISK[r.path].equals(PNG),'saved as png in work/images, byte-exact');
+ ok(r.ext==='png'&&Buffer.from(r.b64,'base64').equals(PNG)&&r.size===PNG.length,'returns png bytes in memory, byte-exact');
+ ok(Object.keys(DISK).length===0&&Object.keys(DL).length===0,'nothing written to disk before Save');
  // 3. editable model id
  t("S.img={model:'/black-forest-labs/flux.1-dev/',w:'768',h:'512',steps:'20'};");
  await t('genImage("b")');
@@ -54,30 +56,31 @@ const jsonRes=j=>({ok:true,status:200,json:async()=>j,text:async()=>JSON.stringi
  t("S.img={};");
  // 4. other response shapes
  for(const [nm,j] of [['image',{image:PNG.toString('base64')}],['data[0].b64_json',{data:[{b64_json:PNG.toString('base64')}]}],['data url',{image:'data:image/png;base64,'+PNG.toString('base64')}]]){
-  FETCH=async()=>jsonRes(j);const x=await t('genImage("c")');ok(DISK[x.path]&&DISK[x.path].equals(PNG),'response shape: '+nm);
+  FETCH=async()=>jsonRes(j);const x=await t('genImage("c")');ok(Buffer.from(x.b64,'base64').equals(PNG),'response shape: '+nm);
  }
  FETCH=async()=>({ok:true,status:200,headers:{get:k=>/content-type/i.test(k)?'image/jpeg':''},arrayBuffer:async()=>{const b=Buffer.concat([Buffer.from([0xff,0xd8,0xff]),Buffer.alloc(500,3)]);return b.buffer.slice(b.byteOffset,b.byteOffset+b.length)}});
- let x=await t('genImage("d")');ok(/\.jpg$/.test(x.path),'raw image/jpeg body -> .jpg');
+ let x=await t('genImage("d")');ok(x.ext==='jpg','raw image/jpeg body -> .jpg');
  FETCH=async()=>jsonRes({artifacts:[{base64:'',finishReason:'CONTENT_FILTERED'}]});
  e='';try{await t('genImage("e")')}catch(y){e=y.message}ok(/CONTENT_FILTERED/.test(e),'filtered -> readable error');
  // 5. key rotation on 429, then both cooling
  let n=0;FETCH=async(u,o)=>{n++;if(o.headers.Authorization==='Bearer nvapi-a')return{ok:false,status:429,text:async()=>'rate',headers:{get:()=>''}};return jsonRes({image:PNG.toString('base64')})};
  t("for(const k in cool)delete cool[k]");
- x=await t('genImage("f")');ok(n===2&&DISK[x.path],'429 on key a -> key b used');
+ x=await t('genImage("f")');ok(n===2&&x.b64,'429 on key a -> key b used');
  FETCH=async()=>({ok:false,status:402,text:async()=>'payment',headers:{get:()=>''}});
  t("for(const k in cool)delete cool[k]");
  e='';try{await t('genImage("g")')}catch(y){e=y.message}ok(/HTTP 402/.test(e),'all keys fail -> last HTTP error shown');
  // 6. 202 polling
  t("for(const k in cool)delete cool[k]");
  let st=0;FETCH=async(u,o)=>{if(u.includes('pexec/status')){st++;return jsonRes({image:PNG.toString('base64')})}return{ok:true,status:202,headers:{get:k=>/NVCF-REQID/i.test(k)?'req-1':''},text:async()=>'',json:async()=>({})}};
- x=await t('genImage("h")');ok(st===1&&DISK[x.path],'202 -> polls status url and gets image');
+ x=await t('genImage("h")');ok(st===1&&x.b64,'202 -> polls status url and gets image');
  // 7. tool: card + FILE_TURN, errors
  t("for(const k in cool)delete cool[k]");
  FETCH=async()=>jsonRes({image:PNG.toString('base64')});
  const steps=[];t('FILE_TURN={w:"",p:{}}');
  const out=await t('execTool')('generate_image',{prompt:'poster'},steps);
- const card=getH().filter(m=>m.artifact&&m.artifact.kind==='img').pop();
- ok(card&&/work\/images\/img-/.test(card.artifact.path)&&/Card Najeef ko dikha diya/.test(out),'tool pushes an image card and tells the AI');
+ const card=getH().filter(m=>m.imgp).pop();
+ ok(card&&card.imgp.state==='new'&&/Najeef ko dikha diya/.test(out)&&/Abhi save nahi hui/.test(out),'tool pushes an image preview and tells the AI it is not saved');
+ ok(Object.keys(DISK).length===0&&Object.keys(DL).length===0,'tool: still nothing on disk');
  ok(Object.keys(t('FILE_TURN.p')).length===1,'FILE_TURN marked so no duplicate auto card');
  ok(t('TOOLS.some(x=>x.function.name==="generate_image")'),'generate_image is in TOOLS');
  const o2=await t('execTool')('generate_image',{prompt:''},[]);ok(/Prompt nahi/.test(o2),'empty prompt refused');
@@ -85,14 +88,36 @@ const jsonRes=j=>({ok:true,status:200,json:async()=>j,text:async()=>JSON.stringi
  ok(t('SLASH.some(c=>c.name==="image")&&SLASH.some(c=>c.name==="img")'),'/image and /img registered');
  const before=getH().length;
  await t('imageCmd')('ek jheel');
- const lastCard=getH().filter(m=>m.artifact).pop();
- ok(getH().length===before+1&&lastCard&&lastCard.artifact.title.startsWith('Image: ek jheel'),'/image adds one card, waiting note removed');
+ const lastCard=getH().filter(m=>m.imgp).pop();
+ ok(getH().length===before+1&&lastCard&&lastCard.imgp.title.startsWith('Image: ek jheel'),'/image adds one card, waiting note removed');
  FETCH=async()=>({ok:false,status:500,text:async()=>'boom',headers:{get:()=>''}});
  t("for(const k in cool)delete cool[k]");
  await t('imageCmd')('fail');
  ok(/Image fail: HTTP 500/.test(getH().slice(-1)[0].content),'/image failure shown as message');
  await t('imageCmd')('');
  ok(/Aise likho: \/image/.test(getH().slice(-1)[0].content),'/image without text shows usage');
+ // 8b. preview html, Save -> Download, Hatao
+ const pv=getH().filter(m=>m.imgp);const m1=pv[pv.length-1];
+ const hi1=getH().indexOf(m1);
+ const html=t('imgH')(m1,hi1);
+ ok(/<img /.test(html)&&/data-ip="save"/.test(html)&&/data-ip="drop"/.test(html),'preview shows image + Save + Hatao');
+ const to=await t('imgSave')(m1.imgp.id);
+ ok(/^\/sdcard\/Download\/img-\d{8}-\d{6}\.png$/.test(to)&&DL[to.split('/').pop()]&&DL[to.split('/').pop()].equals(PNG)&&m1.imgp.state==='saved','Save writes byte-exact to Download, state saved');
+ ok(!Object.keys(DISK).some(k=>/images/.test(k)),'workspace images folder never used');
+ ok(/Saved: /.test(t('imgH')(m1,hi1))&&!/data-ip="save"/.test(t('imgH')(m1,hi1)),'saved preview hides Save button');
+ const to2=await t('imgSave')(pv[0].imgp.id);
+ ok(to2!==to||pv.length===1,'second image saved under its own name');
+ // big image in several chunks
+ const BIG=Buffer.alloc(900000,5);t('IMG_PV.big={b64:\''+BIG.toString('base64')+'\',ext:\'png\',size:900000}');t('H.push({role:"assistant",local:1,content:"",imgp:{id:"big",name:"big.png",size:900000,model:"m",state:"new"}})');
+ const toB=await t('imgSave')('big');ok(DL['big.png']&&DL['big.png'].equals(BIG),'chunked save (several exportB64 calls) is byte-exact');
+ const m2=getH().filter(m=>m.imgp&&m.imgp.id!=='big'&&m.imgp.state==='new').pop();
+ if(m2){t('ipDrop')(m2.imgp.id);ok(m2.imgp.state==='gone'&&!/<img /.test(t('imgH')(m2,getH().indexOf(m2))),'Hatao frees the preview, nothing saved')}else ok(true,'Hatao (no unsaved preview left)');
+ access=false;t('IMG_PV.na={b64:\''+PNG.toString('base64')+'\',ext:\'png\',size:3004}');t('H.push({role:"assistant",local:1,content:"",imgp:{id:"na",name:"na.png",size:3004,model:"m",state:"new"}})');
+ e='';try{await t('imgSave')('na')}catch(y){e=y.message}ok(/All files access/.test(e)&&getH().filter(m=>m.imgp&&m.imgp.id==='na')[0].imgp.state==='new','no access -> clear error, stays unsaved');access=true;
+ t("S.nvDefault=P.find(p=>p.id==='nvidia').model");ok(t('S.nvDefault')==='nvidia/nemotron-3.5-super-vl-120b-a12b','NVIDIA default model is nemotron-3.5-super-vl');
+ ok(t('RN_NET_DEF.every(h=>S.rn.net.includes(h))&&S.rn.netInit===true')&&t('rnHostOk')('en.wikipedia.org',t('S.rn.net')),'run_js allowlist has safe default hosts');
+ ok(!t('rnHostOk')('evil.example.com',t('S.rn.net')),'other hosts still blocked');
+ ok(t('APP_VER')==='19.0.0','version const loaded');
  // 9. settings save
  t('sheet()');t("$('#im_m').value='black-forest-labs/other-model';$('#im_w').value='640';$('#im_h').value='640';$('#im_s').value='8';");
  await handlers['#save:click']();

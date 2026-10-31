@@ -3,8 +3,9 @@ const P=[
  {id:'groq',name:'Groq',url:'https://api.groq.com/openai/v1/chat/completions',model:'openai/gpt-oss-120b'},
  {id:'cerebras',name:'Cerebras',url:'https://api.cerebras.ai/v1/chat/completions',model:'gpt-oss-120b'},
  {id:'openrouter',name:'OpenRouter',url:'https://openrouter.ai/api/v1/chat/completions',model:'openrouter/free'},
- {id:'nvidia',name:'NVIDIA',url:'https://integrate.api.nvidia.com/v1/chat/completions',model:'openai/gpt-oss-120b'},
+ {id:'nvidia',name:'NVIDIA',url:'https://integrate.api.nvidia.com/v1/chat/completions',model:'nvidia/nemotron-3.5-super-vl-120b-a12b'},
  {id:'mistral',name:'Mistral (optional)',url:'https://api.mistral.ai/v1/chat/completions',model:'mistral-small-latest'}];
+const RN_NET_DEF=['en.wikipedia.org','wikipedia.org','api.open-meteo.com','geocoding-api.open-meteo.com','restcountries.com','api.github.com','raw.githubusercontent.com','api.frankfurter.app','open.er-api.com','jsonplaceholder.typicode.com','worldtimeapi.org','hacker-news.firebaseio.com','api.alquran.cloud'];
 const $=s=>document.querySelector(s);
 const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}};
 const sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
@@ -13,6 +14,8 @@ if([OLD_SYS,PREV_SYS,PREV2_SYS,PREV3_SYS,PREV4_SYS,PREV5_SYS,PREV6_SYS,PREV7_SYS
 const OLDM={groq:'llama-3.3-70b-versatile',cerebras:'llama-3.3-70b',openrouter:'meta-llama/llama-3.3-70b-instruct:free',nvidia:'meta/llama-3.3-70b-instruct'};
 Object.keys(OLDM).forEach(k=>{if(S.models&&S.models[k]===OLDM[k]){delete S.models[k];sv('nap_s',S)}});
 if(S.vision&&S.vision.provider==='nvidia'&&['nvidia/nemotron-3-ultra-550b-a55b','google/gemma-3-27b-it'].includes(S.vision.model)){S.vision={provider:'openrouter',model:'openrouter/free'};sv('nap_s',S)}
+if(S.models&&S.models.nvidia==='openai/gpt-oss-120b'){delete S.models.nvidia;sv('nap_s',S)}
+if(!(S.rn&&S.rn.netInit)){S.rn=Object.assign({},S.rn,{net:Array.from(new Set(((S.rn&&S.rn.net)||[]).concat(RN_NET_DEF))),netInit:true});sv('nap_s',S)}
 let H=ld('nap_h',[]);
 H.forEach(m=>{if(m.confirm&&m.confirm.state==='pending')m.confirm.state='expired'});
 const cool={};let busy=false;
@@ -81,7 +84,7 @@ const stepsH=m=>m.steps&&m.steps.length?'<div class="steps">'+m.steps.map(esc).j
 function render(){
   const c=$('#chat');
   if(!H.length){c.innerHTML='<div class="empty"><b>Chaman</b>Kuch bhi pucho. Pehle Settings me keys daal do.</div>';return}
-  c.innerHTML=H.map((m,hi)=>m.role==='user'?'<div class="msg me">'+esc(m.content||'')+att(m)+'</div>':'<div class="msg ai'+(m.err?' err':'')+'">'+stepsH(m)+fmt(m.content)+acts(m,hi)+(typeof artH==='function'?artH(m,hi):'')+(typeof noteH==='function'?noteH(m,hi):'')+(m.by?'<span class="by">'+esc(m.by)+'</span>':'')+'</div>').join('');
+  c.innerHTML=H.map((m,hi)=>m.role==='user'?'<div class="msg me">'+esc(m.content||'')+att(m)+'</div>':'<div class="msg ai'+(m.err?' err':'')+'">'+stepsH(m)+fmt(m.content)+acts(m,hi)+(typeof artH==='function'?artH(m,hi):'')+(typeof imgH==='function'?imgH(m,hi):'')+(typeof noteH==='function'?noteH(m,hi):'')+(m.by?'<span class="by">'+esc(m.by)+'</span>':'')+'</div>').join('');
   c.scrollTop=c.scrollHeight;
   if(typeof lnDraw==='function')lnDraw();
 }
