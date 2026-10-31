@@ -210,6 +210,26 @@ public class PhoneControlPlugin extends Plugin {
         return 255;
     }
 
+    // specialStatus / requestWriteSettings: "Modify system settings" is a special permission (not a normal popup). Used by the permission cards.
+    @PluginMethod
+    public void specialStatus(PluginCall call) {
+        JSObject r = new JSObject();
+        r.put("writeSettings", Settings.System.canWrite(getContext()));
+        call.resolve(r);
+    }
+
+    @PluginMethod
+    public void requestWriteSettings(PluginCall call) {
+        try {
+            Intent i = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:" + getContext().getPackageName()));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(i);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject(String.valueOf(e.getMessage()), "ERROR");
+        }
+    }
+
     @PluginMethod
     public void brightness(PluginCall call) {
         Context ctx = getContext();

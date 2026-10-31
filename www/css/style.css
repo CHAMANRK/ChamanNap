@@ -137,3 +137,19 @@ b{font-weight:700}i{font-style:italic}del{opacity:.65}
 .ibtn{background:var(--accent);color:var(--on-accent);border-radius:10px;padding:9px 14px;font-weight:600;font-size:14px}
 .ibtn.x{background:none;border:1px solid var(--border);color:var(--text)}
 .ipok{font-size:14px;color:var(--accent);padding:9px 0}
+/* step19: settings = grouped, collapsible cards + sticky Save */
+details.sec{padding:0;overflow:hidden}
+details.sec>summary{list-style:none;display:flex;align-items:center;gap:8px;padding:14px;font-size:16px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none}
+details.sec>summary::-webkit-details-marker{display:none}
+details.sec>summary::after{content:'';margin-left:auto;flex:none;width:7px;height:7px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);transition:transform .15s}
+details.sec[open]>summary::after{transform:rotate(-135deg)}
+details.sec[open]>summary{border-bottom:1px solid var(--border)}
+.sbd{padding:4px 14px 14px}
+.sb{font-size:12px;font-weight:500;color:var(--muted);border:1px solid var(--border);border-radius:99px;padding:1px 8px}
+.sb.warn{color:var(--danger);border-color:var(--danger)}
+.grp{font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:20px 4px 8px}
+.savebar{position:sticky;bottom:0;margin:6px -14px -30px;padding:14px 14px calc(14px + env(safe-area-inset-bottom,0px));background:linear-gradient(rgba(0,0,0,0),var(--bg) 35%)}
+/* step19: permission cards */
+.pmstep{font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+#mcard .hint{margin:-6px 0 14px}
+.pmall{display:block;margin:14px auto 0;background:none;color:var(--muted);font-size:13px;text-decoration:underline;padding:4px 8px}

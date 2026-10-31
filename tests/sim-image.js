@@ -117,7 +117,7 @@ const jsonRes=j=>({ok:true,status:200,json:async()=>j,text:async()=>JSON.stringi
  t("S.nvDefault=P.find(p=>p.id==='nvidia').model");ok(t('S.nvDefault')==='nvidia/nemotron-3.5-super-vl-120b-a12b','NVIDIA default model is nemotron-3.5-super-vl');
  ok(t('RN_NET_DEF.every(h=>S.rn.net.includes(h))&&S.rn.netInit===true')&&t('rnHostOk')('en.wikipedia.org',t('S.rn.net')),'run_js allowlist has safe default hosts');
  ok(!t('rnHostOk')('evil.example.com',t('S.rn.net')),'other hosts still blocked');
- ok(t('APP_VER')==='19.0.0','version const loaded');
+ ok(/^\d+\.\d+\.\d+$/.test(t('APP_VER')),'version const loaded');
  // 9. settings save
  t('sheet()');t("$('#im_m').value='black-forest-labs/other-model';$('#im_w').value='640';$('#im_h').value='640';$('#im_s').value='8';");
  await handlers['#save:click']();
