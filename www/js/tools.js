@@ -157,6 +157,8 @@ async function execTool0(name,a,steps,fl){
   const bad=s=>{fl.bad=true;return note(s)};
   const say=(content,x)=>H.push(Object.assign({role:'assistant',content,by:'Phone',local:1},x||{}));
   try{
+    if(typeof faceGate==='function'){const fg=await faceGate(name,a);if(fg)return bad(fg)}
+    if(name==='who_is_there')return await faceWho(a,note,fl);
     if(name.indexOf('screen_')===0||name==='ask_user'||name==='wait_for_user')return await screenTool(name,a,note,fl);
     if(name==='open_url'||name==='open_intent'||name==='set_switch'||name==='tap_when_visible'||name==='run_flow')return await fastTool(name,a,note,fl);
     if(name.indexOf('file_')===0||name==='edit_file')return await fileTool(name,a,note,fl);
@@ -203,6 +205,7 @@ async function execTool0(name,a,steps,fl){
       return bad('Accessibility service on nahi hai. Najeef ko bolo Settings > Accessibility > Chaman on kare (Android 13+ pe pehle "Allow restricted settings").');
     }
     if(c==='STOPPED'){SCR_STOP=true;return bad('Najeef ne Stop dabaya.')}
+    if(c==='FACE_REQUIRED')return bad('FACE_NOT_VERIFIED: Face verify ki meyad khatam ho gayi. Najeef se kaho dobara bole, tab face check hoga.');
     if(c==='NEED_WRITE_SETTINGS')return bad('Brightness ke liye "Modify system settings" permission chahiye. Settings khul gayi hai, Najeef allow karke dobara bole.');
     if(c==='NOT_FOUND'&&name==='open_app')return bad('"'+(a.name||'')+'" naam ka app nahi mila.');
     return bad('Fail: '+errMsg(e));

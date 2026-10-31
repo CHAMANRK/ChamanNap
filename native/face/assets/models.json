@@ -1,0 +1,15 @@
+{
+  "_note": "Thresholds are cosine-similarity cut-offs. Input: aligned 112x112 RGB face, (x-127.5)/127.5. Add another ArcFace-style .onnx (NCHW, 112px) by dropping it in assets/models/ and adding an entry here.",
+  "default": "arcface_mbf",
+  "models": [
+    {
+      "id": "arcface_mbf",
+      "label": "ArcFace MobileFaceNet (InsightFace w600k, 112px, 512-d)",
+      "file": "w600k_mbf.onnx",
+      "norm": "fixed",
+      "mean": 127.5,
+      "std": 127.5,
+      "threshold": 0.5
+    }
+  ]
+}

@@ -1,2 +1,3 @@
 node_modules
 android
+native/face/assets/models/*.onnx

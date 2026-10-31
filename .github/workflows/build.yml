@@ -16,6 +16,8 @@ jobs:
           distribution: temurin
           java-version: 21
       - run: npm install
+      - name: Face model (ArcFace, ~13 MB)
+        run: bash scripts/fetch-face-model.sh
       - run: npx cap add android
       - run: node scripts/patch-android.js
       - run: npx cap sync android

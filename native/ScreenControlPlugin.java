@@ -53,6 +53,13 @@ public class ScreenControlPlugin extends Plugin {
         return s;
     }
 
+    // Face lock: when the owner is not verified, screen actions are refused here too (the JS side checks first, this is the second lock).
+    private boolean faceBlocked(PluginCall call) {
+        if (FaceGate.check(getContext(), "screen")) return false;
+        call.reject("Face verify chahiye.", "FACE_REQUIRED");
+        return true;
+    }
+
     private void fail(PluginCall call, Exception e) {
         if (e instanceof ChamanAccessibilityService.A11yError) {
             call.reject(e.getMessage(), ((ChamanAccessibilityService.A11yError) e).code);
@@ -116,6 +123,7 @@ public class ScreenControlPlugin extends Plugin {
     public void read(PluginCall call) {
         ChamanAccessibilityService s = svc(call);
         if (s == null) return;
+        if (faceBlocked(call)) return;
         try {
             call.resolve(JSObject.fromJSONObject(s.readScreen()));
         } catch (Exception e) {
@@ -127,6 +135,7 @@ public class ScreenControlPlugin extends Plugin {
     public void click(PluginCall call) {
         ChamanAccessibilityService s = svc(call);
         if (s == null) return;
+        if (faceBlocked(call)) return;
         try {
             Integer id = call.getInt("id");
             String text = call.getString("text", "");
@@ -149,6 +158,7 @@ public class ScreenControlPlugin extends Plugin {
     public void type(PluginCall call) {
         ChamanAccessibilityService s = svc(call);
         if (s == null) return;
+        if (faceBlocked(call)) return;
         try {
             String text = call.getString("text", "");
             Integer id = call.getInt("id", -1);
@@ -166,6 +176,7 @@ public class ScreenControlPlugin extends Plugin {
     public void scroll(PluginCall call) {
         ChamanAccessibilityService s = svc(call);
         if (s == null) return;
+        if (faceBlocked(call)) return;
         try {
             s.scroll(call.getString("direction", "down"));
             call.resolve();
@@ -178,6 +189,7 @@ public class ScreenControlPlugin extends Plugin {
     public void key(PluginCall call) {
         ChamanAccessibilityService s = svc(call);
         if (s == null) return;
+        if (!"lock".equals(call.getString("key", "")) && faceBlocked(call)) return;
         try {
             boolean ok = s.pressKey(call.getString("key", ""));
             JSObject r = new JSObject();

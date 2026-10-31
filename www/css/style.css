@@ -153,3 +153,7 @@ details.sec[open]>summary{border-bottom:1px solid var(--border)}
 .pmstep{font-size:12px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
 #mcard .hint{margin:-6px 0 14px}
 .pmall{display:block;margin:14px auto 0;background:none;color:var(--muted);font-size:13px;text-decoration:underline;padding:4px 8px}
+
+/* step20: face lock settings rows */
+.sec label.flr{display:flex;align-items:center;gap:10px;font-size:15px;color:var(--text);margin:8px 0}
+.sec label.flr input{width:18px;height:18px;flex:none;margin:0;padding:0}
