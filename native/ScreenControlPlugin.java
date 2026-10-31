@@ -99,6 +99,13 @@ public class ScreenControlPlugin extends Plugin {
         );
     }
 
+    // App Stop button: same flag as long-pressing the dot. Every screen action then rejects with STOPPED until the next reset.
+    @PluginMethod
+    public void stop(PluginCall call) {
+        ChamanAccessibilityService.stopRequested = true;
+        call.resolve();
+    }
+
     @PluginMethod
     public void reset(PluginCall call) {
         ChamanAccessibilityService.stopRequested = false;

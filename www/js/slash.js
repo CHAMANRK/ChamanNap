@@ -31,13 +31,14 @@ function slashTake(t){
   return c?{cmd:c,arg:t.slice(a.length).replace(/^\s+/,'')}:null;
 }
 async function slashRun(sl,t){
-  busy=true;$('#send').disabled=true;
+  setBusy(true);const tn=turnBegin();
   logAdd('you','/'+sl.cmd.name+' ('+sl.arg.length+' chars)');
   H.push({role:'user',content:t,info:1});
   lnBegin('Command chal raha hai','wait');
-  try{await sl.cmd.run(sl.arg)}catch(e){H.push({role:'assistant',by:'App',info:1,content:'Command fail: '+errMsg(e)})}
+  try{const r=await turnWait(tn,sl.cmd.run(sl.arg));if(r===STOPPED||tn.stop)H.push(stopNote(tn))}
+  catch(e){if(tn.stop)H.push(stopNote(tn));else H.push({role:'assistant',by:'App',info:1,content:'Command fail: '+errMsg(e)})}
   const lnWas=LN.on;lnEnd();if(lnWas)NS('finish',{open:false}).catch(()=>{});
-  H=H.slice(-100);persist();busy=false;$('#send').disabled=false;render();logFlush();
+  H=H.slice(-100);persist();TURN=null;setBusy(false);render();logFlush();
 }
 $('#in').addEventListener('input',slashSync);
 $('#slash').addEventListener('pointerdown',e=>{const b=e.target.closest('.srow');if(!b)return;e.preventDefault();slashPick(b.dataset.c)});

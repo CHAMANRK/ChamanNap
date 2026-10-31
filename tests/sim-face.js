@@ -13,6 +13,7 @@ const faceNative=async(m,o)=>{
  if(F.missing){const e=new Error('plugin missing');if(F.missingCode)e.code=F.missingCode;throw e}
  if(m==='status')return{modelOk:F.modelOk,enrolled:F.enrolled,camera:F.camera,remainMs:F.remainMs,hasData:F.hasData,active:F.modelOk&&(F.enrolled>0||F.hasData),a11y:true,lastUnknownAt:0};
  if(m==='cancel'){F.cancelled++;return{ok:true}}
+ if(m==='clearTrust'){F.remainMs=0;F.clears=(F.clears||0)+1;return{ok:true}}
  if(m==='config'){F.cfg=o;return{ok:true}}
  if(m==='progress')return F.progress;
  if(m==='verify'){
@@ -196,8 +197,25 @@ const nat=name=>native.filter(x=>x===name).length;
  ok(run('S.fl&&S.fl.on===false'),'save: master off after owner check -> saved');
  run("S.fl=undefined");
 
+ // 12e. unlock window chip: timer + Band karo
+ F.remainMs=0;await run('flWinSync()');
+ ok(doc.querySelector('#flwin').hidden===true,'chip: hidden when no window');
+ F.remainMs=0;F.verifyResults=[{result:'owner',score:0.7,threshold:0.5}];
+ await run("flVerify({grant:true})");await new Promise(r=>setTimeout(r,30));
+ ok(doc.querySelector('#flwin').hidden===false&&/^\d+:\d\d$/.test(doc.querySelector('#flwt').textContent)&&doc.querySelector('#flwt').textContent.split(':')[0]>=29,'chip: shows ~30:00 after an owner check');
+ ok(run("flFmt(65000)")==='1:05'&&run("flFmt(3725000)")==='1:02:05'&&run("flFmt(0)")==='0:00','chip: time format m:ss / h:mm:ss');
+ F.clears=0;await doc.querySelector('#flwoff').onclick();await new Promise(r=>setTimeout(r,30));
+ ok(F.clears===1&&F.remainMs===0&&doc.querySelector('#flwin').hidden===true,'Band karo: native window revoked, chip hidden');
+ F.remainMs=0;F.verifyCalls.length=0;F.verifyResults=[{result:'owner',score:0.7,threshold:0.5}];
+ x=await exec('screen_click',{id:21});
+ ok(F.verifyCalls.length===1,'after Band karo the next gated tool asks for the face again');
+ F.verifyResults=[{result:'owner',score:0.7,threshold:0.5}];F.remainMs=0;await run("flVerify({grant:false})");await new Promise(r=>setTimeout(r,30));
+ ok(doc.querySelector('#flwin').hidden===true,'test verify (grant:false) does not show a window');
+ F.remainMs=20*60000;F.clears=0;run('flBind&&0');run('sheet()');await doc.querySelector('#fl_off').onclick();
+ ok(F.clears===1,'Settings: "Verify window abhi band karo" revokes the window');
+
  // 13. other files unchanged behaviour: system prompt still migrated, version
- ok(/^19\.\d+\.\d+$/.test(run('APP_VER')),'APP_VER '+run('APP_VER'));
+ ok(/^\d+\.\d{5}\.\d+$/.test(run('APP_VER')),'APP_VER '+run('APP_VER'));
 
  console.log('\n'+pass+' pass, '+fail+' fail');process.exit(fail?1:0);
 })().catch(e=>{console.error('ERR',e);process.exit(1)});

@@ -65,7 +65,7 @@ function flVerify(o,onProg){
     try{return await Promise.race([FLN('verify',o||{}),timeout])}
     catch(e){return{result:'error',code:e&&e.code,message:errMsg(e)}}
     finally{stop=true}
-  })().then(r=>{FL_BUSY=null;return r},e=>{FL_BUSY=null;throw e});
+  })().then(r=>{FL_BUSY=null;try{flWinSync()}catch(e){}return r},e=>{FL_BUSY=null;throw e});
   return FL_BUSY;
 }
 const FL_END={
@@ -136,6 +136,40 @@ if(typeof TOOLS!=='undefined'&&!TOOLS.some(t=>t.function&&t.function.name==='who
   TOOLS.push(fn('who_is_there','Check with the front camera who is in front of the phone right now. Returns whether it is Najeef (owner), an unknown person, or no face. Use it when Najeef asks who is there / to verify him, or when you need to be sure it is him before something sensitive. The camera stays headless (nothing is shown).',{}));
 if(typeof LN_LAB!=='undefined')LN_LAB.who_is_there='Face check kar raha hu';
 
+// ---------- Face unlock window: timer chip under the header + "Band karo" button ----------
+// Time left comes from native (FaceLock.status().remainMs). JS only ticks the display; flWinSync() re-reads it after every verify,
+// at boot and when the app comes back to the front. Band karo = native clearTrust (no face check needed: it only makes the lock stricter).
+let FL_WEND=0,FL_WTICK=null;
+const flFmt=ms=>{const t=Math.max(0,Math.ceil(ms/1000)),h=Math.floor(t/3600),m=Math.floor(t%3600/60),s=t%60,p=n=>String(n).padStart(2,'0');return h?h+':'+p(m)+':'+p(s):m+':'+p(s)};
+function flWinSet(ms){
+  const el=$('#flwin');if(!el)return;
+  if(FL_WTICK){clearTimeout(FL_WTICK);FL_WTICK=null}
+  if(!(ms>0)){FL_WEND=0;el.hidden=true;return}
+  FL_WEND=Date.now()+ms;
+  if(!el.dataset.b){
+    el.innerHTML='<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Face unlock</span><b id="flwt"></b><button type="button" id="flwoff">Band karo</button>';
+    el.dataset.b='1';
+    $('#flwoff').onclick=()=>{flWinOff()};
+  }
+  el.hidden=false;
+  const tick=()=>{
+    const left=FL_WEND-Date.now();
+    if(left<=0){flWinSet(0);flWinSync();return}
+    const t=$('#flwt');if(t)t.textContent=flFmt(left);
+    FL_WTICK=setTimeout(tick,1000);
+  };
+  tick();
+}
+async function flWinSync(){
+  try{const st=await FLN('status');flWinSet(st&&st.master!==false&&st.remainMs>0?st.remainMs:0)}
+  catch(e){flWinSet(0)}
+}
+async function flWinOff(){
+  try{await FLN('clearTrust')}catch(e){}
+  flWinSet(0);
+  logAdd('face','window band (button)');
+}
+
 // ---------- Owner guard for Settings > Face lock ----------
 // Once a face is enrolled, enrolling more faces, deleting faces and making the lock weaker need a fresh owner check
 // (camera runs; an unknown face is treated like in the tools: phone lock + photo). Returns {ok:true} or {ok:false,text}.
@@ -170,6 +204,7 @@ function flHtml(){
     +'<p class="hint" id="fls" style="margin:0 0 10px">Check ho raha hai...</p>'
     +'<button type="button" class="btn ghost" style="margin-top:0" id="fl_en">Face enroll karo</button>'
     +'<button type="button" class="btn ghost" id="fl_test">Abhi verify karo (test)</button>'
+    +'<button type="button" class="btn ghost" id="fl_off">Verify window abhi band karo</button>'
     +'<button type="button" class="btn ghost" id="fl_del">Enrolled faces hatao</button>'
     +'<label>Face lock</label>'+sel('fl_on',onoff,c.on?'on':'off')
     +'<label>Ek verify kitni der valid rahe</label>'+sel('fl_min',[[5,'5 minute'],[15,'15 minute'],[30,'30 minute'],[60,'1 ghanta'],[120,'2 ghante']].concat([5,15,30,60,120].indexOf(c.min)<0?[[c.min,c.min+' minute']]:[]),c.min)
@@ -220,15 +255,18 @@ function flBind(){
       T(m+(r&&r.score!=null?'. Score '+r.score+' (chahiye '+r.threshold+')':'')+'.');
     }catch(e){T('Test fail: '+errMsg(e))}
   };
+  $('#fl_off').onclick=async()=>{await flWinOff();refresh()};
   let armed=0;
   $('#fl_del').onclick=()=>{
     const b=$('#fl_del');
     if(!armed){armed=1;b.textContent='Pakka hatao? Dobara tap karo';setTimeout(()=>{armed=0;b.textContent='Enrolled faces hatao'},4000);return}
     armed=0;b.textContent='Enrolled faces hatao';
     T('Owner check chal raha hai...');
-    flGuard().then(g=>{if(!g.ok){T(g.text);return}return FLN('clearFaces').then(refresh)}).catch(e=>T(errMsg(e)));
+    flGuard().then(g=>{if(!g.ok){T(g.text);return}return FLN('clearFaces').then(()=>{flWinSet(0)}).then(refresh)}).catch(e=>T(errMsg(e)));
   };
   refresh();
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&$('#fls'))refresh()});
 }
 setTimeout(()=>{try{flSync()}catch(e){}},700);
+setTimeout(()=>{try{flWinSync()}catch(e){}},900);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)flWinSync()});

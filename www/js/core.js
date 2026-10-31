@@ -18,7 +18,7 @@ if(S.models&&S.models.nvidia==='openai/gpt-oss-120b'){delete S.models.nvidia;sv(
 if(!(S.rn&&S.rn.netInit)){S.rn=Object.assign({},S.rn,{net:Array.from(new Set(((S.rn&&S.rn.net)||[]).concat(RN_NET_DEF))),netInit:true});sv('nap_s',S)}
 let H=ld('nap_h',[]);
 H.forEach(m=>{if(m.confirm&&m.confirm.state==='pending')m.confirm.state='expired'});
-const cool={};let busy=false;
+const cool={};let busy=false,TURN=null,LAST_STOP=null;
 
 function theme(){const d=S.theme==='dark'||(S.theme==='auto'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=d?'dark':'light'}
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',theme);theme();

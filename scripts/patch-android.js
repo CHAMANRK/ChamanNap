@@ -180,14 +180,15 @@ dependencies {
   console.log('Face lock (Kotlin + CameraX + ML Kit + ONNX) patched in');
 })();
 
-// App version: package.json is the source (scripts/bump.js). versionName = x.y.z, versionCode = x*10000 + y*100 + z.
+// App version: package.json is the source (scripts/bump.js), format A.BBBBB.C (e.g. 1.28001.0). versionName = that string,
+// versionCode = A*10000000 + BBBBB*100 + C (always bigger than the old x.y.z codes, so the APK still updates over an old install).
 try {
   const ver = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
   const vm = String(ver).match(/^(\d+)\.(\d+)\.(\d+)$/);
   const gp = path.join(root, 'android/app/build.gradle');
   if (vm && fs.existsSync(gp)) {
     let g = fs.readFileSync(gp, 'utf8');
-    g = g.replace(/versionCode\s+\d+/, 'versionCode ' + (+vm[1] * 10000 + +vm[2] * 100 + +vm[3])).replace(/versionName\s+"[^"]*"/, 'versionName "' + ver + '"');
+    g = g.replace(/versionCode\s+\d+/, 'versionCode ' + (+vm[1] * 10000000 + +vm[2] * 100 + +vm[3])).replace(/versionName\s+"[^"]*"/, 'versionName "' + ver + '"');
     fs.writeFileSync(gp, g);
     console.log('APK version set to ' + ver);
   }
