@@ -56,6 +56,10 @@ function pillText(name,a){
     case'generate_image':return'Making image';
     case'run_code':return'Running '+({js:'JavaScript',sql:'SQL',py:'Python'}[a.lang]||'code');
     case'api_check':return'Checking Termux:API';
+    case'notify_now':return'Sending notification';
+    case'schedule_add':return'Setting reminder';
+    case'schedule_list':return'Listing reminders';
+    case'schedule_cancel':return'Cancelling reminder';
     case'device_api':return'Phone: '+cut(String(a.name||'').replace(/_/g,' '),22);
     case'termux_run':return'Running command';
     case'termux_write_file':return'Writing file';
@@ -167,6 +171,7 @@ async function execTool0(name,a,steps,fl){
     if(name==='run_code')return await codeTool(name,a,note,fl);
     if(name==='generate_image')return await imageTool(a,note,fl);
     if(name==='api_check'||name==='device_api')return await apiTool(name,a,note,fl);
+    if(name==='notify_now'||name.indexOf('schedule_')===0)return await schTool(name,a,note,fl);
     if(name.indexOf('termux_')===0)return await termuxTool(name,a,note,fl);
     if(name.indexOf('memory_')===0)return await memoryTool(name,a,note,fl);
     if(name==='torch'){const r=await NP('torch',a.state==='on'?{on:true}:a.state==='off'?{on:false}:{});return note('Torch '+(r.on?'on':'off')+' hai.')}
@@ -220,7 +225,7 @@ async function execTool(name,a,steps){
   const it=lnStep(name,a),n0=steps.length;
   if(own){LN.state='wait';lnDraw()}
   const res=await execTool0(name,a,steps,fl);
-  logAdd(fl.bad?'tool FAIL':'tool',logTool(name,a)+((name.indexOf('termux_')===0||name==='device_api'||name==='api_check'||name==='run_code'||name.indexOf('file_')===0||name.indexOf('note_')===0||name==='edit_file'||name==='screen_read')?'':' -> '+cut(String(res).replace(/\s+/g,' '),140)));
+  logAdd(fl.bad?'tool FAIL':'tool',logTool(name,a)+((name.indexOf('termux_')===0||name==='device_api'||name==='api_check'||name==='run_code'||name==='schedule_list'||name.indexOf('file_')===0||name.indexOf('note_')===0||name==='edit_file'||name==='screen_read')?'':' -> '+cut(String(res).replace(/\s+/g,' '),140)));
   if(own)LN.hold=false;
   lnStepEnd(it,name,a,fl.bad,res,steps.length>n0?steps[steps.length-1]:'');
   await sleep(fl.bad?1500:200);

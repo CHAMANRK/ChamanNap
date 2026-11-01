@@ -12,7 +12,10 @@ const PERMS=[
   {id:'wsettings',t:'System settings badalna',why:'Brightness jaise settings AI badal sake.',btn:'Settings kholo',st:()=>NP('specialStatus').then(r=>!!r.writeSettings),ask:()=>NP('requestWriteSettings')},
   {id:'overlay',t:'Display over other apps',why:'Upar status pill dikhane ke liye (AI kya kar raha hai).',btn:'Settings kholo',st:()=>NS('status').then(r=>!!r.overlay),ask:()=>NS('requestOverlay')},
   {id:'a11y',t:'Accessibility (screen control)',why:'AI screen padh aur tap kar sake. Android 13+ pe pehle Settings > Apps > Chaman > teen dot > Allow restricted settings karo, phir yahan Chaman ko on karo.',btn:'Accessibility kholo',st:()=>NS('status').then(r=>!!r.a11y),ask:()=>NS('openA11ySettings')},
-  {id:'termux',t:'Termux commands',why:'AI Termux me command chala sake. Termux (F-Droid ya GitHub wala) install hona chahiye. Phir Chaman ki permissions > Additional permissions > Run commands in Termux environment allow karo.',btn:'Chaman ki permissions kholo',st:()=>NT('status').then(r=>!!(r.installed&&r.permission)),ask:()=>NT('openAppInfo')}
+  {id:'termux',t:'Termux commands',why:'AI Termux me command chala sake. Termux (F-Droid ya GitHub wala) install hona chahiye. Phir Chaman ki permissions > Additional permissions > Run commands in Termux environment allow karo.',btn:'Chaman ki permissions kholo',st:()=>NT('status').then(r=>!!(r.installed&&r.permission)),ask:()=>NT('openAppInfo')},
+  {id:'notif',t:'Notifications',why:'Chaman reminder, report aur task-result notification bhej sake, app band ho tab bhi.',btn:'Allow karo',runtime:true,st:()=>NY('status').then(r=>!!r.notif),ask:()=>NY('requestNotif')},
+  {id:'exact',t:'Exact alarms',why:'Reminder theek time pe aaye, late nahi. Settings me Chaman ke liye Alarms & reminders on karo.',btn:'Settings kholo',st:()=>NY('status').then(r=>!!r.exact),ask:()=>NY('openExact')},
+  {id:'battery',t:'Battery: background chalne do',why:'Screen band ya app recents se hata ho tab bhi reminder aaye. Is page par Chaman ko Unrestricted / Allow background activity karo. ColorOS me Settings > Apps > Chaman > Auto-launch (Startup) bhi on rakho.',btn:'Battery settings kholo',st:()=>NY('status').then(r=>!!r.battery),ask:()=>NY('openBattery')}
 ];
 // Permissions that are off now. force=true ignores earlier Skip / Done answers.
 async function pmPending(force){

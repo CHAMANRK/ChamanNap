@@ -3,6 +3,7 @@
 const SLASH=[
   {name:'note',hint:'Note save karo ya dhundo',run:a=>noteCmd(a)},
   {name:'n',hint:'/note ka short',run:a=>noteCmd(a)},
+  {name:'remind',hint:'Reminder / notification schedule karo',run:a=>remindCmd(a)},
   {name:'provider',hint:'AI provider badlo',run:a=>setProv(String(a).trim().split(/\s+/)[0]||'')},
   {name:'p',hint:'/provider ka short',run:a=>setProv(String(a).trim().split(/\s+/)[0]||'')}
 ];

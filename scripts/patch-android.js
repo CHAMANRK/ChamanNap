@@ -6,7 +6,7 @@ const pkgDir = path.join(root, 'android/app/src/main/java/com/chaman/nap');
 const resDir = path.join(root, 'android/app/src/main/res');
 fs.mkdirSync(pkgDir, { recursive: true });
 
-for (const f of ['PhoneControlPlugin.java', 'ScreenControlPlugin.java', 'ChamanAccessibilityService.java', 'TermuxPlugin.java', 'TermuxResultReceiver.java', 'FilesPlugin.java', 'IntentsPlugin.java']) {
+for (const f of ['PhoneControlPlugin.java', 'ScreenControlPlugin.java', 'ChamanAccessibilityService.java', 'TermuxPlugin.java', 'TermuxResultReceiver.java', 'FilesPlugin.java', 'IntentsPlugin.java', 'NotifyCore.java', 'NotifyReceiver.java', 'NotifyBootReceiver.java', 'NotifyPlugin.java']) {
   fs.copyFileSync(path.join(root, 'native', f), path.join(pkgDir, f));
 }
 
@@ -38,6 +38,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(FilesPlugin.class);
         registerPlugin(IntentsPlugin.class);
         registerPlugin(FaceLockPlugin.class);
+        registerPlugin(NotifyPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
@@ -178,6 +179,42 @@ dependencies {
     fs.writeFileSync(ap, g);
   }
   console.log('Face lock (Kotlin + CameraX + ML Kit + ONNX) patched in');
+})();
+
+// ---- Step22: Chaman's own notifications + scheduler (Notify plugin). Alarm -> NotifyReceiver (Java), boot/update/clock change -> NotifyBootReceiver ----
+(function patchNotify() {
+  const mp2 = path.join(root, 'android/app/src/main/AndroidManifest.xml');
+  let x = fs.readFileSync(mp2, 'utf8');
+  if (!x.includes('NotifyReceiver')) {
+    let perms = '';
+    for (const p of ['android.permission.POST_NOTIFICATIONS', 'android.permission.RECEIVE_BOOT_COMPLETED', 'android.permission.SCHEDULE_EXACT_ALARM']) {
+      if (!x.includes(p)) perms += `    <uses-permission android:name="${p}" />\n`;
+    }
+    if (perms) x = x.replace('<application', perms + '    <application');
+    if (!x.includes('</application>')) throw new Error('</application> tag not found in manifest');
+    x = x.replace('</application>', `        <receiver android:name="com.chaman.nap.NotifyReceiver" android:exported="false" />
+        <receiver android:name="com.chaman.nap.NotifyBootReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
+    </application>`);
+    fs.writeFileSync(mp2, x);
+  }
+  // status bar icon (white bell, SVG-style vector) for Chaman notifications
+  fs.mkdirSync(path.join(resDir, 'drawable'), { recursive: true });
+  fs.writeFileSync(
+    path.join(resDir, 'drawable/ic_stat_chaman.xml'),
+    `<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M12,22c1.1,0 2,-0.9 2,-2h-4c0,1.1 0.89,2 2,2zM18,16v-5c0,-3.07 -1.64,-5.64 -4.5,-6.32V4c0,-0.83 -0.67,-1.5 -1.5,-1.5s-1.5,0.67 -1.5,1.5v0.68C7.63,5.36 6,7.92 6,11v5l-2,2v1h16v-1l-2,-2z" />
+</vector>
+`
+  );
+  console.log('Notify plugin, receivers, permissions and status icon patched in');
 })();
 
 // App version: package.json is the source (scripts/bump.js), format A.BBBBB.C (e.g. 1.28001.0). versionName = that string,

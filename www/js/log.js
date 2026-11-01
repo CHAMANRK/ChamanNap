@@ -21,6 +21,8 @@ function logTool(name,a){
     case'open_url':return name+' '+cut(String(a.uri||'').replace(/([?&]text=).*/i,'$1...'),80)+(a.contact?' contact '+cut(a.contact,30):'')+(a.text?' ('+String(a.text).length+' chars)':'');
     case'device_api':return name+' '+cut(a.name,30)+' ['+Object.keys(a.params&&typeof a.params==='object'?a.params:{}).join(',')+']';
     case'api_check':return name;
+    case'notify_now':return name+' ('+String(a.title==null?'':a.title).length+'+'+String(a.text==null?'':a.text).length+' chars)';
+    case'schedule_add':return name+' ('+(a.in_minutes!=null?'in '+a.in_minutes+' min':(a.date||'')+' '+(a.time||''))+', '+(a.repeat||'none')+', '+String(a.title==null?'':a.title).length+'+'+String(a.text==null?'':a.text).length+' chars)';
     case'run_code':return name+' '+cut(a.lang,8)+' ('+String(a.code==null?'':a.code).length+' chars'+(a.csv?', csv':'')+(a.db?', db':'')+')';
     case'set_switch':return name+' '+cut(a.text,40)+' '+a.state;
     case'open_intent':return name+' '+cut(a.name,40)+' ['+Object.keys(a.params&&typeof a.params==='object'?a.params:{}).join(',')+']';

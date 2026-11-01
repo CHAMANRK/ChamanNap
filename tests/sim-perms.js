@@ -27,7 +27,7 @@ const INT=[];let MO=null;
 ctx.setInterval=f=>{INT.push(f);return INT.length};ctx.clearInterval=id=>{INT[id-1]=null};
 ctx.MutationObserver=function(cb){this.observe=()=>{MO=cb};this.disconnect=()=>{MO=null}};
 ctx.window=ctx;
-const NAT={on:true,files:false,rt:{contacts:'prompt',smsRead:'prompt',smsSend:'prompt',call:'prompt'},grantRt:true,ws:false,a11y:false,overlay:false,termuxI:true,termuxP:false};const NL=[];
+const NAT={on:true,files:false,rt:{contacts:'prompt',smsRead:'prompt',smsSend:'prompt',call:'prompt'},grantRt:true,ws:false,a11y:false,overlay:false,termuxI:true,termuxP:false,ny:{notif:true,exact:true,battery:true}};const NL=[];
 ctx.Capacitor={nativePromise:async(pl,m,o)=>{
  NL.push(pl+'.'+m);
  if(!NAT.on)throw new Error('Ye command sirf Android app me chalta hai.');
@@ -41,11 +41,13 @@ ctx.Capacitor={nativePromise:async(pl,m,o)=>{
  if(pl==='ScreenControl')return{};
  if(pl==='Termux'&&m==='status')return{installed:NAT.termuxI,permission:NAT.termuxP};
  if(pl==='Termux')return{};
+ if(pl==='Notify'&&m==='status')return Object.assign({},NAT.ny);
+ if(pl==='Notify')return{};
  return{};
 }};
 vm.createContext(ctx);
 process.chdir(__dirname+'/../www');
-for(const f of ['version','prompts','core','status','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','notes','slash','fast','intents','termuxapi','runner','imagegen','rules','log','perms','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
+for(const f of ['version','prompts','core','status','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','notes','slash','fast','intents','termuxapi','runner','imagegen','sched','rules','log','perms','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
 const t=s=>vm.runInContext(s,ctx);
 let fails=0;const ok=(c,l)=>{console.log((c?'PASS ':'FAIL ')+l);if(!c)fails++};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -65,6 +67,12 @@ const click=async id=>{await handlers['#'+id+':click']();await sleep(5)};
  NAT.files=true;NAT.rt.contacts='granted';l=await t('pmPending')(true);
  ok(!l.some(x=>x.id==='files'||x.id==='contacts')&&l.length===6,'granted ones are not listed');
  NAT.files=false;NAT.rt.contacts='prompt';
+ // 3b. step22: Notifications / Exact alarms / Battery cards come after the Termux card, and only when off
+ NAT.ny={notif:false,exact:false,battery:false};l=await t('pmPending')(true);
+ ok(l.map(x=>x.id).join()==='files,contacts,sms,call,wsettings,overlay,a11y,termux,notif,exact,battery','notification cards (notif, exact, battery) are listed after termux when off');
+ NAT.ny={notif:true,exact:false,battery:true};l=await t('pmPending')(true);
+ ok(l.map(x=>x.id).join()==='files,contacts,sms,call,wsettings,overlay,a11y,termux,exact','only the missing notification permission is listed');
+ NAT.ny={notif:true,exact:true,battery:true};
  // 4. flow: card 1, Skip -> card 2, skip remembered
  await t('pmStart')(true);await sleep(20);
  ok(els['#modal#open']&&/Permission 1 \/ 8/.test(card())&&/All files access/.test(card()),'first card shown (1/8)');
