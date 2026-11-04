@@ -7,16 +7,19 @@ const store={},sent=[],pills=[];let failWith=null,failPkgOnly=false;
 const ctx={document:doc,localStorage:{getItem:k=>store[k]||null,setItem:(k,v)=>{store[k]=v}},matchMedia:()=>({matches:true,addEventListener(){}}),navigator:{},console,setTimeout:(f,ms)=>setTimeout(f,Math.min(ms,3)),clearTimeout,URL,Image:function(){},fetch:async()=>({ok:true,status:200,json:async()=>({choices:[{message:{role:'assistant',content:'ok'}}]}),text:async()=>''})};
 ctx.window=ctx;
 // Native Notify mock: keeps schedules like NotifyPlugin does
-const NY={list:[],hist:[],calls:[],status:{notif:true,exact:true,battery:true,count:0},shown:[],showOk:true,addErr:null};
+const NY={list:[],hist:[],calls:[],status:{notif:true,exact:true,battery:true,count:0,mode:'clock',wake:true,sdk:34},shown:[],showOk:true,addErr:null};
 ctx.Capacitor={nativePromise:async(pl,m,o)=>{
   if(pl==='Notify'){
     NY.calls.push(m);
     if(m==='status')return Object.assign({},NY.status,{count:NY.list.length});
+    if(m==='setMode'){NY.status.mode=o.mode;return Object.assign({},NY.status)}
+    if(m==='setWake'){NY.status.wake=!!o.on;return Object.assign({},NY.status)}
+    if(m==='rearm')return Object.assign({},NY.status);
     if(m==='show'){NY.shown.push(o);return{shown:NY.showOk}}
     if(m==='add'){
       if(NY.addErr)return Promise.reject(Object.assign(new Error(NY.addErr.message),{code:NY.addErr.code}));
       const at=o.rep==='none'?o.at:o.at;NY.list=NY.list.filter(x=>x.id!==o.id);NY.list.push({id:o.id,title:o.title,text:o.text,ch:o.channel,rep:o.rep,at,h:o.h,m:o.m});
-      NY.lastAdd=o;return{id:o.id,at,exact:NY.status.exact}}
+      NY.lastAdd=o;const via=NY.status.mode==='clock'?'clock':(NY.status.exact?'exact':'inexact');return{id:o.id,at,exact:via!=='inexact',via}}
     if(m==='list')return{items:NY.list.slice(),hist:NY.hist};
     if(m==='cancel'){const n=NY.list.length;NY.list=NY.list.filter(x=>x.id!==o.id);return{removed:NY.list.length<n}}
     if(m==='clear'){const n=NY.list.length;NY.list=[];return{cleared:n}}
@@ -82,9 +85,12 @@ const lastMsg=()=>t('H')[t('H').length-1];
  ok(NY.list.length===1,'one schedule stored');
  x=await run('schedule_add',{title:'GM',text:'good morning',time:'07:30',repeat:'daily',channel:'report'});
  ok(NY.lastAdd.channel==='chaman_report'&&NY.lastAdd.rep==='daily'&&NY.lastAdd.h===7&&NY.lastAdd.m===30,'daily report: channel, h and m sent');
- NY.status.notif=false;NY.status.exact=false;
+ NY.status.notif=false;NY.status.exact=false;NY.status.mode='quiet';
  x=await run('schedule_add',{text:'x',in_minutes:5});
- ok(/band hain/.test(x.res)&&/Exact alarm/.test(x.res),'warns when notifications are off and exact alarm is missing');
+ ok(/band hain/.test(x.res)&&/Exact alarm/.test(x.res),'warns when notifications are off and (quiet mode) exact alarm is missing');
+ NY.status.mode='clock';
+ x=await run('schedule_add',{text:'x',in_minutes:5});
+ ok(/band hain/.test(x.res)&&!/Exact alarm/.test(x.res),'clock mode needs no exact alarm permission: no exact warning');
  NY.status.notif=true;NY.status.exact=true;
  x=await run('schedule_add',{text:'x',in_minutes:0});
  ok(/in_minutes/.test(x.res)&&!NY.calls.slice(-1).includes('add'),'bad args are refused before the native call');
@@ -146,21 +152,49 @@ const lastMsg=()=>t('H')[t('H').length-1];
  ok(/schedule_add/.test(rt)&&/alarm_set/.test(rt)&&/does NOT run/.test(rt)&&/schedule_cancel/.test(rt)&&/\/remind/.test(rt),'remind rules mention tools, alarm_set difference, no AI at fire time, /remind');
  ok(t('RULE_ORDER.indexOf("remind")')>=0&&t('TOOLS.find(x=>x.function.name==="rules_read").function.parameters.properties.area.enum').includes('remind'),'rules_read knows remind');
  const rr=await run('rules_read',{area:'remind'});ok(/REMINDERS/.test(rr.res),'rules_read remind works');
- ok(t('RULES_VER')==='2026-11-01.1','RULES_VER bumped so the rules folder copy is rewritten');
+ ok(t('RULES_VER')==='2026-11-02.1','RULES_VER bumped so the rules folder copy is rewritten');
 
  // ---- 8. Java side and patch script agree with JS
  const J=fs.readFileSync(__dirname+'/../native/NotifyCore.java','utf8'),PL=fs.readFileSync(__dirname+'/../native/NotifyPlugin.java','utf8'),PA=fs.readFileSync(__dirname+'/../scripts/patch-android.js','utf8');
- ok(/CH_REMIND = "chaman_remind"/.test(J)&&/CH_REPORT = "chaman_report"/.test(J)&&/CH_TASK = "chaman_task"/.test(J),'Java channel ids = chaman_ + JS channel names');
+ ok(/CH_REMIND = "chaman_remind_v2"/.test(J)&&/CH_REPORT = "chaman_report"/.test(J)&&/CH_TASK = "chaman_task"/.test(J),'Java channel ids = chaman_ + JS channel names');
  ok(/MAX = 50/.test(J)&&/Maximum 50|MAX/.test(PL),'limit 50 in Java');
- ok(/name = "Notify"/.test(PL)&&['status','requestNotif','openNotifSettings','openExact','openBattery','show','add','list','cancel','clear'].every(m=>new RegExp('public void '+m+'\\(PluginCall').test(PL)),'plugin "Notify" has every method sched.js and perms.js call');
+ ok(/name = "Notify"/.test(PL)&&['status','requestNotif','openNotifSettings','openExact','openBattery','setMode','setWake','rearm','show','add','list','cancel','clear'].every(m=>new RegExp('public void '+m+'\\(PluginCall').test(PL)),'plugin "Notify" has every method sched.js and perms.js call');
  ok(['NotifyCore.java','NotifyReceiver.java','NotifyBootReceiver.java','NotifyPlugin.java'].every(f=>PA.includes("'"+f+"'")),'patch-android copies the 4 Notify Java files');
  ok(/registerPlugin\(NotifyPlugin\.class\)/.test(PA),'MainActivity registers NotifyPlugin');
- ok(/SCHEDULE_EXACT_ALARM/.test(PA)&&/RECEIVE_BOOT_COMPLETED/.test(PA)&&/POST_NOTIFICATIONS/.test(PA)&&/NotifyBootReceiver/.test(PA)&&/BOOT_COMPLETED/.test(PA)&&/MY_PACKAGE_REPLACED/.test(PA),'manifest gets permissions and boot receiver');
+ ok(/WAKE_LOCK/.test(PA)&&/SCHEDULE_EXACT_ALARM/.test(PA)&&/RECEIVE_BOOT_COMPLETED/.test(PA)&&/POST_NOTIFICATIONS/.test(PA)&&/NotifyBootReceiver/.test(PA)&&/BOOT_COMPLETED/.test(PA)&&/MY_PACKAGE_REPLACED/.test(PA),'manifest gets permissions and boot receiver');
  ok(/android:name="com.chaman.nap.NotifyReceiver" android:exported="false"/.test(PA),'fire receiver is not exported');
  ok(/ic_stat_chaman/.test(PA)&&/ic_stat_chaman/.test(J),'status bar icon is written and used');
  const sh=fs.readFileSync('index.html','utf8');
  ok(sh.indexOf('js/sched.js')>sh.indexOf('js/imagegen.js')&&sh.indexOf('js/sched.js')<sh.indexOf('js/rules.js')&&sh.indexOf('js/sched.js')<sh.indexOf('js/perms.js'),'sched.js loads after tools and before rules/perms');
  ok(/^\d+\.\d{5}\.\d+$/.test(t('APP_VER'))&&+t('APP_VER').split('.')[1]>=29000,'version is at least the notification feature (1.29000.0): '+t('APP_VER'));
+
+ // ---- 9. reliability step (1.29000.1): status, log, mode, wake, startup rearm, Java safeguards
+ ok(NY.calls.includes('rearm'),'app start asks native to put alarms back (rearm)');
+ NY.list=[];t('H.length=0');
+ await t('remindCmd')('status');ok(/Notifications: on/.test(lastMsg().content)&&/Mode: clock/.test(lastMsg().content)&&/Screen jagana: on/.test(lastMsg().content)&&/SDK: 34/.test(lastMsg().content),'/remind status shows notifications, mode, wake, sdk');
+ NY.status.notif=false;await t('remindCmd')('status');ok(/BAND/.test(lastMsg().content),'/remind status says plainly when notifications are off');NY.status.notif=true;
+ await t('remindCmd')('mode quiet');ok(NY.status.mode==='quiet'&&/Mode ab: quiet/.test(lastMsg().content),'/remind mode quiet');
+ await t('remindCmd')('mode');ok(/Mode abhi: quiet/.test(lastMsg().content),'/remind mode shows current');
+ await t('remindCmd')('mode clock');ok(NY.status.mode==='clock','/remind mode clock');
+ await t('remindCmd')('wake off');ok(NY.status.wake===false&&/off/.test(lastMsg().content),'/remind wake off');
+ await t('remindCmd')('wake on');ok(NY.status.wake===true,'/remind wake on');
+ await t('remindCmd')('log');ok(/log khaali/.test(lastMsg().content),'/remind log empty');
+ const D0=L(2026,11,2,7,30,0);
+ NY.hist=[{id:'a',title:'Chai',due:D0,fired:D0+62000,kind:'fired',via:'exact',screen:false,idle:true,exact:true},{id:'b',title:'Gm',due:D0,fired:D0-62000,kind:'early-skip',via:'inexact',screen:true,idle:false,exact:false},{id:'c',title:'Late one',due:D0,fired:D0+3600000,kind:'late',via:'clock',screen:true,idle:false,exact:true}];
+ await t('remindCmd')('log');const lg2=lastMsg().content;
+ ok(/\+62s/.test(lg2)&&/-62s/.test(lg2)&&/screen off/.test(lg2)&&/doze/.test(lg2)&&/JALDI/.test(lg2)&&/LATE/.test(lg2)&&/via exact/.test(lg2)&&/exact nahi/.test(lg2),'/remind log shows due time, difference in seconds, via, screen, doze, early and late');
+ ok(lg2.indexOf('Late one')<lg2.indexOf('Chai'),'/remind log lists newest first');
+ await t('remindCmd')('10m chai');await t('remindCmd')('list');ok(/\[clock\]/.test(lastMsg().content)||/10:|:\d\d \(ek baar\)/.test(lastMsg().content),'/remind list works with the via tag');
+ const J2=fs.readFileSync(__dirname+'/../native/NotifyCore.java','utf8'),JP=fs.readFileSync(__dirname+'/../native/NotifyPlugin.java','utf8');
+ ok(/setAlarmClock/.test(J2)&&/setExactAndAllowWhileIdle/.test(J2)&&/setAndAllowWhileIdle/.test(J2)&&/K_MODE/.test(J2),'Java: alarm clock first, then exact, then inexact');
+ ok(/now < at - EARLY_MS/.test(J2)&&/early-skip/.test(J2)&&/MAX_EARLY/.test(J2),'Java: an alarm that comes more than 5 s early is not shown, it is set again');
+ ok(/ACQUIRE_CAUSES_WAKEUP/.test(J2)&&/enableVibration\(true\)/.test(J2)&&/setVibrationPattern/.test(J2),'Java: reminders vibrate and light the screen');
+ ok(/deleteNotificationChannel\(CH_REMIND_OLD\)/.test(J2),'Java: old reminder channel (no vibration) is removed, new id used');
+ ok(/snapshot\(c\);\s*\n\s*long at/.test(J2.replace(/\r/g,''))||/JSONObject snap = snapshot\(c\);/.test(J2),'Java: screen/idle state is read before the screen is woken');
+ ok(/setMode/.test(JP)&&/setWake/.test(JP)&&/public void rearm/.test(JP),'Java plugin: setMode, setWake, rearm');
+ // exact-alarm card is not needed in clock mode (perms)
+ ok(/r\.mode==='clock'/.test(fs.readFileSync('js/perms.js','utf8')),'exact alarm card counts as done in clock mode');
+ ok(/\/remind log/.test(t('ruleText')('remind')),'rules tell the AI to ask for /remind status and /remind log, not to guess');
 
  console.log(fails?('\n'+fails+' FAIL'):'\nALL PASS');
  process.exit(fails?1:0);

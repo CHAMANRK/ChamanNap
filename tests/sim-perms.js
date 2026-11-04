@@ -72,6 +72,8 @@ const click=async id=>{await handlers['#'+id+':click']();await sleep(5)};
  ok(l.map(x=>x.id).join()==='files,contacts,sms,call,wsettings,overlay,a11y,termux,notif,exact,battery','notification cards (notif, exact, battery) are listed after termux when off');
  NAT.ny={notif:true,exact:false,battery:true};l=await t('pmPending')(true);
  ok(l.map(x=>x.id).join()==='files,contacts,sms,call,wsettings,overlay,a11y,termux,exact','only the missing notification permission is listed');
+ NAT.ny={notif:true,exact:false,battery:true,mode:'clock'};l=await t('pmPending')(true);
+ ok(!l.some(x=>x.id==='exact'),'clock mode: Exact alarms card is not asked');
  NAT.ny={notif:true,exact:true,battery:true};
  // 4. flow: card 1, Skip -> card 2, skip remembered
  await t('pmStart')(true);await sleep(20);

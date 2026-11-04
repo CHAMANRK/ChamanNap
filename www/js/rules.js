@@ -1,6 +1,6 @@
 // Step10: rules per area (AI reads the app copy only), auto-injection by keywords, rules_read tool, skill (auto from TOOLS),
 // folder copy for Najeef in /sdcard/Chaman/memory/rules (read-only for him, AI never reads it), guard against fake tool output.
-const RULES_VER='2026-11-01.1';
+const RULES_VER='2026-11-02.1';
 const RULES={
 files:`FILES (workspace /sdcard/Chaman; the file_* tools need no Termux, only the All files access permission for Chaman)
 - Layout: work/<project>/ your files, memory/ notes, backup/ (the app copies the old file there before every overwrite or edit), .trash/ (deleted items), logs/ (the app writes it, you never do). Paths: /sdcard/Chaman/... or relative to it. The file tools cannot go outside this folder.
@@ -59,7 +59,8 @@ remind:`REMINDERS and NOTIFICATIONS (Chaman's own notifications; no Termux neede
 - schedule_list shows ids, schedule_cancel(id) removes one. He can also type /remind (pick it from the list that opens when he types /): /remind 10m chai, /remind kal 07:30 uthna, /remind roz 07:30 good morning, /remind list, /remind del 1, /remind test.
 - An alarm that rings is a different thing: open_intent alarm_set. Reminder or notification = schedule_add. Prefer these over device_api notify (that one needs Termux).
 - Do not guess today's date: use in_minutes, or the words today and tomorrow. Report exactly what the tool result says (time, repeat). If it warns about a permission or an inexact alarm, tell him: Settings > Permissions cards in Chaman (Notifications, Exact alarms, Battery). Never say a reminder will arrive when the tool failed.
-- The lock screen hides the text of these notifications on a secure phone, that is on purpose.`,
+- The lock screen hides the text of these notifications on a secure phone, that is on purpose.
+- If he says a reminder did not come or came at the wrong time: do not guess. Tell him to type /remind status and /remind log (pick /remind from the / list) and send you the output; the log shows the due time, the real time, how the alarm was set and whether the screen was off.`,
 phone:`PHONE TOOLS
 - torch, set_volume, set_brightness, open_app: do them directly.
 - call and send_sms only show a confirm card and happen after Najeef taps. Say 'card dikha diya', never 'bhej diya'. Contact not found: say so and ask for the number.

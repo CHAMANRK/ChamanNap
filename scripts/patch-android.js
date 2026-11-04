@@ -187,7 +187,7 @@ dependencies {
   let x = fs.readFileSync(mp2, 'utf8');
   if (!x.includes('NotifyReceiver')) {
     let perms = '';
-    for (const p of ['android.permission.POST_NOTIFICATIONS', 'android.permission.RECEIVE_BOOT_COMPLETED', 'android.permission.SCHEDULE_EXACT_ALARM']) {
+    for (const p of ['android.permission.POST_NOTIFICATIONS', 'android.permission.RECEIVE_BOOT_COMPLETED', 'android.permission.SCHEDULE_EXACT_ALARM', 'android.permission.WAKE_LOCK']) {
       if (!x.includes(p)) perms += `    <uses-permission android:name="${p}" />\n`;
     }
     if (perms) x = x.replace('<application', perms + '    <application');

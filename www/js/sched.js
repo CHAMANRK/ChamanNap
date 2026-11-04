@@ -11,10 +11,13 @@ const SCH_HELP='Reminder (Chaman ki apni notification):\n'
   +'/remind kal 18:00 meeting      kal 18:00\n'
   +'/remind roz 07:30 good morning  har din\n'
   +'/remind weekdays 09:00 standup  Mon-Fri\n'
-  +'/remind list   /remind del <no>   /remind clear   /remind test';
+  +'/remind list   /remind del <no>   /remind clear   /remind test\n'
+  +'Kaam na kare to: /remind status aur /remind log (output Claude ko bhejo)\n'
+  +'/remind mode clock|quiet   /remind wake on|off';
 let SCH_NOW_T=[];
 const schPad=n=>n<10?'0'+n:''+n;
 const schFmt=ms=>{const d=new Date(ms);return d.getFullYear()+'-'+schPad(d.getMonth()+1)+'-'+schPad(d.getDate())+' '+schPad(d.getHours())+':'+schPad(d.getMinutes())};
+const schFmtT=ms=>{const d=new Date(ms);return schPad(d.getHours())+':'+schPad(d.getMinutes())+':'+schPad(d.getSeconds())};
 const schClean=(t,n)=>String(t==null?'':t).replace(/[\r\n]+/g,' ').replace(/\s+/g,' ').trim().slice(0,n);
 const schId=()=>'r'+Date.now().toString(36)+Math.floor(Math.random()*1296).toString(36);
 // Same rule as NotifyCore.nextFire (Java): first h:m strictly after "after", local time, weekdays skips Sat/Sun.
@@ -64,11 +67,16 @@ function schResolve(a,now){
   out.at=d.getTime();
   return out;
 }
+function schLogLine(e){
+  const d=Math.round((e.fired-e.due)/1000),dl=(d>0?'+':'')+d+'s';
+  const kind=e.kind==='late'?'LATE (phone band ya alarm gaya tha)':e.kind==='early-skip'?'JALDI aaya, dubara set kiya':'aaya';
+  return schFmtT(e.fired)+' '+kind+' (due '+schFmtT(e.due)+', '+dl+') via '+(e.via||'?')+', screen '+(e.screen?'on':'off')+(e.idle?', doze':'')+(e.exact===false?', exact nahi':'')+' | '+schClean(e.title,30);
+}
 const schIdList=async()=>{const r=await NY('list');return(r.items||[]).slice().sort((x,y)=>x.at-y.at)};
 async function schAdd(o){
   const id=schId();
   const r=await NY('add',{id,title:o.title,text:o.text,channel:'chaman_'+o.channel,rep:o.rep,at:o.at,h:o.h,m:o.m});
-  return{id,at:r.at||o.at,exact:r.exact!==false};
+  return{id,at:r.at||o.at,exact:r.exact!==false,via:r.via||''};
 }
 async function schTool(name,a,note,fl){
   const bad=s=>{fl.bad=true;return note(s)};
@@ -89,7 +97,8 @@ async function schTool(name,a,note,fl){
       const r=await schAdd(o);
       let msg='Schedule ho gaya: id '+r.id+', '+schFmt(r.at)+' ('+schRepName(o.rep)+').';
       let warn='';
-      try{const st=await NY('status');if(!st.notif)warn+=' Notifications Android me band hain, Najeef ko allow karne bolo.';if(!r.exact||!st.exact)warn+=' Exact alarm permission nahi hai, isliye time thoda late ho sakta hai.'}catch(e){}
+      try{const st=await NY('status');if(!st.notif)warn+=' Notifications Android me band hain, Najeef ko allow karne bolo.'}catch(e){}
+      if(!r.exact)warn+=' Exact alarm permission nahi hai, isliye time thoda late ho sakta hai.';
       return note(msg)+warn+' Ye sirf likha hua text dikhayegi, us waqt AI nahi chalega.';
     }
     if(name==='schedule_list'){
@@ -142,9 +151,25 @@ async function remindCmd(arg){
     if(/^list$/i.test(arg)){
       const L=await schIdList();
       if(!L.length){say('Koi schedule nahi hai.\n\n'+SCH_HELP);return}
-      say(L.map((x,i)=>(i+1)+'. '+schFmt(x.at)+' ('+schRepName(x.rep)+') '+schClean(x.title,40)+(x.text?': '+schClean(x.text,60):'')).join('\n')+'\n\nHatane ke liye: /remind del <no>');
+      say(L.map((x,i)=>(i+1)+'. '+schFmt(x.at)+' ('+schRepName(x.rep)+')'+(x.via?' ['+x.via+']':'')+' '+schClean(x.title,40)+(x.text?': '+schClean(x.text,60):'')).join('\n')+'\n\nHatane ke liye: /remind del <no>');
       return;
     }
+    if(/^status$/i.test(arg)){
+      const st=await NY('status');
+      say('Notifications: '+(st.notif?'on':'BAND (Android settings me allow karo)')+'\nExact alarm permission: '+(st.exact?'haan':'nahi')+'\nBattery unrestricted: '+(st.battery?'haan':'nahi')+'\nMode: '+(st.mode==='quiet'?'quiet (alarm icon nahi, Doze me late ho sakta hai)':'clock (sabse bharosemand, status bar me alarm icon dikhta hai)')+'\nScreen jagana: '+(st.wake===false?'off':'on')+'\nSchedules: '+(st.count||0)+'   Android SDK: '+(st.sdk||'?'));return;
+    }
+    if(/^log$/i.test(arg)){
+      const r=await NY('list'),h=(r.hist||[]).slice(-10).reverse();
+      if(!h.length){say('Abhi tak koi reminder fire nahi hua (log khaali).');return}
+      say(h.map(schLogLine).join('\n')+'\n\n(due = jis time par aana tha, +/- seconds = der ya jaldi. Ye text Claude ko bhejo.)');return;
+    }
+    let md=/^mode(?:\s+(clock|quiet))?$/i.exec(arg);
+    if(md){
+      if(!md[1]){const st=await NY('status');say('Mode abhi: '+(st.mode==='quiet'?'quiet':'clock')+'\n/remind mode clock: alarm-clock tarah (sabse bharosemand, status bar me alarm icon dikhta hai)\n/remind mode quiet: bina icon, par Doze me late ho sakta hai');return}
+      const st=await NY('setMode',{mode:md[1].toLowerCase()});say('Mode ab: '+st.mode+'. Purane schedule naye tareeke se set ho gaye.');return;
+    }
+    let wk=/^wake\s+(on|off)$/i.exec(arg);
+    if(wk){const st=await NY('setWake',{on:wk[1].toLowerCase()==='on'});say('Screen jagana ab: '+(st.wake?'on (reminder aane par screen 5 second ke liye jagegi)':'off'));return}
     if(/^clear$/i.test(arg)){const r=await NY('clear');say(r.cleared?r.cleared+' schedule hata diye.':'Koi schedule nahi tha.');return}
     let d=/^(?:del|rm|delete|cancel)\s+(\S+)$/i.exec(arg);
     if(d){
@@ -156,7 +181,8 @@ async function remindCmd(arg){
     if(/^test$/i.test(arg)){
       const o=schResolve({in_minutes:1,title:'Chaman test',text:'Ye test notification hai. Agar ye aayi to reminder kaam kar raha hai.',channel:'remind'});
       const r=await schAdd(o);
-      let w='';try{const st=await NY('status');if(!st.notif)w+='\nNotifications Android me band hain, allow karo.';if(!st.exact)w+='\nExact alarm permission nahi, time late ho sakta hai.'}catch(e){}
+      let w='';try{const st=await NY('status');if(!st.notif)w+='\nNotifications Android me band hain, allow karo.'}catch(e){}
+      if(!r.exact)w+='\nExact alarm permission nahi, time late ho sakta hai.';
       say('Test notification 1 minute me aayegi ('+schFmt(r.at)+'). Ab screen lock kar do, chahe to app recents se hata do.'+w);return;
     }
     const p=schParseCmd(arg);
@@ -165,7 +191,11 @@ async function remindCmd(arg){
     const o=schResolve(p.a);
     if(o.err){say(o.err);return}
     const r=await schAdd(o);
-    let w='';try{const st=await NY('status');if(!st.notif)w+='\nNotifications Android me band hain, allow karo.';if(!st.exact)w+='\nExact alarm permission nahi, time thoda late ho sakta hai.'}catch(e){}
+    let w='';try{const st=await NY('status');if(!st.notif)w+='\nNotifications Android me band hain, allow karo.'}catch(e){}
+    if(!r.exact)w+='\nExact alarm permission nahi, time thoda late ho sakta hai.';
     say('Reminder set: '+schFmt(r.at)+' ('+schRepName(o.rep)+')\n'+schClean(o.text,100)+w);
   }catch(e){say('Command fail: '+errMsg(e))}
 }
+// Some phones drop alarms when the app is swiped away. Opening the app puts them all back (overdue ones under 24 h show once, marked late).
+const schRearm=()=>NY('rearm').catch(()=>{});
+try{setTimeout(schRearm,1500);document.addEventListener('visibilitychange',()=>{if(!document.hidden)schRearm()})}catch(e){}

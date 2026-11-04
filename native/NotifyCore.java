@@ -8,8 +8,11 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.media.AudioAttributes;
+import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
+import android.os.PowerManager;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -25,8 +28,13 @@ final class NotifyCore {
     static final String PREFS = "chaman_sched";
     static final String K_LIST = "list";
     static final String K_HIST = "hist";
+    static final String K_MODE = "mode"; // clock (setAlarmClock, default) | quiet (setExactAndAllowWhileIdle)
+    static final String K_WAKE = "wake"; // light the screen for a few seconds when a reminder fires with the screen off (default on)
+    static final long EARLY_MS = 5000;
+    static final int MAX_EARLY = 3;
     static final String ACT_FIRE = "com.chaman.nap.SCHED_FIRE";
-    static final String CH_REMIND = "chaman_remind";
+    static final String CH_REMIND = "chaman_remind_v2"; // v2: vibration + sound set (a channel cannot be changed after it was created)
+    static final String CH_REMIND_OLD = "chaman_remind";
     static final String CH_REPORT = "chaman_report";
     static final String CH_TASK = "chaman_task";
     static final int MAX = 50;
@@ -68,14 +76,53 @@ final class NotifyCore {
         return out;
     }
 
-    static void addHist(Context c, JSONObject r, long now, boolean late) {
+    // ---------- settings ----------
+    static String mode(Context c) {
+        String m = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(K_MODE, "clock");
+        return "quiet".equals(m) ? "quiet" : "clock";
+    }
+
+    static boolean wake(Context c) {
+        return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(K_WAKE, true);
+    }
+
+    static void setMode(Context c, String m) {
+        c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(K_MODE, "quiet".equals(m) ? "quiet" : "clock").apply();
+    }
+
+    static void setWake(Context c, boolean on) {
+        c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(K_WAKE, on).apply();
+    }
+
+    // ---------- history (also the diagnostics: due time vs real time, how it was armed, was the phone idle / screen off) ----------
+    /** Taken BEFORE anything is shown, so "screen" says whether the screen was off when the alarm came. */
+    static JSONObject snapshot(Context c) {
+        JSONObject d = new JSONObject();
+        try {
+            PowerManager pm = (PowerManager) c.getSystemService(Context.POWER_SERVICE);
+            d.put("idle", pm != null && pm.isDeviceIdleMode());
+            d.put("screen", pm != null && pm.isInteractive());
+            d.put("exact", canExact(c));
+        } catch (Exception ignored) {
+        }
+        return d;
+    }
+
+    static void addHist(Context c, JSONObject r, long now, String kind, JSONObject snap) {
         try {
             JSONArray h = load(c, K_HIST);
             JSONObject e = new JSONObject();
             e.put("id", r.optString("id"));
             e.put("title", r.optString("title"));
+            e.put("due", r.optLong("at"));
             e.put("fired", now);
-            e.put("late", late);
+            e.put("kind", kind); // fired | late | early-skip
+            e.put("via", r.optString("via", "?"));
+            if (snap != null) {
+                e.put("idle", snap.optBoolean("idle"));
+                e.put("screen", snap.optBoolean("screen"));
+                e.put("exact", snap.optBoolean("exact"));
+            }
             h.put(e);
             while (h.length() > MAX_HIST) h = without(h, 0);
             save(c, K_HIST, h);
@@ -123,23 +170,50 @@ final class NotifyCore {
         return am != null && am.canScheduleExactAlarms();
     }
 
-    /** Sets the alarm for record r. Returns true when it is an exact alarm, false when Android only allowed an inexact one. */
-    static boolean arm(Context c, JSONObject r) {
+    private static PendingIntent showPi(Context c) {
+        Intent open = c.getPackageManager().getLaunchIntentForPackage(c.getPackageName());
+        if (open == null) open = new Intent();
+        open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        return PendingIntent.getActivity(c, 0, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+    }
+
+    /**
+     * Sets the alarm for record r and returns how: "clock" (setAlarmClock: exact, not throttled in Doze, needs no exact-alarm permission,
+     * but Android shows its next-alarm icon), "exact" (setExactAndAllowWhileIdle: needs the permission, throttled in Doze) or
+     * "inexact" (last resort, can be late). The way is also written into r as "via".
+     */
+    static String arm(Context c, JSONObject r) {
         AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
-        if (am == null) return false;
+        if (am == null) return "none";
         String id = r.optString("id");
         long at = r.optLong("at");
         PendingIntent pi = firePi(c, id);
-        if (canExact(c)) {
+        String via = "inexact";
+        boolean done = false;
+        if ("clock".equals(mode(c))) {
             try {
-                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
-                return true;
+                am.setAlarmClock(new AlarmManager.AlarmClockInfo(at, showPi(c)), pi);
+                via = "clock";
+                done = true;
             } catch (SecurityException ignored) {
-                // permission was taken away between the check and the call: fall through to inexact
+                // fall through to the next way
             }
         }
-        am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
-        return false;
+        if (!done && canExact(c)) {
+            try {
+                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
+                via = "exact";
+                done = true;
+            } catch (SecurityException ignored) {
+                // permission was taken away between the check and the call
+            }
+        }
+        if (!done) am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
+        try {
+            r.put("via", via);
+        } catch (Exception ignored) {
+        }
+        return via;
     }
 
     static void disarm(Context c, String id) {
@@ -150,6 +224,7 @@ final class NotifyCore {
     }
 
     // ---------- notification ----------
+    /** JS names chaman_remind / chaman_report / chaman_task (anything else = remind) -> real channel id. */
     static String safeChannel(String ch) {
         if (CH_REPORT.equals(ch) || CH_TASK.equals(ch)) return ch;
         return CH_REMIND;
@@ -159,7 +234,16 @@ final class NotifyCore {
         if (Build.VERSION.SDK_INT < 26) return;
         NotificationManager nm = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm == null) return;
-        nm.createNotificationChannel(channel(CH_REMIND, "Reminders", "Chaman ke reminders", NotificationManager.IMPORTANCE_HIGH));
+        try {
+            nm.deleteNotificationChannel(CH_REMIND_OLD);
+        } catch (Exception ignored) {
+        }
+        NotificationChannel rem = channel(CH_REMIND, "Reminders", "Chaman ke reminders", NotificationManager.IMPORTANCE_HIGH);
+        rem.enableVibration(true);
+        rem.setVibrationPattern(new long[]{0, 300, 200, 300});
+        rem.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
+                new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build());
+        nm.createNotificationChannel(rem);
         nm.createNotificationChannel(channel(CH_REPORT, "Reports", "Daily message aur reports", NotificationManager.IMPORTANCE_DEFAULT));
         nm.createNotificationChannel(channel(CH_TASK, "Task result", "Kaam khatam hone ki notification", NotificationManager.IMPORTANCE_DEFAULT));
     }
@@ -171,13 +255,25 @@ final class NotifyCore {
         return ch;
     }
 
+    /** Lights the screen for 5 seconds (reminders only), so a reminder is not missed on a phone lying with the screen off. */
+    @SuppressWarnings("deprecation")
+    private static void wakeScreen(Context c) {
+        try {
+            PowerManager pm = (PowerManager) c.getSystemService(Context.POWER_SERVICE);
+            if (pm == null || pm.isInteractive()) return;
+            PowerManager.WakeLock wl = pm.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP, "chaman:remind");
+            wl.acquire(5000);
+        } catch (Exception ignored) {
+        }
+    }
+
     private static int smallIcon(Context c) {
         int r = c.getResources().getIdentifier("ic_stat_chaman", "drawable", c.getPackageName());
         return r != 0 ? r : c.getApplicationInfo().icon;
     }
 
     /** Shows one notification. Content is hidden on a secure lock screen (public version says only "Chaman"). */
-    static boolean show(Context c, String id, String title, String text, String channel) {
+    static boolean show(Context c, String id, String title, String text, String channel, boolean allowWake) {
         NotificationManager nm = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm == null || !nm.areNotificationsEnabled()) return false;
         ensureChannels(c);
@@ -208,12 +304,16 @@ final class NotifyCore {
                 .setPublicVersion(pub);
         if (CH_REMIND.equals(ch)) b.setCategory(Notification.CATEGORY_REMINDER);
         if (tap != null) b.setContentIntent(tap);
+        if (allowWake && CH_REMIND.equals(ch) && wake(c)) wakeScreen(c);
         nm.notify(id.hashCode(), b.build());
         return true;
     }
 
     // ---------- fire / restore ----------
-    /** Called by the alarm. Shows the notification, then re-arms (repeat) or drops (one time) the record. */
+    /**
+     * Called by the alarm. Shows the notification, then re-arms (repeat) or drops (one time) the record.
+     * An alarm that Android delivers more than 5 s too early is not shown: it is set again for the real time (max 3 times).
+     */
     static void fire(Context c, String id) {
         synchronized (LOCK) {
             try {
@@ -222,14 +322,26 @@ final class NotifyCore {
                 if (idx < 0) return;
                 JSONObject r = list.getJSONObject(idx);
                 long now = System.currentTimeMillis();
-                show(c, id, r.optString("title", "Chaman"), r.optString("text", ""), r.optString("ch", CH_REMIND));
-                addHist(c, r, now, false);
+                JSONObject snap = snapshot(c);
+                long at = r.optLong("at");
+                int early = r.optInt("early", 0);
+                if (now < at - EARLY_MS && early < MAX_EARLY) {
+                    r.put("early", early + 1);
+                    arm(c, r);
+                    list.put(idx, r);
+                    save(c, K_LIST, list);
+                    addHist(c, r, now, "early-skip", snap);
+                    return;
+                }
+                show(c, id, r.optString("title", "Chaman"), r.optString("text", ""), r.optString("ch", CH_REMIND), true);
+                addHist(c, r, now, "fired", snap);
                 String rep = r.optString("rep", "none");
                 if ("none".equals(rep)) {
                     list = without(list, idx);
                 } else {
-                    long base = Math.max(now, r.optLong("at"));
+                    long base = Math.max(now, at);
                     r.put("at", nextFire(rep, r.optInt("h"), r.optInt("m"), base));
+                    r.put("early", 0);
                     arm(c, r);
                     list.put(idx, r);
                 }
@@ -257,8 +369,8 @@ final class NotifyCore {
                     long at = r.optLong("at");
                     if (at <= now) {
                         if (now - at < LATE_WINDOW_MS) {
-                            show(c, r.optString("id"), r.optString("title", "Chaman") + " (late)", r.optString("text", ""), r.optString("ch", CH_REMIND));
-                            addHist(c, r, now, true);
+                            show(c, r.optString("id"), r.optString("title", "Chaman") + " (late)", r.optString("text", ""), r.optString("ch", CH_REMIND), false);
+                            addHist(c, r, now, "late", snapshot(c));
                         }
                         if ("none".equals(rep)) continue;
                         r.put("at", nextFire(rep, r.optInt("h"), r.optInt("m"), now));

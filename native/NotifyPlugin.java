@@ -46,6 +46,8 @@ public class NotifyPlugin extends Plugin {
         PowerManager pm = (PowerManager) c.getSystemService(Context.POWER_SERVICE);
         r.put("battery", pm != null && pm.isIgnoringBatteryOptimizations(c.getPackageName()));
         r.put("sdk", Build.VERSION.SDK_INT);
+        r.put("mode", NotifyCore.mode(c));
+        r.put("wake", NotifyCore.wake(c));
         synchronized (NotifyCore.LOCK) {
             r.put("count", NotifyCore.load(c, NotifyCore.K_LIST).length());
         }
@@ -115,6 +117,31 @@ public class NotifyPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void setMode(PluginCall call) {
+        String m = call.getString("mode", "clock");
+        if (!("clock".equals(m) || "quiet".equals(m))) {
+            call.reject("mode clock ya quiet hona chahiye.", "BAD");
+            return;
+        }
+        NotifyCore.setMode(ctx(), m);
+        NotifyCore.rearmAll(ctx()); // existing schedules switch to the new way now
+        call.resolve(statusObj());
+    }
+
+    @PluginMethod
+    public void setWake(PluginCall call) {
+        NotifyCore.setWake(ctx(), call.getData().optBoolean("on", true));
+        call.resolve(statusObj());
+    }
+
+    /** Put every alarm back (some phones drop them when the app is swiped away). Overdue ones (under 24 h) show once as late. */
+    @PluginMethod
+    public void rearm(PluginCall call) {
+        NotifyCore.rearmAll(ctx());
+        call.resolve(statusObj());
+    }
+
+    @PluginMethod
     public void show(PluginCall call) {
         String title = clip(call.getString("title"), 80);
         String text = clip(call.getString("text"), 300);
@@ -123,7 +150,7 @@ public class NotifyPlugin extends Plugin {
             return;
         }
         if (title.isEmpty()) title = "Chaman";
-        boolean ok = NotifyCore.show(ctx(), "now" + System.nanoTime(), title, text, call.getString("channel"));
+        boolean ok = NotifyCore.show(ctx(), "now" + System.nanoTime(), title, text, call.getString("channel"), false);
         JSObject r = new JSObject();
         r.put("shown", ok);
         call.resolve(r);
@@ -175,7 +202,7 @@ public class NotifyPlugin extends Plugin {
                 at = NotifyCore.nextFire(rep, h, m, now);
             }
             JSObject out = new JSObject();
-            boolean exact;
+            String via;
             synchronized (NotifyCore.LOCK) {
                 JSONArray list = NotifyCore.load(ctx(), NotifyCore.K_LIST);
                 int idx = NotifyCore.indexOf(list, id);
@@ -193,14 +220,15 @@ public class NotifyPlugin extends Plugin {
                 r.put("h", h);
                 r.put("m", m);
                 NotifyCore.ensureChannels(ctx());
-                exact = NotifyCore.arm(ctx(), r);
+                via = NotifyCore.arm(ctx(), r);
                 if (idx >= 0) list.put(idx, r);
                 else list.put(r);
                 NotifyCore.save(ctx(), NotifyCore.K_LIST, list);
             }
             out.put("id", id);
             out.put("at", at);
-            out.put("exact", exact);
+            out.put("exact", !"inexact".equals(via));
+            out.put("via", via);
             call.resolve(out);
         } catch (Exception e) {
             call.reject(String.valueOf(e.getMessage()), "ERROR");
