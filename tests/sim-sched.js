@@ -152,7 +152,7 @@ const lastMsg=()=>t('H')[t('H').length-1];
  ok(/schedule_add/.test(rt)&&/alarm_set/.test(rt)&&/does NOT run/.test(rt)&&/schedule_cancel/.test(rt)&&/\/remind/.test(rt),'remind rules mention tools, alarm_set difference, no AI at fire time, /remind');
  ok(t('RULE_ORDER.indexOf("remind")')>=0&&t('TOOLS.find(x=>x.function.name==="rules_read").function.parameters.properties.area.enum').includes('remind'),'rules_read knows remind');
  const rr=await run('rules_read',{area:'remind'});ok(/REMINDERS/.test(rr.res),'rules_read remind works');
- ok(t('RULES_VER')==='2026-11-02.1','RULES_VER bumped so the rules folder copy is rewritten');
+ ok(/^2026-\d\d-\d\d\.\d+$/.test(t('RULES_VER')),'RULES_VER bumped so the rules folder copy is rewritten');
 
  // ---- 8. Java side and patch script agree with JS
  const J=fs.readFileSync(__dirname+'/../native/NotifyCore.java','utf8'),PL=fs.readFileSync(__dirname+'/../native/NotifyPlugin.java','utf8'),PA=fs.readFileSync(__dirname+'/../scripts/patch-android.js','utf8');

@@ -13,7 +13,7 @@ const LN_LAB={
   file_delete:'File hata raha hu',file_present:'File dikha raha hu',generate_image:'Image bana raha hu',api_check:'Termux:API check kar raha hu',
   termux_run:'Command chala raha hu',termux_write_file:'File likh raha hu',termux_read_file:'File padh raha hu',
   memory_read:'Memory padh raha hu',memory_save:'Memory save kar raha hu',memory_search:'Memory dhoondh raha hu',
-  notify_now:'Notification bhej raha hu',schedule_add:'Reminder set kar raha hu',schedule_list:'Reminders dekh raha hu',schedule_cancel:'Reminder hata raha hu',
+  notify_now:'Notification bhej raha hu',rule_save:'Rule bana raha hu',rule_list:'Rules dekh raha hu',schedule_add:'Reminder set kar raha hu',schedule_list:'Reminders dekh raha hu',schedule_cancel:'Reminder hata raha hu',
   note_save:'Note save kar raha hu',note_get:'Note dhoondh raha hu',ask_user:'Tumhare action ka wait',wait_for_user:'Tumhare action ka wait'
 };
 const lnWhy=e=>{const m=String(e&&e.message||e),h=/HTTP (\d+)/.exec(m);return h?'HTTP '+h[1]:/timeout/i.test(m)?'timeout':'error'};

@@ -139,7 +139,9 @@ $('#f').addEventListener('submit',async e=>{
       um.files.forEach((f,k)=>{f.path=pl[k].path;f.saveErr=pl[k].saveErr});
       logAdd('upload',pl.map(a=>a.name+(a.path?' -> '+a.path.replace(WS_ROOT+'/',''):' (copy fail: '+a.saveErr+')')).join(', '));
     }
-const r=await turnWait(tn,ask());
+let r=null;
+    if(!pl.length&&typeof crTry==='function')r=await turnWait(tn,crTry(t)); // custom rules first (no AI); null = no rule matched
+    if(r===null)r=await turnWait(tn,ask());
     if(r===STOPPED||tn.stop)H.push(stopNote(tn));
     else{H.push({role:'assistant',content:r.content,by:r.by,steps:r.steps});logAdd('chaman','('+(r.by||'?')+') '+r.content)}}
   catch(err){if(tn.stop)H.push(stopNote(tn));else{H.push({role:'assistant',content:err.message,err:1});logAdd('error',err.message)}}

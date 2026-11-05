@@ -1,4 +1,5 @@
 const STN={media:'Media',ring:'Ringtone',alarm:'Alarm'};
+let LAST_TOOL_BAD=false; // set by execTool: did the last tool call fail (custom rules read it)
 const fn=(name,description,properties,required)=>({type:'function',function:{name,description,parameters:{type:'object',properties:properties,required:required||[]}}});
 const TOOLS=[
   fn('torch','Turn the phone flashlight on or off, or toggle it.',{state:{type:'string',enum:['on','off','toggle']}},['state']),
@@ -57,6 +58,8 @@ function pillText(name,a){
     case'run_code':return'Running '+({js:'JavaScript',sql:'SQL',py:'Python'}[a.lang]||'code');
     case'api_check':return'Checking Termux:API';
     case'notify_now':return'Sending notification';
+    case'rule_save':return'Saving a rule';
+    case'rule_list':return'Listing rules';
     case'schedule_add':return'Setting reminder';
     case'schedule_list':return'Listing reminders';
     case'schedule_cancel':return'Cancelling reminder';
@@ -167,6 +170,7 @@ async function execTool0(name,a,steps,fl){
     if(name==='open_url'||name==='open_intent'||name==='set_switch'||name==='tap_when_visible'||name==='run_flow')return await fastTool(name,a,note,fl);
     if(name.indexOf('file_')===0||name==='edit_file')return await fileTool(name,a,note,fl);
     if(name==='rules_read')return rulesTool(a,note,fl);
+    if(name==='rule_save'||name==='rule_list')return await crTool(name,a,note,fl);
     if(name.indexOf('note_')===0)return await noteTool(name,a,note,fl);
     if(name==='run_code')return await codeTool(name,a,note,fl);
     if(name==='generate_image')return await imageTool(a,note,fl);
@@ -225,7 +229,8 @@ async function execTool(name,a,steps){
   const it=lnStep(name,a),n0=steps.length;
   if(own){LN.state='wait';lnDraw()}
   const res=await execTool0(name,a,steps,fl);
-  logAdd(fl.bad?'tool FAIL':'tool',logTool(name,a)+((name.indexOf('termux_')===0||name==='device_api'||name==='api_check'||name==='run_code'||name==='schedule_list'||name.indexOf('file_')===0||name.indexOf('note_')===0||name==='edit_file'||name==='screen_read')?'':' -> '+cut(String(res).replace(/\s+/g,' '),140)));
+  LAST_TOOL_BAD=fl.bad;
+  logAdd(fl.bad?'tool FAIL':'tool',logTool(name,a)+((name.indexOf('termux_')===0||name==='device_api'||name==='api_check'||name==='run_code'||name==='schedule_list'||name==='rule_list'||name.indexOf('file_')===0||name.indexOf('note_')===0||name==='edit_file'||name==='screen_read')?'':' -> '+cut(String(res).replace(/\s+/g,' '),140)));
   if(own)LN.hold=false;
   lnStepEnd(it,name,a,fl.bad,res,steps.length>n0?steps[steps.length-1]:'');
   await sleep(fl.bad?1500:200);

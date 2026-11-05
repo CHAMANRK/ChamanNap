@@ -1,6 +1,6 @@
 {
   "name": "chaman-nap",
-  "version": "1.29000.1",
+  "version": "1.30000.0",
   "private": true,
   "dependencies": {
     "@capacitor/android": "^7.0.0",
