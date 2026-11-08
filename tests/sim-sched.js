@@ -7,18 +7,20 @@ const store={},sent=[],pills=[];let failWith=null,failPkgOnly=false;
 const ctx={document:doc,localStorage:{getItem:k=>store[k]||null,setItem:(k,v)=>{store[k]=v}},matchMedia:()=>({matches:true,addEventListener(){}}),navigator:{},console,setTimeout:(f,ms)=>setTimeout(f,Math.min(ms,3)),clearTimeout,URL,Image:function(){},fetch:async()=>({ok:true,status:200,json:async()=>({choices:[{message:{role:'assistant',content:'ok'}}]}),text:async()=>''})};
 ctx.window=ctx;
 // Native Notify mock: keeps schedules like NotifyPlugin does
-const NY={list:[],hist:[],calls:[],status:{notif:true,exact:true,battery:true,count:0,mode:'clock',wake:true,sdk:34},shown:[],showOk:true,addErr:null};
+const NY={list:[],hist:[],calls:[],status:{notif:true,exact:true,battery:true,count:0,mode:'clock',wake:true,sdk:34},shown:[],showOk:true,addErr:null,briefs:[],ai:[]};
 ctx.Capacitor={nativePromise:async(pl,m,o)=>{
   if(pl==='Notify'){
     NY.calls.push(m);
-    if(m==='status')return Object.assign({},NY.status,{count:NY.list.length});
+    if(m==='setAi'){if(NY.aiFail)return Promise.reject(new Error('x'));NY.ai=o.providers;NY.aiSets=(NY.aiSets||0)+1;return{providers:o.providers.length}}
+    if(m==='takeBriefs'){return{items:NY.briefs.splice(0)}}
+    if(m==='status')return Object.assign({},NY.status,{count:NY.list.length,aiProviders:(NY.ai||[]).length,aiKeys:(NY.ai||[]).reduce((n,p)=>n+p.keys.length,0)});
     if(m==='setMode'){NY.status.mode=o.mode;return Object.assign({},NY.status)}
     if(m==='setWake'){NY.status.wake=!!o.on;return Object.assign({},NY.status)}
     if(m==='rearm')return Object.assign({},NY.status);
     if(m==='show'){NY.shown.push(o);return{shown:NY.showOk}}
     if(m==='add'){
       if(NY.addErr)return Promise.reject(Object.assign(new Error(NY.addErr.message),{code:NY.addErr.code}));
-      const at=o.rep==='none'?o.at:o.at;NY.list=NY.list.filter(x=>x.id!==o.id);NY.list.push({id:o.id,title:o.title,text:o.text,ch:o.channel,rep:o.rep,at,h:o.h,m:o.m});
+      const at=o.rep==='none'?o.at:o.at;NY.list=NY.list.filter(x=>x.id!==o.id);NY.list.push({id:o.id,title:o.title,text:o.text,ch:o.channel,rep:o.rep,at,h:o.h,m:o.m,kind:o.kind||undefined,prompt:o.prompt||undefined});
       NY.lastAdd=o;const via=NY.status.mode==='clock'?'clock':(NY.status.exact?'exact':'inexact');return{id:o.id,at,exact:via!=='inexact',via}}
     if(m==='list')return{items:NY.list.slice(),hist:NY.hist};
     if(m==='cancel'){const n=NY.list.length;NY.list=NY.list.filter(x=>x.id!==o.id);return{removed:NY.list.length<n}}
@@ -195,6 +197,100 @@ const lastMsg=()=>t('H')[t('H').length-1];
  // exact-alarm card is not needed in clock mode (perms)
  ok(/r\.mode==='clock'/.test(fs.readFileSync('js/perms.js','utf8')),'exact alarm card counts as done in clock mode');
  ok(/\/remind log/.test(t('ruleText')('remind')),'rules tell the AI to ask for /remind status and /remind log, not to guess');
+
+ // ---- 10. Step24 (3b-1): AI schedules
+ ok(NY.calls.includes('setAi')&&NY.calls.includes('takeBriefs'),'app start sends the AI keys to the phone and asks for finished AI texts');
+ // config for the native side
+ t("S.keys={};S.prov='groq';S.models={};S.ptr={}");
+ ok(t('schAiCfg()').length===0,'no keys -> no providers');
+ t("S.keys.groq='gsk_aaaaaaaa1, gsk_bbbbbbbb2';S.keys.nvidia='nvapi-cccccccc3';S.ptr.groq=1");
+ const cfg=t('schAiCfg()');
+ ok(cfg.length>=2&&cfg[0].id==='groq'&&cfg[0].keys.length===2&&/^https:\/\//.test(cfg[0].url)&&cfg[0].read===40&&cfg[0].ptr===1&&!!cfg[0].model,'config: selected provider first, its keys, https url, model, key pointer, read 40 s');
+ const nv=cfg.find(x=>x.id==='nvidia');ok(nv&&nv.read===90&&nv.keys[0]==='nvapi-cccccccc3','NVIDIA gets a longer read limit');
+ ok(!cfg.some(x=>x.id==='chaman')&&cfg.every(x=>x.keys.length>0),'the chat-only Chaman model and providers without keys are not sent');
+ t("S.models.groq='my-model'");ok(t('schAiCfg()')[0].model==='my-model','a model chosen in Settings is used');
+ t("S.keys.groq='k1k1k1k1,k2k2k2k2,k3k3k3k3,k4k4k4k4,k5k5k5k5,k6k6k6k6,k7k7k7k7,k8k8k8k8'");ok(t('schAiCfg()')[0].keys.length===6,'at most 6 keys per provider');
+ t("S.keys.groq='gsk_aaaaaaaa1, gsk_bbbbbbbb2';S.models={}");
+ // sync only when changed
+ NY.aiSets=0;t("SCH_AI_LAST=''");
+ let n1=await t('schSyncAi')();let n2=await t('schSyncAi')();
+ ok(n1>=2&&NY.aiSets===1&&n2===n1,'sync sends once, the same config is not sent again');
+ await t('schSyncAi')(true);ok(NY.aiSets===2,'force sends again');
+ t("S.keys.groq='gsk_zzzzzzzz9'");await t('schSyncAi')();ok(NY.aiSets===3&&NY.ai[0].keys[0]==='gsk_zzzzzzzz9','a changed key is sent');
+ t("S.keys.groq='gsk_aaaaaaaa1, gsk_bbbbbbbb2'");
+ NY.aiFail=true;t("SCH_AI_LAST=''");ok(await t('schSyncAi')(true)===-1,'native failure -> -1');NY.aiFail=false;
+ await t('schSyncAi')(true);
+
+ // resolve for AI
+ let ra=t('schResolve')({kind:'ai',prompt:'ek chhota good morning message',time:'07:00',repeat:'daily'},sun6);
+ ok(!ra.err&&ra.kind==='ai'&&ra.prompt==='ek chhota good morning message'&&ra.title==='Chaman'&&ra.channel==='report'&&ra.text===''&&ra.rep==='daily'&&ra.at===L(2026,11,1,7,0),'AI schedule: prompt kept, title Chaman, report channel, no text, daily 07:00');
+ ok(t('schResolve')({kind:'ai',time:'07:00'},sun6).err&&t('schResolve')({kind:'ai',prompt:'ab',time:'07:00'},sun6).err,'AI schedule needs a prompt of at least 3 chars');
+ ok(t('schResolve')({kind:'ai',prompt:'x'.repeat(900),in_minutes:5},sun6).prompt.length===500,'prompt cut at 500 chars');
+ ok(t('schResolve')({kind:'ai',prompt:'hello there',in_minutes:5,title:'Subah'},sun6).title==='Subah','own title is kept');
+ ok(t('schResolve')({text:'x',in_minutes:5},sun6).kind===undefined,'a normal schedule is not AI');
+
+ // schedule_ai tool
+ const TCa={n:0,ans:true,last:null};
+ ctx.tconfirm=async(h,b,w,l,by)=>{TCa.n++;TCa.last={h,b,w,l,by};return TCa.ans};
+ NY.list=[];NY.calls.length=0;
+ t("S.keys={}");x=await run('schedule_ai',{prompt:'good morning likh',time:'07:00',repeat:'daily'});
+ ok(/key phone ko nahi mili/.test(x.res)&&NY.list.length===0&&TCa.n===0,'no AI key: refused before any card, nothing scheduled');
+ t("S.keys.groq='gsk_aaaaaaaa1, gsk_bbbbbbbb2'");
+ x=await run('schedule_ai',{prompt:'ek chhota good morning message',time:'07:00',repeat:'daily'});
+ ok(TCa.n===1&&/AI notification schedule karu/.test(TCa.last.h)&&/kab: /.test(TCa.last.b)&&/roz/.test(TCa.last.b)&&/kya: ek chhota good morning message/.test(TCa.last.b)&&TCa.last.l==='Schedule karo'&&TCa.last.by==='Schedule','confirm card shows when and what, label Schedule karo');
+ ok(NY.list.length===1&&NY.lastAdd.kind==='ai'&&NY.lastAdd.prompt==='ek chhota good morning message'&&NY.lastAdd.channel==='chaman_report'&&NY.lastAdd.rep==='daily'&&NY.lastAdd.h===7&&NY.lastAdd.m===0,'after Allow the native add gets kind ai, prompt, report channel, daily 07:00');
+ ok(/AI schedule ho gaya: id r[0-9a-z]+/.test(x.res)&&/10 minute pehle/.test(x.res)&&/nahi ban paya/.test(x.res),'result says the AI text comes ~10 min before and what happens on failure');
+ TCa.ans=false;NY.list=[];TCa.n=0;x=await run('schedule_ai',{prompt:'good morning likh',time:'07:00'});
+ ok(/cancel kiya/.test(x.res)&&NY.list.length===0,'Najeef says no: nothing scheduled');TCa.ans=true;
+ x=await run('schedule_ai',{time:'07:00'});ok(/prompt chahiye/.test(x.res)&&TCa.n===1,'no prompt: refused, no card');
+ x=await run('schedule_ai',{prompt:'good morning likh',time:'25:00'});ok(/time sahi nahi/.test(x.res),'bad time refused');
+ NY.addErr={code:'LIMIT',message:'Maximum 5 AI schedules ho chuke. Kuch cancel karo.'};x=await run('schedule_ai',{prompt:'good morning likh',time:'07:00'});ok(/Maximum 5 AI/.test(x.res),'native limit message shown');NY.addErr=null;
+ NY.list=[];await run('schedule_ai',{prompt:'good morning likh',in_minutes:30,title:'Subah'});
+ x=await run('schedule_list',{});ok(/\[AI\] good morning likh/.test(x.res),'schedule_list marks AI schedules and shows the prompt');
+ ok(t('TOOLS.find(x=>x.function.name==="schedule_ai").function.parameters.required.join()')==='prompt'&&!t('TOOLS.find(x=>x.function.name==="schedule_ai").function.parameters.required').includes('time'),'schedule_ai tool needs only the prompt');
+ ok(!/AI-written|schedule_ai/.test('')&&/schedule_ai/.test(t('ruleText')('remind'))&&/NO tools and NO internet/.test(t('ruleText')('remind')),'rules text: schedule_ai, and that the AI at run time has no tools or internet');
+ ok(/schedule_ai/.test(t('skillText()')),'skill lists schedule_ai');
+ ok(/schedule_ai/.test(t('logTool')('schedule_ai',{prompt:'SECRETPROMPT',time:'07:00'}))&&!/SECRETPROMPT/.test(t('logTool')('schedule_ai',{prompt:'SECRETPROMPT',time:'07:00'})),'log line for schedule_ai has no prompt text');
+
+ // typed /remind ... ai:
+ let pa=t('schParseCmd')('roz 07:00 ai: ek chhota good morning',sun6);
+ ok(pa&&pa.a.kind==='ai'&&pa.a.prompt==='ek chhota good morning'&&pa.a.repeat==='daily'&&pa.a.time==='07:00'&&pa.a.text==='','parse: roz 07:00 ai: <prompt>');
+ pa=t('schParseCmd')('2m AI : bas ek line',sun6);ok(pa&&pa.a.kind==='ai'&&pa.a.in_minutes===2&&pa.a.prompt==='bas ek line','parse: 2m ai: <prompt> (any case, spaces)');
+ pa=t('schParseCmd')('10m ai chai',sun6);ok(pa&&pa.a.kind===undefined&&pa.a.text==='ai chai','"ai" without a colon is just text');
+ NY.list=[];t('H.length=0');await t('remindCmd')('roz 07:00 ai: ek chhota good morning message');
+ ok(/AI schedule set/.test(lastMsg().content)&&/Prompt: ek chhota good morning message/.test(lastMsg().content)&&NY.list.length===1&&NY.list[0].kind==='ai'&&TCa.n>=0,'/remind roz 07:00 ai: ... sets an AI schedule (typed by him: no card)');
+ t("S.keys={}");await t('remindCmd')('5m ai: kuch likh');ok(/AI key phone ko nahi mili/.test(lastMsg().content),'/remind ai: without keys says so');
+ t("S.keys.groq='gsk_aaaaaaaa1, gsk_bbbbbbbb2'");
+ await t('remindCmd')('5m ai:');ok(/prompt chahiye/.test(lastMsg().content),'/remind ai: with an empty prompt is refused');
+ await t('remindCmd')('list');ok(/\[AI\] ek chhota good morning message/.test(lastMsg().content),'/remind list shows [AI]');
+ await t('schSyncAi')(true);await t('remindCmd')('status');ok(/AI keys \(phone ke andar copy\): \d+ provider, \d+ key/.test(lastMsg().content),'/remind status shows the AI keys the phone has');
+ NY.ai=[];await t('remindCmd')('status');ok(/AI keys \(phone ke andar copy\): nahi mili/.test(lastMsg().content),'/remind status says when the phone has no AI keys');
+ await t('remindCmd')('help');ok(/ai: /.test(lastMsg().content),'/remind help mentions ai:');
+ // log lines with AI info
+ const D1=L(2026,11,2,7,0,0);
+ NY.hist=[{id:'a',title:'Chaman',due:D1,fired:D1+1000,kind:'fired',via:'clock',screen:false,idle:true,exact:true,ai:'ok:GROQ'},{id:'b',title:'Chaman',due:D1,fired:D1+2000,kind:'fired',via:'clock',screen:false,idle:false,exact:true,ai:'fail:HTTP 401'}];
+ await t('remindCmd')('log');ok(/AI ok \(GROQ\)/.test(lastMsg().content)&&/AI FAIL \(HTTP 401\)/.test(lastMsg().content),'/remind log shows whether the AI text worked');NY.hist=[];
+
+ // briefs go into the chat
+ t('H.length=0;TURN=null');NY.briefs=[{id:'a',title:'Chaman',text:'Good morning Najeef, aaj Monday hai.',due:D1,late:false,by:'GROQ'},{id:'b',title:'Chaman',text:'Der se aaya text',due:D1,late:true,by:'CEREBRAS'}];
+ const nb=await t('schBriefs')();
+ ok(nb===2&&t('H').length===2&&t('H')[0].role==='assistant'&&/Brief \(GROQ\)/.test(t('H')[0].by)&&t('H')[0].content==='Good morning Najeef, aaj Monday hai.'&&/^\(late\) Der se aaya text/.test(t('H')[1].content),'finished AI texts are put in the chat (late ones marked)');
+ ok(NY.briefs.length===0&&(await t('schBriefs')())===0,'each text is given only once');
+ NY.briefs=[{id:'c',title:'Chaman',text:'x',due:D1,late:false,by:''}];t('TURN={stop:false}');t('H.length=0');
+ ok((await t('schBriefs')())===0&&t('H').length===0&&NY.briefs.length===1,'while a chat turn is running nothing is added (and nothing is taken)');t('TURN=null');
+ ok((await t('schBriefs')())===1&&t('H').length===1,'after the turn it is added');
+
+ // ---- Java side: structure checks (compiled separately with android.jar)
+ const NA=fs.readFileSync(__dirname+'/../native/NotifyAi.java','utf8'),NC2=fs.readFileSync(__dirname+'/../native/NotifyCore.java','utf8'),AC=fs.readFileSync(__dirname+'/../native/AiClient.java','utf8'),JS2=fs.readFileSync(__dirname+'/../native/AiJobService.java','utf8'),NR=fs.readFileSync(__dirname+'/../native/NotifyReceiver.java','utf8'),NP=fs.readFileSync(__dirname+'/../native/NotifyPlugin.java','utf8'),PA2=fs.readFileSync(__dirname+'/../scripts/patch-android.js','utf8');
+ ok(/LEAD_MS = 10L \* 60L \* 1000L/.test(NA)&&/ACT_PREP/.test(NA)&&/setExactAndAllowWhileIdle/.test(NA)&&/setAndAllowWhileIdle/.test(NA),'Java: prep alarm 10 minutes before the due time');
+ ok(/JobInfo\.NETWORK_TYPE_ANY/.test(NA)&&/setExpedited\(true\)/.test(NA)&&/setBackoffCriteria/.test(NA)&&/RUN_RECENT_MS/.test(NA)&&/jobAt/.test(NA),'Java: job needs internet, expedited on Android 12+, backoff, and re-arming does not restart a recent job');
+ ok(/startsWith\("https:\/\/"\)/.test(NA)&&/startsWith\("https:\/\/"\)/.test(AC),'Java: only https providers are stored and used');
+ ok(/NotifyAi\.render\(c, r\)/.test(NC2)&&/NotifyAi\.armPrep\(c, r\)/.test(NC2)&&/NotifyAi\.disarmPrep\(c, id\)/.test(NC2)&&/r\.remove\("res"\)/.test(NC2),'Java: fire uses the AI text, arm sets the prep alarm, disarm cancels it, repeat clears the old result');
+ ok(/ACT_PREP/.test(NR)&&/NotifyAi\.prep/.test(NR),'Java: the receiver handles the prep alarm');
+ ok(/public void setAi/.test(NP)&&/public void takeBriefs/.test(NP)&&/MAX_AI/.test(NP)&&/"ai"\.equals\(call\.getString\("kind"/.test(NP),'Java plugin: setAi, takeBriefs, at most 5 AI schedules');
+ ok(/extends JobService/.test(JS2)&&/jobFinished\(params, r == 1\)/.test(JS2)&&/onStopJob/.test(JS2),'Java: job service reports finished and asks for a retry only when needed');
+ ok(/AiJobService\.java/.test(PA2)&&/BIND_JOB_SERVICE/.test(PA2)&&/ACCESS_NETWORK_STATE/.test(PA2)&&/NotifyAi\.java/.test(PA2)&&/AiClient\.java/.test(PA2),'patch script: copies the AI files, registers the job service, adds network permissions');
+ ok(!/Log\.|printStackTrace/.test(AC+NA),'Java: no logging that could print keys');
 
  console.log(fails?('\n'+fails+' FAIL'):'\nALL PASS');
  process.exit(fails?1:0);

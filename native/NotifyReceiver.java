@@ -8,7 +8,9 @@ import android.content.Intent;
 public class NotifyReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
-        if (intent == null || !NotifyCore.ACT_FIRE.equals(intent.getAction())) return;
+        if (intent == null) return;
+        final boolean prep = NotifyAi.ACT_PREP.equals(intent.getAction());
+        if (!prep && !NotifyCore.ACT_FIRE.equals(intent.getAction())) return;
         String id = intent.getStringExtra("id");
         if (id == null || id.isEmpty()) return;
         final PendingResult pr = goAsync();
@@ -18,7 +20,8 @@ public class NotifyReceiver extends BroadcastReceiver {
             @Override
             public void run() {
                 try {
-                    NotifyCore.fire(app, fid);
+                    if (prep) NotifyAi.prep(app, fid);
+                    else NotifyCore.fire(app, fid);
                 } finally {
                     pr.finish();
                 }

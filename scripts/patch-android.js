@@ -6,7 +6,7 @@ const pkgDir = path.join(root, 'android/app/src/main/java/com/chaman/nap');
 const resDir = path.join(root, 'android/app/src/main/res');
 fs.mkdirSync(pkgDir, { recursive: true });
 
-for (const f of ['PhoneControlPlugin.java', 'ScreenControlPlugin.java', 'ChamanAccessibilityService.java', 'TermuxPlugin.java', 'TermuxResultReceiver.java', 'FilesPlugin.java', 'IntentsPlugin.java', 'NotifyCore.java', 'NotifyReceiver.java', 'NotifyBootReceiver.java', 'NotifyPlugin.java']) {
+for (const f of ['PhoneControlPlugin.java', 'ScreenControlPlugin.java', 'ChamanAccessibilityService.java', 'TermuxPlugin.java', 'TermuxResultReceiver.java', 'FilesPlugin.java', 'IntentsPlugin.java', 'NotifyCore.java', 'NotifyReceiver.java', 'NotifyBootReceiver.java', 'NotifyPlugin.java', 'NotifyAi.java', 'AiClient.java', 'AiJobService.java']) {
   fs.copyFileSync(path.join(root, 'native', f), path.join(pkgDir, f));
 }
 
@@ -215,6 +215,23 @@ dependencies {
 `
   );
   console.log('Notify plugin, receivers, permissions and status icon patched in');
+})();
+
+// ---- Step24 (3b-1): AI schedules. Job service (runs the AI request when internet is there) + INTERNET / ACCESS_NETWORK_STATE ----
+(function patchAi() {
+  const mp3 = path.join(root, 'android/app/src/main/AndroidManifest.xml');
+  let x = fs.readFileSync(mp3, 'utf8');
+  if (x.includes('AiJobService')) return;
+  let perms = '';
+  for (const p of ['android.permission.INTERNET', 'android.permission.ACCESS_NETWORK_STATE']) {
+    if (!x.includes(p)) perms += `    <uses-permission android:name="${p}" />\n`;
+  }
+  if (perms) x = x.replace('<application', perms + '    <application');
+  if (!x.includes('</application>')) throw new Error('</application> tag not found in manifest');
+  x = x.replace('</application>', `        <service android:name="com.chaman.nap.AiJobService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="true" />
+    </application>`);
+  fs.writeFileSync(mp3, x);
+  console.log('AI job service and network permissions patched in');
 })();
 
 // App version: package.json is the source (scripts/bump.js), format A.BBBBB.C (e.g. 1.28001.0). versionName = that string,

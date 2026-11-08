@@ -60,6 +60,7 @@ function pillText(name,a){
     case'rule_save':return'Saving a rule';
     case'rule_list':return'Listing rules';
     case'schedule_add':return'Setting reminder';
+    case'schedule_ai':return'Setting AI reminder';
     case'schedule_list':return'Listing reminders';
     case'schedule_cancel':return'Cancelling reminder';
     case'device_api':return'Phone: '+cut(String(a.name||'').replace(/_/g,' '),22);

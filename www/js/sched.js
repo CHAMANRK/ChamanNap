@@ -1,6 +1,7 @@
 // Step22: Chaman's own notifications + scheduler. The native plugin "Notify" (NotifyPlugin.java + NotifyCore.java) keeps the schedules and fires
 // them from an Android alarm, so a reminder arrives with the screen off and with the app closed. No Termux needed. This file = tools + /remind.
-// Step 1 shows FIXED text only (the AI is not run at fire time). Quiet hours, AI-written messages and /rule triggers come in later steps.
+// Fixed-text schedules show the text you give. Step24 (3b-1) adds AI schedules (kind ai): the phone asks the AI itself ~10 min before and shows the result at the time.
+// Quiet hours and news (RSS) come in later steps.
 const NY=(m,o)=>NPx('Notify',m,o);
 const SCH_CH={remind:1,report:1,task:1};
 const SCH_REP={none:1,daily:1,weekdays:1};
@@ -13,7 +14,8 @@ const SCH_HELP='Reminder (Chaman ki apni notification):\n'
   +'/remind weekdays 09:00 standup  Mon-Fri\n'
   +'/remind list   /remind del <no>   /remind clear   /remind test\n'
   +'Kaam na kare to: /remind status aur /remind log (output Claude ko bhejo)\n'
-  +'/remind mode clock|quiet   /remind wake on|off';
+  +'/remind mode clock|quiet   /remind wake on|off\n'
+  +'AI likhe: /remind roz 07:00 ai: ek chhota good morning message (net chahiye, app band ho tab bhi)';
 let SCH_NOW_T=[];
 const schPad=n=>n<10?'0'+n:''+n;
 const schFmt=ms=>{const d=new Date(ms);return d.getFullYear()+'-'+schPad(d.getMonth()+1)+'-'+schPad(d.getDate())+' '+schPad(d.getHours())+':'+schPad(d.getMinutes())};
@@ -31,12 +33,15 @@ const schRepName=r=>r==='daily'?'roz':r==='weekdays'?'Mon-Fri':'ek baar';
 // tool args -> {title,text,channel,rep,at,h,m} or {err}. now = Date.now() (a parameter so tests can fix it).
 function schResolve(a,now){
   a=a||{};now=now||Date.now();
-  const title=schClean(a.title,80),text=schClean(a.text,300);
-  if(!title&&!text)return{err:'title ya text chahiye.'};
-  const channel=SCH_CH[a.channel]?a.channel:'remind';
+  const isAi=a.kind==='ai',prompt=isAi?schClean(a.prompt,500):'';
+  const title=schClean(a.title,80)||(isAi?'Chaman':''),text=isAi?'':schClean(a.text,300);
+  if(isAi&&prompt.length<3)return{err:'prompt chahiye (AI ko kya likhna hai, 3 se 500 chars).'};
+  if(!isAi&&!title&&!text)return{err:'title ya text chahiye.'};
+  const channel=SCH_CH[a.channel]?a.channel:(isAi?'report':'remind');
   const rep=a.repeat==null||a.repeat===''?'none':String(a.repeat).toLowerCase();
   if(!SCH_REP[rep])return{err:'repeat none, daily ya weekdays hona chahiye.'};
   const out={title:title||'Chaman',text,channel,rep,h:0,m:0,at:0};
+  if(isAi){out.kind='ai';out.prompt=prompt}
   if(a.in_minutes!=null&&a.in_minutes!==''){
     if(rep!=='none')return{err:'in_minutes ke saath repeat nahi chalta. time (HH:MM) do.'};
     const n=+a.in_minutes;
@@ -70,12 +75,12 @@ function schResolve(a,now){
 function schLogLine(e){
   const d=Math.round((e.fired-e.due)/1000),dl=(d>0?'+':'')+d+'s';
   const kind=e.kind==='late'?'LATE (phone band ya alarm gaya tha)':e.kind==='early-skip'?'JALDI aaya, dubara set kiya':'aaya';
-  return schFmtT(e.fired)+' '+kind+' (due '+schFmtT(e.due)+', '+dl+') via '+(e.via||'?')+', screen '+(e.screen?'on':'off')+(e.idle?', doze':'')+(e.exact===false?', exact nahi':'')+' | '+schClean(e.title,30);
+  return schFmtT(e.fired)+' '+kind+' (due '+schFmtT(e.due)+', '+dl+') via '+(e.via||'?')+', screen '+(e.screen?'on':'off')+(e.idle?', doze':'')+(e.exact===false?', exact nahi':'')+(e.ai?' | AI '+(/^ok:/.test(e.ai)?'ok ('+e.ai.slice(3)+')':'FAIL ('+e.ai.slice(5)+')'):'')+' | '+schClean(e.title,30);
 }
 const schIdList=async()=>{const r=await NY('list');return(r.items||[]).slice().sort((x,y)=>x.at-y.at)};
 async function schAdd(o){
   const id=schId();
-  const r=await NY('add',{id,title:o.title,text:o.text,channel:'chaman_'+o.channel,rep:o.rep,at:o.at,h:o.h,m:o.m});
+  const r=await NY('add',{id,title:o.title,text:o.text,channel:'chaman_'+o.channel,rep:o.rep,at:o.at,h:o.h,m:o.m,kind:o.kind||'',prompt:o.prompt||''});
   return{id,at:r.at||o.at,exact:r.exact!==false,via:r.via||''};
 }
 async function schTool(name,a,note,fl){
@@ -101,10 +106,23 @@ async function schTool(name,a,note,fl){
       if(!r.exact)warn+=' Exact alarm permission nahi hai, isliye time thoda late ho sakta hai.';
       return note(msg)+warn+' Ye sirf likha hua text dikhayegi, us waqt AI nahi chalega.';
     }
+    if(name==='schedule_ai'){
+      const o=schResolve(Object.assign({},a,{kind:'ai'}));
+      if(o.err)return bad(o.err);
+      const n=await schSyncAi(true);
+      if(!(n>0))return bad('AI key phone ko nahi mili. Najeef Settings me kam se kam ek AI provider ki key daale (Groq, Cerebras, OpenRouter, NVIDIA ya Mistral).');
+      const when=schFmt(o.at)+' ('+schRepName(o.rep)+')';
+      const ok=await tconfirm('AI notification schedule karu?','kab: '+when+'\nkya: '+o.prompt+'\n\nPhone khud, app band ho tab bhi, time se ~10 minute pehle AI se ye likhwayega aur time par notification dikhayega. Har baar ek AI request lagegi.',['AI ne ye schedule banaya. Tere Allow ke bina nahi banta.'],'Schedule karo','Schedule');
+      if(!ok){fl.bad=true;return note('Najeef ne AI schedule cancel kiya.')+' Dobara mat banao, pucho kya badalna hai.'}
+      const r=await schAdd(o);
+      let warn='';
+      try{const st=await NY('status');if(!st.notif)warn+=' Notifications Android me band hain, Najeef ko allow karne bolo.'}catch(e){}
+      return note('AI schedule ho gaya: id '+r.id+', '+when+'.')+warn+' AI text ~10 minute pehle banega, notification time par aayegi. Net ya key fail ho to fixed "nahi ban paya" message aayega, text baad me bhi chat me aa jayega.';
+    }
     if(name==='schedule_list'){
       const L=await schIdList();
       if(!L.length)return note('Koi schedule nahi hai.');
-      return note(L.length+' schedule hain.')+'\n'+L.slice(0,30).map(x=>x.id+' | '+schFmt(x.at)+' | '+schRepName(x.rep)+' | '+schClean(x.title,40)).join('\n');
+      return note(L.length+' schedule hain.')+'\n'+L.slice(0,30).map(x=>x.id+' | '+schFmt(x.at)+' | '+schRepName(x.rep)+' | '+(x.kind==='ai'?'[AI] '+schClean(x.prompt,40):schClean(x.title,40))).join('\n');
     }
     if(name==='schedule_cancel'){
       const id=schClean(a.id,40);
@@ -124,11 +142,17 @@ async function schTool(name,a,note,fl){
 TOOLS.push(
   fn('notify_now','Show a notification from Chaman right now (works without Termux). title is short, text is the message. channel: remind (default), report, task. Max 3 per minute. Use it for an instant message to Najeef outside the chat, not for answers (answer in the chat).',{title:{type:'string'},text:{type:'string'},channel:{type:'string',enum:['remind','report','task']}},['text']),
   fn('schedule_add','Schedule a Chaman notification that the phone itself shows at that time, even when the app is closed or the screen is off (reminders, a daily message). Give EITHER in_minutes OR time (HH:MM, 24 hour) with optional date (today, tomorrow, or YYYY-MM-DD; without date it is the next time that clock time comes). repeat: none (default), daily, weekdays (Mon-Fri; needs time). It shows the fixed title and text you give; the AI is NOT run at that time. It is not a ringing alarm: for that use open_intent alarm_set.',{title:{type:'string'},text:{type:'string'},in_minutes:{type:'integer',minimum:1,maximum:43200},time:{type:'string',description:'HH:MM 24 hour'},date:{type:'string',description:'today, tomorrow or YYYY-MM-DD'},repeat:{type:'string',enum:['none','daily','weekdays']},channel:{type:'string',enum:['remind','report','task']}},[]),
+  fn('schedule_ai','Schedule a Chaman notification whose TEXT IS WRITTEN BY AI at that time: the phone itself asks the AI about 10 minutes before and shows the result at the time, even with the app closed (for example a different good morning every day). Give prompt = what the AI should write (3 to 500 chars), and EITHER in_minutes OR time (HH:MM 24 hour) with optional date, and repeat none, daily or weekdays, as in schedule_add. Najeef must tap Allow on a card. The AI at that time has NO tools and NO internet: it knows only the date and time, it cannot read news, weather or his phone (news comes in a later step), so do not promise that. Max 5 AI schedules.',{prompt:{type:'string'},title:{type:'string'},in_minutes:{type:'integer',minimum:1,maximum:43200},time:{type:'string',description:'HH:MM 24 hour'},date:{type:'string',description:'today, tomorrow or YYYY-MM-DD'},repeat:{type:'string',enum:['none','daily','weekdays']}},['prompt']),
   fn('schedule_list','List the notifications scheduled in Chaman (id, time, repeat, title).',{}),
   fn('schedule_cancel','Cancel one scheduled notification by its id (ids come from schedule_list).',{id:{type:'string'}},['id'])
 );
 // /remind (picked from the / list, like the other commands)
 function schParseCmd(arg,now){
+  const p=schParseCmd0(arg,now);
+  if(p&&p.a){const m=/^ai\s*:\s*([\s\S]*)$/i.exec(String(p.a.text||'').trim());if(m){p.a.kind='ai';p.a.prompt=m[1].trim();p.a.text='';p.a.title='Chaman';p.a.channel='report'}}
+  return p;
+}
+function schParseCmd0(arg,now){
   arg=String(arg||'').trim();now=now||Date.now();
   let m=/^(roz|daily|weekdays)\s+(\d{1,2}(?::\d{2})?)\s*(.*)$/i.exec(arg);
   if(m){const rep=/^weekdays$/i.test(m[1])?'weekdays':'daily';return{a:{repeat:rep,time:m[2],text:m[3],title:'Reminder',channel:'remind'}}}
@@ -151,12 +175,12 @@ async function remindCmd(arg){
     if(/^list$/i.test(arg)){
       const L=await schIdList();
       if(!L.length){say('Koi schedule nahi hai.\n\n'+SCH_HELP);return}
-      say(L.map((x,i)=>(i+1)+'. '+schFmt(x.at)+' ('+schRepName(x.rep)+')'+(x.via?' ['+x.via+']':'')+' '+schClean(x.title,40)+(x.text?': '+schClean(x.text,60):'')).join('\n')+'\n\nHatane ke liye: /remind del <no>');
+      say(L.map((x,i)=>(i+1)+'. '+schFmt(x.at)+' ('+schRepName(x.rep)+')'+(x.via?' ['+x.via+']':'')+' '+(x.kind==='ai'?'[AI] '+schClean(x.prompt,70):schClean(x.title,40)+(x.text?': '+schClean(x.text,60):''))).join('\n')+'\n\nHatane ke liye: /remind del <no>');
       return;
     }
     if(/^status$/i.test(arg)){
       const st=await NY('status');
-      say('Notifications: '+(st.notif?'on':'BAND (Android settings me allow karo)')+'\nExact alarm permission: '+(st.exact?'haan':'nahi')+'\nBattery unrestricted: '+(st.battery?'haan':'nahi')+'\nMode: '+(st.mode==='quiet'?'quiet (alarm icon nahi, Doze me late ho sakta hai)':'clock (sabse bharosemand, status bar me alarm icon dikhta hai)')+'\nScreen jagana: '+(st.wake===false?'off':'on')+'\nSchedules: '+(st.count||0)+'   Android SDK: '+(st.sdk||'?'));return;
+      say('Notifications: '+(st.notif?'on':'BAND (Android settings me allow karo)')+'\nExact alarm permission: '+(st.exact?'haan':'nahi')+'\nBattery unrestricted: '+(st.battery?'haan':'nahi')+'\nMode: '+(st.mode==='quiet'?'quiet (alarm icon nahi, Doze me late ho sakta hai)':'clock (sabse bharosemand, status bar me alarm icon dikhta hai)')+'\nScreen jagana: '+(st.wake===false?'off':'on')+'\nAI keys (phone ke andar copy): '+(st.aiKeys?st.aiProviders+' provider, '+st.aiKeys+' key':'nahi mili: app Settings me key ho to ek baar app kholo')+'\nSchedules: '+(st.count||0)+'   Android SDK: '+(st.sdk||'?'));return;
     }
     if(/^log$/i.test(arg)){
       const r=await NY('list'),h=(r.hist||[]).slice(-10).reverse();
@@ -187,15 +211,45 @@ async function remindCmd(arg){
     }
     const p=schParseCmd(arg);
     if(!p){say('Samajh nahi aaya.\n\n'+SCH_HELP);return}
-    if(!String(p.a.text||'').trim()){say('Reminder ka text bhi likho.\n\n'+SCH_HELP);return}
+    if(p.a.kind!=='ai'&&!String(p.a.text||'').trim()){say('Reminder ka text bhi likho.\n\n'+SCH_HELP);return}
     const o=schResolve(p.a);
     if(o.err){say(o.err);return}
+    if(o.kind==='ai'){
+      const n=await schSyncAi(true);
+      if(!(n>0)){say('AI key phone ko nahi mili. Settings me kam se kam ek AI provider ki key daalo (Groq, Cerebras, OpenRouter, NVIDIA ya Mistral).');return}
+    }
     const r=await schAdd(o);
     let w='';try{const st=await NY('status');if(!st.notif)w+='\nNotifications Android me band hain, allow karo.'}catch(e){}
     if(!r.exact)w+='\nExact alarm permission nahi, time thoda late ho sakta hai.';
+    if(o.kind==='ai'){say('AI schedule set: '+schFmt(r.at)+' ('+schRepName(o.rep)+')\nPrompt: '+schClean(o.prompt,120)+'\nAI text ~10 minute pehle banega, notification time par aayegi. Net ya key fail ho to fixed "nahi ban paya" message aayega.'+w);return}
     say('Reminder set: '+schFmt(r.at)+' ('+schRepName(o.rep)+')\n'+schClean(o.text,100)+w);
   }catch(e){say('Command fail: '+errMsg(e))}
 }
+// ---- Step24 (3b-1): AI schedules need the provider keys inside the phone's native code (the app is closed when they run) ----
+function schAiCfg(){
+  try{
+    return provOrder().filter(p=>!p.g&&p.url).map(p=>({id:p.id,name:String(p.name||p.id).replace(' (optional)',''),url:p.url,model:(S.models&&S.models[p.id])||p.model||'',keys:keysOf(p.id).slice(0,6),ptr:(S.ptr&&S.ptr[p.id])||0,read:p.id==='nvidia'?90:40})).filter(x=>x.keys.length);
+  }catch(e){return[]}
+}
+let SCH_AI_LAST='';
+// Sends the providers and keys to the native side when they changed (or when force). Returns how many providers the phone has, -1 if it failed.
+async function schSyncAi(force){
+  const cfg=schAiCfg(),j=JSON.stringify(cfg);
+  if(!force&&j===SCH_AI_LAST)return cfg.length;
+  try{const r=await NY('setAi',{providers:cfg});SCH_AI_LAST=j;return r&&r.providers!=null?r.providers:cfg.length}catch(e){return-1}
+}
+// Texts written by AI schedules while the app was closed go into the chat, once.
+async function schBriefs(){
+  if(typeof TURN!=='undefined'&&TURN)return 0;
+  try{
+    const r=await NY('takeBriefs'),L=(r&&r.items)||[];
+    if(!L.length)return 0;
+    L.forEach(b=>H.push({role:'assistant',by:'Brief'+(b.by?' ('+b.by+')':''),content:(b.late?'(late) ':'')+String(b.text||''),steps:[]}));
+    persist();render();
+    return L.length;
+  }catch(e){return 0}
+}
 // Some phones drop alarms when the app is swiped away. Opening the app puts them all back (overdue ones under 24 h show once, marked late).
 const schRearm=()=>NY('rearm').catch(()=>{});
-try{setTimeout(schRearm,1500);document.addEventListener('visibilitychange',()=>{if(!document.hidden)schRearm()})}catch(e){}
+const schOpen=()=>{schRearm();schSyncAi();schBriefs()};
+try{setTimeout(schOpen,1500);document.addEventListener('visibilitychange',()=>{if(!document.hidden)schOpen()});setInterval(()=>{if(!document.hidden)schSyncAi()},45000)}catch(e){}

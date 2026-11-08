@@ -46,6 +46,9 @@ public class NotifyPlugin extends Plugin {
         PowerManager pm = (PowerManager) c.getSystemService(Context.POWER_SERVICE);
         r.put("battery", pm != null && pm.isIgnoringBatteryOptimizations(c.getPackageName()));
         r.put("sdk", Build.VERSION.SDK_INT);
+        JSONArray cfg = NotifyAi.aiCfg(c);
+        r.put("aiProviders", cfg.length());
+        r.put("aiKeys", NotifyAi.keyCount(cfg));
         r.put("mode", NotifyCore.mode(c));
         r.put("wake", NotifyCore.wake(c));
         synchronized (NotifyCore.LOCK) {
@@ -141,6 +144,31 @@ public class NotifyPlugin extends Plugin {
         call.resolve(statusObj());
     }
 
+    /** The app gives its AI providers and keys (a private copy, used when an AI schedule runs with the app closed). */
+    @PluginMethod
+    public void setAi(PluginCall call) {
+        JSONArray in = call.getData().optJSONArray("providers");
+        int n = NotifyAi.setAiCfg(ctx(), in);
+        JSObject r = new JSObject();
+        r.put("providers", n);
+        call.resolve(r);
+    }
+
+    /** Texts written by AI schedules since the app last looked; they are returned once, then cleared. */
+    @PluginMethod
+    public void takeBriefs(PluginCall call) {
+        try {
+            JSArray items = new JSArray();
+            JSONArray b = NotifyAi.takeBriefs(ctx());
+            for (int i = 0; i < b.length(); i++) items.put(b.get(i));
+            JSObject r = new JSObject();
+            r.put("items", items);
+            call.resolve(r);
+        } catch (Exception e) {
+            call.reject(String.valueOf(e.getMessage()), "ERROR");
+        }
+    }
+
     @PluginMethod
     public void show(PluginCall call) {
         String title = clip(call.getString("title"), 80);
@@ -163,6 +191,12 @@ public class NotifyPlugin extends Plugin {
             String title = clip(call.getString("title"), 80);
             String text = clip(call.getString("text"), 300);
             String rep = call.getString("rep", "none");
+            boolean ai = "ai".equals(call.getString("kind", ""));
+            String prompt = clip(call.getString("prompt"), NotifyAi.PROMPT_MAX);
+            if (ai && prompt.length() < 3) {
+                call.reject("AI schedule ke liye prompt chahiye.", "BAD");
+                return;
+            }
             if (id.isEmpty()) {
                 call.reject("id chahiye.", "BAD");
                 return;
@@ -206,6 +240,10 @@ public class NotifyPlugin extends Plugin {
             synchronized (NotifyCore.LOCK) {
                 JSONArray list = NotifyCore.load(ctx(), NotifyCore.K_LIST);
                 int idx = NotifyCore.indexOf(list, id);
+                if (ai && (idx < 0 || !NotifyAi.isAi(list.optJSONObject(idx))) && NotifyAi.countAi(list) >= NotifyAi.MAX_AI) {
+                    call.reject("Maximum " + NotifyAi.MAX_AI + " AI schedules ho chuke. Kuch cancel karo.", "LIMIT");
+                    return;
+                }
                 if (idx < 0 && list.length() >= NotifyCore.MAX) {
                     call.reject("Maximum " + NotifyCore.MAX + " schedules ho chuke. Kuch cancel karo.", "LIMIT");
                     return;
@@ -219,6 +257,10 @@ public class NotifyPlugin extends Plugin {
                 r.put("at", at);
                 r.put("h", h);
                 r.put("m", m);
+                if (ai) {
+                    r.put("kind", "ai");
+                    r.put("prompt", prompt);
+                }
                 NotifyCore.ensureChannels(ctx());
                 via = NotifyCore.arm(ctx(), r);
                 if (idx >= 0) list.put(idx, r);

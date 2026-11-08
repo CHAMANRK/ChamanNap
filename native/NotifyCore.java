@@ -118,6 +118,7 @@ final class NotifyCore {
             e.put("fired", now);
             e.put("kind", kind); // fired | late | early-skip
             e.put("via", r.optString("via", "?"));
+            if (!r.optString("aiinfo", "").isEmpty()) e.put("ai", r.optString("aiinfo"));
             if (snap != null) {
                 e.put("idle", snap.optBoolean("idle"));
                 e.put("screen", snap.optBoolean("screen"));
@@ -213,6 +214,7 @@ final class NotifyCore {
             r.put("via", via);
         } catch (Exception ignored) {
         }
+        if (NotifyAi.isAi(r)) NotifyAi.armPrep(c, r);
         return via;
     }
 
@@ -221,6 +223,7 @@ final class NotifyCore {
         PendingIntent pi = firePi(c, id);
         if (am != null) am.cancel(pi);
         pi.cancel();
+        NotifyAi.disarmPrep(c, id);
     }
 
     // ---------- notification ----------
@@ -333,7 +336,14 @@ final class NotifyCore {
                     addHist(c, r, now, "early-skip", snap);
                     return;
                 }
-                show(c, id, r.optString("title", "Chaman"), r.optString("text", ""), r.optString("ch", CH_REMIND), true);
+                String title = r.optString("title", "Chaman"), text = r.optString("text", "");
+                if (NotifyAi.isAi(r)) {
+                    String[] t = NotifyAi.render(c, r);
+                    title = t[0];
+                    text = t[1];
+                    r.put("aiinfo", t[2]);
+                }
+                show(c, id, title, text, r.optString("ch", CH_REMIND), true);
                 addHist(c, r, now, "fired", snap);
                 String rep = r.optString("rep", "none");
                 if ("none".equals(rep)) {
@@ -342,6 +352,11 @@ final class NotifyCore {
                     long base = Math.max(now, at);
                     r.put("at", nextFire(rep, r.optInt("h"), r.optInt("m"), base));
                     r.put("early", 0);
+                    r.remove("res");
+                    r.remove("rerr");
+                    r.remove("jobDue");
+                    r.remove("jobAt");
+                    r.remove("aiinfo");
                     arm(c, r);
                     list.put(idx, r);
                 }
@@ -369,11 +384,22 @@ final class NotifyCore {
                     long at = r.optLong("at");
                     if (at <= now) {
                         if (now - at < LATE_WINDOW_MS) {
-                            show(c, r.optString("id"), r.optString("title", "Chaman") + " (late)", r.optString("text", ""), r.optString("ch", CH_REMIND), false);
+                            String lt = r.optString("title", "Chaman"), lx = r.optString("text", "");
+                            if (NotifyAi.isAi(r)) {
+                                String[] t = NotifyAi.render(c, r);
+                                lt = t[0];
+                                lx = t[1];
+                                r.put("aiinfo", t[2]);
+                            }
+                            show(c, r.optString("id"), lt + " (late)", lx, r.optString("ch", CH_REMIND), false);
                             addHist(c, r, now, "late", snapshot(c));
                         }
                         if ("none".equals(rep)) continue;
                         r.put("at", nextFire(rep, r.optInt("h"), r.optInt("m"), now));
+                        r.remove("res");
+                        r.remove("rerr");
+                        r.remove("jobDue");
+                        r.remove("jobAt");
                     }
                     arm(c, r);
                     keep.put(r);

@@ -24,6 +24,7 @@ function logTool(name,a){
     case'rule_save':return name+' '+cut(a.name,40)+' ('+String(a.when==null?'':a.when).length+'+'+String(a.steps==null?'':a.steps).length+' chars)';
     case'rule_list':return name;
     case'notify_now':return name+' ('+String(a.title==null?'':a.title).length+'+'+String(a.text==null?'':a.text).length+' chars)';
+    case'schedule_ai':return name+' ('+(a.in_minutes!=null?'in '+a.in_minutes+' min':(a.date||'')+' '+(a.time||''))+', '+(a.repeat||'none')+', '+String(a.prompt==null?'':a.prompt).length+' chars)';
     case'schedule_add':return name+' ('+(a.in_minutes!=null?'in '+a.in_minutes+' min':(a.date||'')+' '+(a.time||''))+', '+(a.repeat||'none')+', '+String(a.title==null?'':a.title).length+'+'+String(a.text==null?'':a.text).length+' chars)';
     case'run_code':return name+' '+cut(a.lang,8)+' ('+String(a.code==null?'':a.code).length+' chars'+(a.csv?', csv':'')+(a.db?', db':'')+')';
     case'set_switch':return name+' '+cut(a.text,40)+' '+a.state;
