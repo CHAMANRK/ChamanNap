@@ -13,6 +13,7 @@ async function runLoop(p){
   const stopped=()=>({content:'Stop dabaya gaya.',by,steps});
   const mem=await wsLoadMem();if(mem)msgs[0].content+=mem;
   const rb=rulesBlock();if(rb)msgs[0].content+=rb;
+  const cb=typeof crBlock==='function'?crBlock():'';if(cb)msgs[0].content+=cb;
   const guard={n:0};
   let tools=TOOLS;
   FILE_TURN={w:'',p:{}};SCR_STOP=false;LEFT_APP=false;PILL_ERR='';NS('reset').catch(()=>{});
@@ -65,7 +66,7 @@ async function ask(){
     const p=ord[i];
     if(tn.stop)throw new Error('stop');
     try{
-      if(p.g){const t=await callChaman(apiMsgs(false));if(t)return{content:t.trim(),by:p.name};continue}
+      if(p.g){if(tn.rule)continue;const t=await callChaman(apiMsgs(false));if(t)return{content:t.trim(),by:p.name};continue}
       const r=await runWithTools(p);if(r)return r;
     }catch(e){
       if(tn.stop)throw e;
@@ -74,7 +75,7 @@ async function ask(){
       if(nx)lnSet(p.name.replace(' (optional)','')+' fail ('+lnWhy(e)+'), '+nx.name.replace(' (optional)','')+' try kar raha hu','wait');
     }
   }
-  throw new Error(errs.length?'Saare providers fail:\n'+errs.join('\n'):'Koi provider set nahi hai. Settings me key daalo.');
+  throw new Error(errs.length?'Saare providers fail:\n'+errs.join('\n'):tn.rule?'/rule ke liye tools wala provider chahiye (Groq, Cerebras, OpenRouter, NVIDIA ya Mistral). Chaman model sirf chat karta hai.':'Koi provider set nahi hai. Settings me key daalo.');
 }
 function setProv(v){
   v=(v||'').toLowerCase();const ids=['auto'].concat(P.map(p=>p.id));
@@ -121,10 +122,13 @@ function stopTurn(){
 $('#f').addEventListener('submit',async e=>{
   e.preventDefault();if(busy)return;
   const i=$('#in'),t=i.value.trim();if(!t&&!PEND.length)return;
-  const sl=(typeof slashTake==='function'&&!PEND.length)?slashTake(t):null;
+  let sl=(typeof slashTake==='function'&&!PEND.length)?slashTake(t):null;
+  // /rule <message>: a normal AI turn, but with Najeef's custom rules added to the instructions (crBlock). /rule alone shows the help.
+  let rmode=false;
+  if(sl&&sl.cmd.rulemode&&String(sl.arg).trim()){rmode=true;sl=null}
   if(typeof hideSlash==='function')hideSlash();
   if(sl){i.value='';i.style.height='auto';await slashRun(sl,t);return}
-  i.value='';i.style.height='auto';setBusy(true);const tn=turnBegin();
+  i.value='';i.style.height='auto';setBusy(true);const tn=turnBegin();tn.rule=rmode;
   logAdd('you',t+(PEND.length?' [files: '+PEND.map(a=>a.name).join(', ')+']':''));
   const pl=PEND.slice(),um={role:'user',content:t,files:pl.map(a=>({name:a.name,size:a.size,kind:a.kind,body:a.body,cut:a.cut})),imgs:pl.filter(a=>a.kind==='img').map(a=>a.img)};
   H.push(um);
@@ -139,9 +143,7 @@ $('#f').addEventListener('submit',async e=>{
       um.files.forEach((f,k)=>{f.path=pl[k].path;f.saveErr=pl[k].saveErr});
       logAdd('upload',pl.map(a=>a.name+(a.path?' -> '+a.path.replace(WS_ROOT+'/',''):' (copy fail: '+a.saveErr+')')).join(', '));
     }
-let r=null;
-    if(!pl.length&&typeof crTry==='function')r=await turnWait(tn,crTry(t)); // custom rules first (no AI); null = no rule matched
-    if(r===null)r=await turnWait(tn,ask());
+const r=await turnWait(tn,ask());
     if(r===STOPPED||tn.stop)H.push(stopNote(tn));
     else{H.push({role:'assistant',content:r.content,by:r.by,steps:r.steps});logAdd('chaman','('+(r.by||'?')+') '+r.content)}}
   catch(err){if(tn.stop)H.push(stopNote(tn));else{H.push({role:'assistant',content:err.message,err:1});logAdd('error',err.message)}}

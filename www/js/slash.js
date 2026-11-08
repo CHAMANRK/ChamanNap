@@ -3,7 +3,8 @@
 const SLASH=[
   {name:'note',hint:'Note save karo ya dhundo',run:a=>noteCmd(a)},
   {name:'n',hint:'/note ka short',run:a=>noteCmd(a)},
-  {name:'rule',hint:'Custom rules (agar ye bolu to ye karo)',run:a=>ruleCmd(a)},
+  {name:'rule',hint:'Message ko apne custom rules ke saath AI ko bhejo',rulemode:true,run:()=>ruleHelp()},
+  {name:'rules',hint:'Custom rules dekho / on / off / delete',run:a=>rulesCmd(a)},
   {name:'remind',hint:'Reminder / notification schedule karo',run:a=>remindCmd(a)},
   {name:'provider',hint:'AI provider badlo',run:a=>setProv(String(a).trim().split(/\s+/)[0]||'')},
   {name:'p',hint:'/provider ka short',run:a=>setProv(String(a).trim().split(/\s+/)[0]||'')}

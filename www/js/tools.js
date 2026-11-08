@@ -1,5 +1,4 @@
 const STN={media:'Media',ring:'Ringtone',alarm:'Alarm'};
-let LAST_TOOL_BAD=false; // set by execTool: did the last tool call fail (custom rules read it)
 const fn=(name,description,properties,required)=>({type:'function',function:{name,description,parameters:{type:'object',properties:properties,required:required||[]}}});
 const TOOLS=[
   fn('torch','Turn the phone flashlight on or off, or toggle it.',{state:{type:'string',enum:['on','off','toggle']}},['state']),
@@ -229,7 +228,6 @@ async function execTool(name,a,steps){
   const it=lnStep(name,a),n0=steps.length;
   if(own){LN.state='wait';lnDraw()}
   const res=await execTool0(name,a,steps,fl);
-  LAST_TOOL_BAD=fl.bad;
   logAdd(fl.bad?'tool FAIL':'tool',logTool(name,a)+((name.indexOf('termux_')===0||name==='device_api'||name==='api_check'||name==='run_code'||name==='schedule_list'||name==='rule_list'||name.indexOf('file_')===0||name.indexOf('note_')===0||name==='edit_file'||name==='screen_read')?'':' -> '+cut(String(res).replace(/\s+/g,' '),140)));
   if(own)LN.hold=false;
   lnStepEnd(it,name,a,fl.bad,res,steps.length>n0?steps[steps.length-1]:'');
