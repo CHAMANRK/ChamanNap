@@ -24,8 +24,20 @@ jobs:
           echo "$KS" | base64 -d > ~/.android/debug.keystore
           keytool -list -keystore ~/.android/debug.keystore -storepass android | grep -i "androiddebugkey\|SHA" || { echo "ERROR: keystore sahi nahi hai"; exit 1; }
       - run: npm install
+      - name: Face model cache (restore)
+        id: facecache
+        uses: actions/cache/restore@v4
+        with:
+          path: native/face/assets/models
+          key: face-model-w600k-mbf-v1
       - name: Face model (ArcFace, ~13 MB)
         run: bash scripts/fetch-face-model.sh
+      - name: Face model cache (save)
+        if: steps.facecache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: native/face/assets/models
+          key: face-model-w600k-mbf-v1
       - run: npx cap add android
       - run: node scripts/patch-android.js
       - run: npx cap sync android
