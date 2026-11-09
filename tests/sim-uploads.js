@@ -70,6 +70,6 @@ const send=()=>handlers['#f:submit']({preventDefault(){}});
  await new Promise(r=>setTimeout(r,20));
  await handlers['#vsave:click']();
  ok(els['#vtitle'].textContent==='Saved: Download/out.html','viewer save button -> Download ('+els['#vtitle'].textContent+')');
- ok(t("RULES.files").includes('work/uploads'),'rules mention uploads');
+ ok(t("RULES.files").includes('uploads/'),'rules mention uploads');
  console.log(fails?'\n'+fails+' FAILED':'\nALL PASS');process.exit(fails?1:0);
 })().catch(e=>{console.error('ERR',e);process.exit(1)});

@@ -129,6 +129,7 @@ $('#f').addEventListener('submit',async e=>{
   if(typeof hideSlash==='function')hideSlash();
   if(sl){i.value='';i.style.height='auto';await slashRun(sl,t);return}
   i.value='';i.style.height='auto';setBusy(true);const tn=turnBegin();tn.rule=rmode;
+  if(typeof sesEnsure==='function')sesEnsure();
   logAdd('you',t+(PEND.length?' [files: '+PEND.map(a=>a.name).join(', ')+']':''));
   const pl=PEND.slice(),um={role:'user',content:t,files:pl.map(a=>({name:a.name,size:a.size,kind:a.kind,body:a.body,cut:a.cut})),imgs:pl.filter(a=>a.kind==='img').map(a=>a.img)};
   H.push(um);
@@ -151,5 +152,5 @@ const r=await turnWait(tn,ask());
   H=H.slice(-100);persist();TURN=null;setBusy(false);render();logFlush();
 });
 $('#in').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=e.target.scrollHeight+'px'});
-$('#newb').onclick=()=>{if(!H.length)return;H=[];sv('nap_h',H);render()};
+$('#newb').onclick=()=>{if(!H.length)return;H=[];sv('nap_h',H);render()}; // replaced by sessions.js (sesNew)
 

@@ -15,6 +15,14 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+      - name: Fixed signing key (same key every build, so the APK updates over the old one)
+        env:
+          KS: ${{ secrets.DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KS" ]; then echo "ERROR: GitHub secret DEBUG_KEYSTORE_B64 nahi mila (Settings > Secrets and variables > Actions)"; exit 1; fi
+          mkdir -p ~/.android
+          echo "$KS" | base64 -d > ~/.android/debug.keystore
+          keytool -list -keystore ~/.android/debug.keystore -storepass android | grep -i "androiddebugkey\|SHA" || { echo "ERROR: keystore sahi nahi hai"; exit 1; }
       - run: npm install
       - name: Face model (ArcFace, ~13 MB)
         run: bash scripts/fetch-face-model.sh

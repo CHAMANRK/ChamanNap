@@ -66,7 +66,7 @@ async function autoPresent(){
     if(st&&st.exists&&!st.dir){FILE_TURN.p[p]=1;pushCard(p,st.size)}
   }catch(e){}
 }
-const fTouched=p=>{if(p.indexOf(WS_ROOT+'/work/')===0)FILE_TURN.w=p};
+const fTouched=p=>{if(p.indexOf(WS_ROOT+'/work/')===0||/^\/sdcard\/Chaman\/sessions\/[^/]+\/uploads\//.test(p))FILE_TURN.w=p};
 async function fileTool(name,a,note,fl){
   const bad=s=>{fl.bad=true;return note(s)};
   try{
@@ -242,16 +242,16 @@ $('#viewer-body').addEventListener('click',e=>{
   copyTxt(c.textContent).then(()=>{b.innerHTML=ICO_OK;setTimeout(()=>{b.innerHTML=ICO_COPY},1500)});
 });
 
-// ---- uploads: every attached file is copied to /sdcard/Chaman/work/uploads so the file tools can edit it ----
-const UP_DIR=WS_ROOT+'/work/uploads',UP_CHUNK=393216,UP_MAX=8*1024*1024;
+// ---- uploads: every attached file is copied to the session's uploads folder (/sdcard/Chaman/sessions/<id>/uploads) so the file tools can edit it ----
+const upDir=()=>typeof sesEnsure==='function'?SES_ROOT+'/'+sesEnsure().id+'/uploads':WS_ROOT+'/work/uploads',UP_CHUNK=393216,UP_MAX=8*1024*1024;
 const upClean=n=>String(n||'file').replace(/[\\/:*?"<>|\u0000-\u001f]+/g,'_').replace(/^\.+/,'').trim().slice(-80)||'file';
 function upB64(u8){let s='';for(let i=0;i<u8.length;i+=8192)s+=String.fromCharCode.apply(null,u8.subarray(i,i+8192));return btoa(s)}
 async function upUnique(name){
-  let p=UP_DIR+'/'+name;
+  const UD=upDir();let p=UD+'/'+name;
   if(!(await NF('stat',{path:p})).exists)return p;
   const m=name.match(/^(.*?)(\.[^.]*)?$/),d=new Date(),z=n=>String(n).padStart(2,'0'),ts=z(d.getHours())+z(d.getMinutes())+z(d.getSeconds());
   for(let k=0;k<20;k++){
-    p=UP_DIR+'/'+m[1]+'-'+ts+(k?'-'+k:'')+(m[2]||'');
+    p=UD+'/'+m[1]+'-'+ts+(k?'-'+k:'')+(m[2]||'');
     if(!(await NF('stat',{path:p})).exists)return p;
   }
   throw new Error('Naam nahi mila');
