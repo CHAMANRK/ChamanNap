@@ -1,9 +1,11 @@
+// step26: a turn started from the floating panel must not pull Chaman to the front or show the "Done. Tap to open" pill
+const finOpt=o=>(typeof bubQuiet==='function'&&bubQuiet())?Object.assign({},o,{open:false,quiet:true}):o;
 async function runWithTools(p){
   const r=await runLoop(p);
   if(r){
     lnEnd();
     if(r.steps&&r.steps.length&&PILL_ERR){r.steps.push('Status line nahi dikhi: '+PILL_ERR);PILL_ERR=''}
-    if(r.steps&&r.steps.length&&LEFT_APP)NS('finish').catch(()=>{});else NS('finish',{open:false}).catch(()=>{});
+    if(r.steps&&r.steps.length&&LEFT_APP&&!finOpt({}).quiet)NS('finish').catch(()=>{});else NS('finish',finOpt({open:false})).catch(()=>{});
   }
   return r;
 }
@@ -148,8 +150,9 @@ const r=await turnWait(tn,ask());
     if(r===STOPPED||tn.stop)H.push(stopNote(tn));
     else{H.push({role:'assistant',content:r.content,by:r.by,steps:r.steps});logAdd('chaman','('+(r.by||'?')+') '+r.content)}}
   catch(err){if(tn.stop)H.push(stopNote(tn));else{H.push({role:'assistant',content:err.message,err:1});logAdd('error',err.message)}}
-  const lnWas=LN.on;lnEnd();if(lnWas)NS('finish',{open:false}).catch(()=>{});
+  const lnWas=LN.on;lnEnd();if(lnWas)NS('finish',finOpt({open:false})).catch(()=>{});
   H=H.slice(-100);persist();TURN=null;setBusy(false);render();logFlush();
+  if(typeof bubTurnEnd==='function')bubTurnEnd();
 });
 $('#in').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=e.target.scrollHeight+'px'});
 $('#newb').onclick=()=>{if(!H.length)return;H=[];sv('nap_h',H);render()}; // replaced by sessions.js (sesNew)

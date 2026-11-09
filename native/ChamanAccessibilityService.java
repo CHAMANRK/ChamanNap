@@ -64,12 +64,20 @@ public class ChamanAccessibilityService extends AccessibilityService {
     private TextView pillText;
     private boolean pillAttached = false;
     private Runnable hideTask;
+    private volatile ChamanBubble bubble;
 
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
         instance = this;
         wm = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
+        bubble = new ChamanBubble(this, main);
+        bubble.refresh();
+    }
+
+    // step26: the floating mini Chaman (null until the service is connected)
+    ChamanBubble bubble() {
+        return bubble;
     }
 
     // Counts the user's own interactions (taps, focus, typing) outside Chaman; used by ask_user.
@@ -111,6 +119,10 @@ public class ChamanAccessibilityService extends AccessibilityService {
             @Override
             public void run() {
                 removePill();
+                if (bubble != null) {
+                    bubble.destroy();
+                    bubble = null;
+                }
             }
         });
         return super.onUnbind(intent);
@@ -756,6 +768,12 @@ public class ChamanAccessibilityService extends AccessibilityService {
 
     private String renderLine(boolean fromJs) {
         if (!lineActive) return "";
+        // step26: with the floating mini Chaman on, the status line is its dot + header, not a separate pill
+        if (bubble != null && ChamanBubble.active) {
+            if (pillAttached && pillMode == 3) removePill();
+            bubble.setStatus(lineText, lineState);
+            return "";
+        }
         if (!fromJs && pillAttached && pillMode != 3) return "";
         if (ScreenControlPlugin.isAppVisible()) {
             if (pillAttached && pillMode == 3) removePill();
@@ -811,6 +829,7 @@ public class ChamanAccessibilityService extends AccessibilityService {
                 listOpen = false;
                 lineItems.clear();
                 if (pillAttached && pillMode == 3) removePill();
+                if (bubble != null) bubble.statusEnd();
             }
         });
     }
@@ -821,6 +840,7 @@ public class ChamanAccessibilityService extends AccessibilityService {
             @Override
             public void run() {
                 if (lineActive) renderLine(false);
+                if (bubble != null) bubble.refresh();
             }
         });
     }

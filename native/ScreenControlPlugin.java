@@ -251,6 +251,53 @@ public class ScreenControlPlugin extends Plugin {
         call.resolve(r);
     }
 
+    // step26: floating mini Chaman. {on:true/false} (Settings switch; the JS sends it on every app start, so "on" also means the JS is alive).
+    @PluginMethod
+    public void bubble(PluginCall call) {
+        boolean on = Boolean.TRUE.equals(call.getBoolean("on", false));
+        ChamanBubble.active = on;
+        ChamanAccessibilityService s = ChamanAccessibilityService.get();
+        if (s != null && s.bubble() != null) s.bubble().refresh();
+        JSObject r = new JSObject();
+        r.put("ok", true);
+        r.put("a11y", s != null);
+        r.put("overlay", Settings.canDrawOverlays(getContext()));
+        call.resolve(r);
+    }
+
+    // the answer of the last turn. open:true = show the panel for it (the turn was started from the panel)
+    @PluginMethod
+    public void bubbleAnswer(PluginCall call) {
+        ChamanAccessibilityService s = ChamanAccessibilityService.get();
+        if (s != null && s.bubble() != null) {
+            s.bubble().setAnswer(call.getString("text", ""), Boolean.TRUE.equals(call.getBoolean("open", false)), Boolean.TRUE.equals(call.getBoolean("fail", false)));
+        }
+        call.resolve();
+    }
+
+    // confirm card for the panel: card = JSON string {title, body, m, btns:[{l,o}]}, or "" to remove it
+    @PluginMethod
+    public void bubbleCard(PluginCall call) {
+        ChamanAccessibilityService s = ChamanAccessibilityService.get();
+        if (s != null && s.bubble() != null) s.bubble().setCard(call.getString("card", ""));
+        call.resolve();
+    }
+
+    // events typed or tapped in the panel since the last poll: {type:send,text} {type:stop} {type:confirm,m,o}
+    @PluginMethod
+    public void bubblePoll(PluginCall call) {
+        JSObject r = new JSObject();
+        r.put("events", ChamanBubble.drainEvents());
+        call.resolve(r);
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        ChamanBubble.active = false;
+        ChamanAccessibilityService s = ChamanAccessibilityService.get();
+        if (s != null && s.bubble() != null) s.bubble().refresh();
+    }
+
     // Task finished: bring Chaman back to the front. If Android blocks the launch, the pill says "tap to open".
     @PluginMethod
     public void finish(PluginCall call) {

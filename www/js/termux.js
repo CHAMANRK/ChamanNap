@@ -33,7 +33,7 @@ function tconfirm(head,body,why,lab,by){
     TCONF[id]=done;lnSet('Tumhare confirm ka wait','wait');
     logAdd('confirm?',head+': '+cut(body,200)+' | wajah: '+why.join(', '));
     H.push({role:'assistant',by:by||'Termux',local:1,content:head+':\n```\n'+noFence(cut(body,1500))+'\n```\nWajah: '+why.join(', '),confirm:{type:'termux',id,opts:[{name:''}],state:'pending',lab:lab||''}});
-    NS('finish',{quiet:true}).catch(()=>{});
+    if(!(typeof bubLive==='function'&&bubLive()))NS('finish',{quiet:true}).catch(()=>{});
     liveRender();
     setTimeout(()=>{
       if(!TCONF[id])return;

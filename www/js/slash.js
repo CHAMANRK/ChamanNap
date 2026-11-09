@@ -40,8 +40,9 @@ async function slashRun(sl,t){
   lnBegin('Command chal raha hai','wait');
   try{const r=await turnWait(tn,sl.cmd.run(sl.arg));if(r===STOPPED||tn.stop)H.push(stopNote(tn))}
   catch(e){if(tn.stop)H.push(stopNote(tn));else H.push({role:'assistant',by:'App',info:1,content:'Command fail: '+errMsg(e)})}
-  const lnWas=LN.on;lnEnd();if(lnWas)NS('finish',{open:false}).catch(()=>{});
+  const lnWas=LN.on;lnEnd();if(lnWas)NS('finish',finOpt({open:false})).catch(()=>{});
   H=H.slice(-100);persist();TURN=null;setBusy(false);render();logFlush();
+  if(typeof bubTurnEnd==='function')bubTurnEnd();
 }
 $('#in').addEventListener('input',slashSync);
 $('#slash').addEventListener('pointerdown',e=>{const b=e.target.closest('.srow');if(!b)return;e.preventDefault();slashPick(b.dataset.c)});
