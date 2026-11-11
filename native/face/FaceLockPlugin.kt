@@ -19,6 +19,7 @@ import com.getcapacitor.annotation.Permission
  *  verify  - headless check (camera service). Poll `progress` meanwhile to show the status text.
  *  enroll  - opens the enroll screen (the only screen with a camera preview)
  *  clearFaces / clearTrust
+ *  backupStatus / backupSet / backupRestore / backupDelete - encrypted face backup (FaceBackup.java), Settings only
  * Camera permission: checkPermissions / requestPermissions with alias "camera" (built into Plugin).
  */
 @CapacitorPlugin(
@@ -147,6 +148,48 @@ class FaceLockPlugin : Plugin() {
     @PluginMethod
     fun clearTrust(call: PluginCall) {
         FaceGate.revoke()
+        call.resolve(JSObject().put("ok", true))
+    }
+
+    @PluginMethod
+    fun backupStatus(call: PluginCall) {
+        val s = FaceBackup.status(context)
+        call.resolve(JSObject().put("exists", s.exists).put("auto", s.auto).put("at", s.at))
+    }
+
+    /** Needs the owner window when faces are enrolled (same second lock as enroll / clearFaces). */
+    @PluginMethod
+    fun backupSet(call: PluginCall) {
+        if (ownerNeeded(call)) return
+        try {
+            FaceBackup.set(context, call.getString("pass") ?: "")
+            call.resolve(JSObject().put("ok", true))
+        } catch (e: FaceBackup.Err) {
+            call.reject(e.message, e.code)
+        } catch (e: Exception) {
+            call.reject(e.message ?: "Backup nahi bana", "ERROR")
+        }
+    }
+
+    /** With faces already enrolled this needs the owner window, so nobody can swap in other faces. On a fresh install it is free. */
+    @PluginMethod
+    fun backupRestore(call: PluginCall) {
+        if (ownerNeeded(call)) return
+        try {
+            FaceBackup.restore(context, call.getString("pass") ?: "")
+            FaceGate.revoke()
+            call.resolve(JSObject().put("ok", true).put("enrolled", FaceStore(context).count()))
+        } catch (e: FaceBackup.Err) {
+            call.reject(e.message, e.code)
+        } catch (e: Exception) {
+            call.reject(e.message ?: "Restore nahi hua", "ERROR")
+        }
+    }
+
+    @PluginMethod
+    fun backupDelete(call: PluginCall) {
+        if (ownerNeeded(call)) return
+        FaceBackup.delete(context)
         call.resolve(JSObject().put("ok", true))
     }
 }

@@ -20,8 +20,13 @@ const FL_AREAS=[
   {id:'image',t:'Image generation'},
   {id:'device',t:'Torch, volume, brightness'}
 ];
-const FL_DEF={on:true,min:30,blink:true,strict:0,lock:true,photo:true,areas:['screen','termux']};
+const FL_DEF={on:true,min:30,blink:true,strict:0,lock:true,photo:true,areas:['screen','termux','comms','memory']};
 function flCfg(){
+  // one-time: older saved choices get Call/SMS and Memory locked too (he can untick them again in Settings)
+  if(S.fl&&Array.isArray(S.fl.areas)&&!S.fl.fv2){
+    ['comms','memory'].forEach(x=>{if(S.fl.areas.indexOf(x)<0)S.fl.areas.push(x)});
+    S.fl.fv2=1;try{sv('nap_s',S)}catch(e){}
+  }
   const c=Object.assign({},FL_DEF,S.fl||{});
   if(!Array.isArray(c.areas))c.areas=FL_DEF.areas.slice();
   c.min=Math.max(1,Math.min(480,+c.min||30));
@@ -214,13 +219,19 @@ function flHtml(){
     +'<label>Unknown face ki photo save (/sdcard/Chaman/intruder)</label>'+sel('fl_photo',onoff,c.photo?'on':'off')
     +'<label>In kaamon par face check chahiye</label>'
     +FL_AREAS.map(a=>'<label class="flr"><input type="checkbox" id="fl_a_'+a.id+'"'+(c.areas.indexOf(a.id)>=0?' checked':'')+'>'+a.t+'</label>').join('')
+    +'<label>Backup (app delete karne par bhi faces wapas)</label>'
+    +'<p class="hint" id="flb_s" style="margin:0 0 6px">Check ho raha hai...</p>'
+    +'<input type="password" id="flb_p" placeholder="Backup passphrase (6+ akshar)" autocomplete="off" autocapitalize="off" spellcheck="false">'
+    +'<button type="button" class="btn ghost" id="flb_set">Backup banao / passphrase badlo</button>'
+    +'<button type="button" class="btn ghost" id="flb_res">Backup se faces wapas lao</button>'
+    +'<button type="button" class="btn ghost" id="flb_del">Backup hatao</button>'
     +'<p class="hint">App kholne par face check nahi hota. Face enroll nahi hai ya model nahi hai to koi check nahi lagta. Photo dikhane se ye lock bypass ho sakta hai (anti-spoof nahi hai).</p>'
     +'</div></details>';
 }
 function flRead(){
   const g=id=>{const e=$('#'+id);return e?e.value:undefined};
   if(g('fl_on')===undefined)return flCfg();
-  return{on:g('fl_on')!=='off',min:+g('fl_min')||30,blink:g('fl_blink')!=='off',strict:+g('fl_strict')||0,lock:g('fl_lock')!=='off',photo:g('fl_photo')!=='off',
+  return{on:g('fl_on')!=='off',min:+g('fl_min')||30,blink:g('fl_blink')!=='off',strict:+g('fl_strict')||0,lock:g('fl_lock')!=='off',photo:g('fl_photo')!=='off',fv2:1,
     areas:FL_AREAS.filter(a=>{const e=$('#fl_a_'+a.id);return e&&e.checked}).map(a=>a.id)};
 }
 async function flStatusText(){
@@ -264,6 +275,42 @@ function flBind(){
     T('Owner check chal raha hai...');
     flGuard().then(g=>{if(!g.ok){T(g.text);return}return FLN('clearFaces').then(()=>{flWinSet(0)}).then(refresh)}).catch(e=>T(errMsg(e)));
   };
+  // ---- encrypted backup in /sdcard/Chaman/backup (survives uninstall). The passphrase only goes from this box to the native side. ----
+  const BS=x=>{const e=$('#flb_s');if(e)e.textContent=x};
+  const bRefresh=()=>FLN('backupStatus').then(s=>BS(s.exists?'Backup hai ('+new Date(s.at).toLocaleString()+')'+(s.auto?'. Naya face enroll karne par apne aap update hota hai.':'. Apne aap update band hai: passphrase dobara set karo.'):'Backup nahi hai. Face enroll karke yahan passphrase set karo.')).catch(()=>BS('Ye sirf Android app me chalta hai.'));
+  const bPass=()=>{const e=$('#flb_p');return e?e.value:''};
+  const bClear=()=>{const e=$('#flb_p');if(e)e.value=''};
+  $('#flb_set').onclick=async()=>{
+    const p=bPass();
+    if(p.length<6){T('Passphrase 6 ya zyada akshar ka likho.');return}
+    try{
+      T('Owner check chal raha hai...');
+      const g=await flGuard();if(!g.ok){T(g.text);return}
+      T('Backup ban raha hai (kuch second lagte hain)...');
+      await FLN('backupSet',{pass:p});
+      bClear();T('Backup ban gaya: /sdcard/Chaman/backup/face.enc. Passphrase yaad rakho: bhool gaye to backup khul nahi sakta.');bRefresh();
+    }catch(e){T('Backup nahi bana: '+errMsg(e))}
+  };
+  $('#flb_res').onclick=async()=>{
+    const p=bPass();
+    if(!p){T('Pehle backup ki passphrase likho.');return}
+    try{
+      T('Owner check chal raha hai...');
+      const g=await flGuard();if(!g.ok){T(g.text);return}
+      T('Restore ho raha hai (kuch second lagte hain)...');
+      const r=await FLN('backupRestore',{pass:p});
+      bClear();flWinSet(0);T('Restore ho gaya: '+((r&&r.enrolled)||0)+' face samples wapas aa gaye.');refresh();bRefresh();
+    }catch(e){bClear();T('Restore nahi hua: '+errMsg(e))}
+  };
+  let barmed=0;
+  $('#flb_del').onclick=()=>{
+    const b=$('#flb_del');
+    if(!barmed){barmed=1;b.textContent='Pakka hatao? Dobara tap karo';setTimeout(()=>{barmed=0;b.textContent='Backup hatao'},4000);return}
+    barmed=0;b.textContent='Backup hatao';
+    T('Owner check chal raha hai...');
+    flGuard().then(g=>{if(!g.ok){T(g.text);return}return FLN('backupDelete').then(()=>{T('Backup hata diya.');bRefresh()})}).catch(e=>T(errMsg(e)));
+  };
+  bRefresh();
   refresh();
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&$('#fls'))refresh()});
 }

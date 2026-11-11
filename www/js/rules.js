@@ -78,12 +78,12 @@ phone:`PHONE TOOLS
 - Lines marked [app log] in the history are what the app did, not your words. Never write such lines yourself.`
 };
 const RULE_KW={
-  intents:/\balarm|\btimer\b|\bclock\b|ghadi|calendar|\bevent\b|meeting|remind|\bsettings?\b|wi-?fi|bluetooth|airplane|battery|location|\bnfc\b|camera|\bphoto|\bvideo|gallery|music|\bgana\b|\bsong|calculator|browser|\bmaps?\b|navigat|\bshare\b|contact|e-?mail|play ?store|app info|notification|storage|hotspot|\bvpn\b|developer|\bintent|sound|display|brightness mode|dark mode/i,
+  intents:/\balarm|\btimer\b|\bclock\b|ghadi|calendar|\bevent\b|meeting|remind|\bsettings?\b|wi-?fi|bluetooth|airplane|battery|location|\bnfc\b|camera|\bphoto|\bvideo|gallery|music|\bgana\b|\bsong|calculator|browser|\bmaps?\b|navigat|\bshare\s+(kar|kr)(o|do|dena)?\b|contact|e-?mail|play ?store|app info|notification|storage|hotspot|\bvpn\b|developer|\bintent|sound|display|brightness mode|dark mode/i,
   code:/calculat|\bcalc\b|hisa+b|\bmath\b|\bsum\b|total|average|percent|convert|conversion|\bregex\b|\bjson\b|\bcsv\b|\bsql(ite)?\b|\bjs\b|javascript|python|\bpy\b|run_code|\bscript\b|\b(date|tarikh|time)\b|days? (left|between)|din (bache|baaki)|kitne (din|ghante|minute|paise)|\bcompute\b|\bexact\b/i,
   api:/battery|charge|clipboard|\bgps\b|location|torch|flash ?light|vibrat|volume|brightness|\btts\b|speak|\bbol\b.{0,12}\bsun|toast|notif|selfie|photo|\bpic(ture)?\b|record|\bmic\b|termux.?api|device_api|api_check|wifi info/i,
   notes:/\bnotes?\b|\bsave\b|yaad rakh|\bcommands?\b.{0,24}\b(de|do|dena|dikha|bata|batao)\b|\b(de|do|dena|dikha|dikhao|bata)\b.{0,24}\bcommands?\b|jab (main|me|mai) bol|bola tha|mene diya|maine diya|\bsnippet\b/i,
-  skill:/kya\s*(kya\s*)?kar\s*sakt|tu kya|tum kya|capabilit|\bskills?\b|\btools?\b|features?|kya aata|what can you/i,
-  links:/whatsapp|wa\.me|telegram|\blinks?\b|\burl\b|maps?\b|youtube|spotify|message|\bmsg\b|\bbhej|\bsms\b|\bmail|navigate|raasta|route|deep ?link/i,
+  skill:/kya\s*(kya\s*)?kar\s*sakt|tu kya|tum kya|capabilit|\bskills?\b|\btools?\b|kya aata|what can you/i,
+  links:/whatsapp|wa\.me|telegram|\blinks?\b|\burl\b|maps?\b|youtube|spotify|message\s+(bhej|send|kar|likh)|\bmsg\s+(bhej|send|kar|likh)|\bbhej|\bsms\b|\bmail|navigate|raasta|route|deep ?link/i,
   screen:/screen|\btap\b|click|scroll|instagram|phonepe|paytm|gpay|\bpin\b|accessib|app (me|mein|ke andar)|\bsend\b|settings|wifi|bluetooth|mobile data/i,
   files:/\bfiles?\b|folder|artifact|preview|trash|\bcode\b|script|\bedit\b|bana(o|do|na)|\blikh|\bwrite\b|\bcreate\b|\bzip\b|\bpdf\b|project|\bwork\b|\.(py|js|html|css|txt|md|json|csv|apk)\b|\brename\b|\bmove\b|\bcopy\b|delete/i,
   memory:/memory|yaad|remember|\bsave\b|\bnotes?\b|\bindex\b|pichl|pehle|\bkal\b|history|\blogs?\b|kya save|recipes?/i,

@@ -6,7 +6,7 @@ const pkgDir = path.join(root, 'android/app/src/main/java/com/chaman/nap');
 const resDir = path.join(root, 'android/app/src/main/res');
 fs.mkdirSync(pkgDir, { recursive: true });
 
-for (const f of ['PhoneControlPlugin.java', 'ScreenControlPlugin.java', 'ChamanAccessibilityService.java', 'TermuxPlugin.java', 'TermuxResultReceiver.java', 'FilesPlugin.java', 'IntentsPlugin.java', 'NotifyCore.java', 'NotifyReceiver.java', 'NotifyBootReceiver.java', 'NotifyPlugin.java', 'NotifyAi.java', 'AiClient.java', 'AiJobService.java', 'ChamanBubble.java']) {
+for (const f of ['PhoneControlPlugin.java', 'ScreenControlPlugin.java', 'ChamanAccessibilityService.java', 'TermuxPlugin.java', 'TermuxResultReceiver.java', 'FilesPlugin.java', 'IntentsPlugin.java', 'NotifyCore.java', 'NotifyReceiver.java', 'NotifyBootReceiver.java', 'NotifyPlugin.java', 'NotifyAi.java', 'AiClient.java', 'AiJobService.java', 'ChamanBubble.java', 'FaceBackupCrypto.java', 'FaceBackup.java']) {
   fs.copyFileSync(path.join(root, 'native', f), path.join(pkgDir, f));
 }
 

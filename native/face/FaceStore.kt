@@ -7,6 +7,7 @@ import java.io.File
 
 /** Keeps enrolled face embeddings (no photos) in the app's private storage. */
 class FaceStore(ctx: Context) {
+    private val appCtx: Context = ctx.applicationContext
     class Sample(val source: String, val timestamp: Long, val emb: Map<String, FloatArray>)
 
     private val file = File(ctx.filesDir, "faces.json")
@@ -64,5 +65,7 @@ class FaceStore(ctx: Context) {
             file.writeText(tmp.readText())
             tmp.delete()
         }
+        // encrypted backup in /sdcard/Chaman/backup (only if he set a passphrase); never breaks enrolling
+        try { FaceBackup.autoUpdate(appCtx) } catch (e: Throwable) { }
     }
 }

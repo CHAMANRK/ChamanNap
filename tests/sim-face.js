@@ -27,6 +27,10 @@ const faceNative=async(m,o)=>{
   if(r.throw){const e=new Error(r.message||'x');e.code=r.throw;throw e}
   return r;
  }
+ if(m==='backupStatus')return{exists:!!F.bk,auto:!!F.bk,at:1700000000000};
+ if(m==='backupSet'){F.bkSet=(F.bkSet||[]).concat([o]);F.bk=1;return{ok:true}}
+ if(m==='backupRestore'){F.bkRes=(F.bkRes||[]).concat([o]);if(o.pass!=='right-pass'){const e=new Error('Passphrase galat hai ya backup file kharab hai');e.code='BAD_PASS';throw e}F.enrolled=3;return{ok:true,enrolled:3}}
+ if(m==='backupDelete'){F.bk=0;F.bkDel=(F.bkDel||0)+1;return{ok:true}}
  if(m==='clearFaces'){F.enrolled=0;return{ok:true}}
  return{ok:true};
 };
@@ -50,10 +54,10 @@ const nat=name=>native.filter(x=>x===name).length;
 (async()=>{
  // 0. defaults + tool registration
  const d=run('flCfg()');
- ok(d.on&&d.min===30&&d.areas.join()==='screen,termux','defaults: on, 30 min, only screen + termux');
+ ok(d.on&&d.min===30&&d.areas.join()==='screen,termux,comms,memory','defaults: on, 30 min, screen + termux + call/sms + memory');
  ok(run("TOOLS.some(t=>t.function.name==='who_is_there')"),'who_is_there tool registered');
  await new Promise(r=>setTimeout(r,60));
- ok(F.cfg&&F.cfg.ttlMin===30&&F.cfg.areas.join()==='screen,termux'&&F.cfg.master===true,'config pushed to native at boot');
+ ok(F.cfg&&F.cfg.ttlMin===30&&F.cfg.areas.join()==='screen,termux,comms,memory'&&F.cfg.master===true,'config pushed to native at boot');
  ok(run("flArea('screen_click',{})")==='screen'&&run("flArea('termux_run',{})")==='termux'&&run("flArea('file_write',{})")==='files'&&run("flArea('send_sms',{})")==='comms'&&run("flArea('memory_save',{})")==='memory','areas mapped');
  ok(run("flArea('screen_key',{key:'lock'})")===null&&run("flArea('file_present',{})")===null&&run("flArea('who_is_there',{})")===null&&run("flArea('rules_read',{})")===null,'lock key, file_present, who_is_there, rules_read never gated');
 
@@ -213,6 +217,35 @@ const nat=name=>native.filter(x=>x===name).length;
  ok(doc.querySelector('#flwin').hidden===true,'test verify (grant:false) does not show a window');
  F.remainMs=20*60000;F.clears=0;run('flBind&&0');run('sheet()');await doc.querySelector('#fl_off').onclick();
  ok(F.clears===1,'Settings: "Verify window abhi band karo" revokes the window');
+
+ // 12b. part 2: old saved choice gets call/sms + memory once, later unticks stay
+ run("S.fl={on:true,min:30,areas:['screen','termux']};delete S.fl.fv2");
+ ok(run('flCfg().areas.join()')==='screen,termux,comms,memory'&&run('S.fl.fv2')===1,'old saved areas migrated once (comms, memory added)');
+ run("S.fl={on:true,min:30,fv2:1,areas:['screen']}");
+ ok(run('flCfg().areas.join()')==='screen','after migration his unticked areas stay unticked');
+ // rule keywords: common chat words must not pull in task rules
+ if(run("typeof ruleAreas")==='function'){
+  const RA=q=>run('ruleAreas('+JSON.stringify(q)+').join()');
+  ok(!/intents|links|skill/.test(RA('is app ko dusron ko share karna chahu to kaunse features batau, message kaise karu')),'invite/pitch chat pulls no intents/links/skill rules: '+RA('is app ko dusron ko share karna chahu to kaunse features batau, message kaise karu'));
+  ok(/intents/.test(RA('ye photo share karo'))&&/links/.test(RA('rahul ko message bhej do'))&&/skill/.test(RA('tu kya kya kar sakta hai')),'real task wording still matches: '+RA('ye photo share karo')+' | '+RA('rahul ko message bhej do'));
+ } else console.log('SKIP ruleAreas not loaded in this test');
+
+ // 12c. part 3: encrypted backup box in Settings
+ F.enrolled=0;run('sheet()');await new Promise(r=>setTimeout(r,100)); // let the first status refresh finish
+ const BP=doc.querySelector('#flb_p'),BSB=doc.querySelector('#flb_set'),BR=doc.querySelector('#flb_res'),BD=doc.querySelector('#flb_del'),ST=doc.querySelector('#fls');
+ ok(/type="password" id="flb_p"/.test(run('flHtml()'))&&/id="flb_set"/.test(run('flHtml()'))&&/id="flb_res"/.test(run('flHtml()')),'Settings has the backup passphrase box (password type) and buttons');
+ BP.value='abc';await BSB.onclick();
+ ok(!(F.bkSet||[]).length&&/6/.test(ST.textContent),'short passphrase is not sent');
+ BP.value='right-pass';await BSB.onclick();
+ ok((F.bkSet||[]).length===1&&F.bkSet[0].pass==='right-pass'&&BP.value==='','backup set: passphrase goes to native once, box is cleared');
+ ok(!/right-pass/.test(JSON.stringify(store))&&!/right-pass/.test(ST.textContent),'passphrase is not in saved data or on screen');
+ BP.value='wrong-one';await BR.onclick();
+ ok(/galat/.test(ST.textContent)&&BP.value===''&&F.enrolled===0,'restore with a wrong passphrase: clear message, nothing restored, box cleared');
+ BP.value='right-pass';await BR.onclick();
+ ok(/3 face/.test(ST.textContent)&&F.enrolled===3,'restore with the right passphrase: faces are back');
+ await BD.onclick();ok(!F.bkDel,'backup delete needs a second tap');
+ await BD.onclick();await new Promise(r=>setTimeout(r,200));ok(F.bkDel===1,'second tap deletes the backup (after the owner check)');
+ ok(!/backup/i.test(run("JSON.stringify(TOOLS.map(t=>t.function?t.function.name:t.name))")),'AI has no backup tool');
 
  // 13. other files unchanged behaviour: system prompt still migrated, version
  ok(/^\d+\.\d{5}\.\d+$/.test(run('APP_VER')),'APP_VER '+run('APP_VER'));
