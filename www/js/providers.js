@@ -59,6 +59,7 @@ function apiMsgs(vision){
 }
 const provName=id=>id==='auto'?'Auto':id==='chaman'?'Chaman (sirf chat)':(P.find(p=>p.id===id)||{name:id}).name.replace(' (optional)','');
 function provOrder(){
-  const base=P.filter(p=>!p.g).sort((a,b)=>(b.id==='nvidia')-(a.id==='nvidia')),sel=P.find(p=>p.id===S.prov);
+  const ORD=['groq','nvidia','cerebras','openrouter','mistral'],rk=p=>{const i=ORD.indexOf(p.id);return i<0?99:i};
+  const base=P.filter(p=>!p.g).sort((a,b)=>rk(a)-rk(b)),sel=P.find(p=>p.id===S.prov);
   return sel?[sel].concat(base.filter(p=>p!==sel)):base;
 }

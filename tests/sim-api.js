@@ -99,7 +99,7 @@ const sw=(i,t_,on)=>({i,k:'Switch',t:t_,f:'c'+(on?'x':'')});
  const rt=t('ruleText')('api');ok(rt.includes('battery')&&rt.includes('api_check')&&rt.includes('confirm card'),'rules api text');
  ok(t('RULE_ORDER').includes('api')&&t('skillText()').includes('device_api(')&&t('skillText()').includes('set_switch('),'skill lists device_api and set_switch');
  ok(!/Termux:API are not|not set up yet: Termux:API/i.test(t('S.system')),'prompt no longer says Termux:API is missing');
- ok(/press|set_switch/.test(t('S.system'))&&/never ask Najeef to tap/i.test(t('S.system')),'prompt tells Chaman to press things itself');
+ ok(/press|set_switch/.test(t('S.system'))&&/never ask (him|Najeef) to tap/i.test(t('S.system')),'prompt tells Chaman to press things itself');
  ok(/never ask Najeef to press Save/i.test(t("ruleText('intents')")),'intents rules say: never ask him to press Save or a toggle');
  ok(t("logTool('device_api',{name:'clipboard_set',params:{text:'SECRET'}})").indexOf('SECRET')<0,'log has no private values');
  ok(t('PREV16_SYS').length>1000&&t('DEF_SYS')!==t('PREV16_SYS'),'previous prompt kept for migration');
