@@ -247,4 +247,18 @@ try {
     console.log('APK version set to ' + ver);
   }
 } catch (e) { console.log('version patch skipped: ' + e.message); }
+// Signing: debug builds must use OUR fixed key. The workflow writes it to $CHAMAN_KS (and ~/.android/debug.keystore). Before this patch gradle
+// signed with a key of its own (APK signer SHA-256 was not the keystore's), so every build had a new signature and the phone needed an uninstall.
+try {
+  const gp = path.join(root, 'android/app/build.gradle');
+  if (fs.existsSync(gp)) {
+    let g = fs.readFileSync(gp, 'utf8');
+    if (!g.includes('CHAMAN_KS')) {
+      if (!/\n    buildTypes\s*\{/.test(g)) throw new Error('buildTypes block not found');
+      g = g.replace(/\n    buildTypes\s*\{/, "\n    signingConfigs {\n        debug {\n            storeFile file(System.getenv('CHAMAN_KS') ?: (System.getProperty('user.home') + '/.android/debug.keystore'))\n            storePassword 'android'\n            keyAlias 'androiddebugkey'\n            keyPassword 'android'\n        }\n    }\n    buildTypes {\n        debug {\n            signingConfig signingConfigs.debug\n        }");
+      fs.writeFileSync(gp, g);
+      console.log('debug signing pinned to the fixed keystore (CHAMAN_KS)');
+    }
+  }
+} catch (e) { throw new Error('signing patch failed: ' + e.message); }
 console.log('PhoneControl + ScreenControl plugins and accessibility service patched into android project');

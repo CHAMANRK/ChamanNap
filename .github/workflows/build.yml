@@ -22,6 +22,8 @@ jobs:
           if [ -z "$KS" ]; then echo "ERROR: GitHub secret DEBUG_KEYSTORE_B64 nahi mila (Settings > Secrets and variables > Actions)"; exit 1; fi
           mkdir -p ~/.android
           echo "$KS" | base64 -d > ~/.android/debug.keystore
+          cp ~/.android/debug.keystore "$RUNNER_TEMP/chaman-fixed.keystore"
+          echo "CHAMAN_KS=$RUNNER_TEMP/chaman-fixed.keystore" >> "$GITHUB_ENV" # patch-android.js pins gradle's debug signing to this file
           keytool -list -keystore ~/.android/debug.keystore -storepass android | grep -i "androiddebugkey\|SHA" || { echo "ERROR: keystore sahi nahi hai"; exit 1; }
       - run: npm install
       - name: Face model cache (restore)
@@ -42,16 +44,17 @@ jobs:
       - run: node scripts/patch-android.js
       - run: npx cap sync android
       - run: chmod +x android/gradlew && cd android && ./gradlew assembleDebug
-      - name: Check APK signature + version (must match the keystore SHA above, every build)
+      - name: Check APK signature (build FAILS if it is not the fixed key)
         run: |
           APK=android/app/build/outputs/apk/debug/app-debug.apk
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
-          echo "== keystore (SHA-256, expected) =="
-          keytool -list -keystore ~/.android/debug.keystore -storepass android | grep -i "SHA-256\|SHA256" || true
-          echo "== APK signer (SHA-256, actual; same hex without colons) =="
-          "$BT"/apksigner verify --print-certs "$APK" | grep -i "certificate SHA-256\|Signer"
-          echo "== APK package / versionCode =="
+          EXP=$(keytool -list -keystore "$CHAMAN_KS" -storepass android | grep -i "SHA-256\|SHA256" | head -1 | sed 's/.*: //' | tr -d ': ' | tr 'A-F' 'a-f')
+          ACT=$("$BT"/apksigner verify --print-certs "$APK" | grep -i "certificate SHA-256 digest" | head -1 | sed 's/.*: //' | tr -d ' ' | tr 'A-F' 'a-f')
+          echo "keystore SHA-256 (expected): $EXP"
+          echo "APK signer SHA-256 (actual): $ACT"
           "$BT"/aapt dump badging "$APK" | grep "^package:"
+          if [ -z "$EXP" ] || [ "$EXP" != "$ACT" ]; then echo "ERROR: APK fixed key se sign nahi hui, isse install update nahi hoga"; exit 1; fi
+          echo "OK: APK signed with the fixed key"
       - uses: actions/upload-artifact@v4
         with:
           name: chaman-apk
