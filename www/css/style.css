@@ -72,9 +72,10 @@ form textarea{resize:none;max-height:140px}
 .li .lt{flex:1;min-width:0;white-space:pre-wrap}
 blockquote{border-left:3px solid var(--accent);padding:2px 0 2px 12px;margin:8px 0;color:var(--muted);white-space:pre-wrap}
 hr{border:0;border-top:1px solid var(--border);margin:12px 0}
-.tw{overflow-x:auto;margin:8px 0;white-space:normal}
+/* Wide blocks (tables, and any new wide thing) live in .tw: words never break inside, the block scrolls sideways instead. .msg has overflow-wrap:anywhere, so it is switched off here. */
+.tw{overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;margin:8px 0;white-space:normal;overflow-wrap:normal;word-break:normal}
 table{border-collapse:collapse;font-size:14px}
-th,td{border:1px solid var(--border);padding:6px 10px;text-align:left;vertical-align:top}
+th,td{border:1px solid var(--border);padding:6px 10px;text-align:left;vertical-align:top;min-width:92px;overflow-wrap:normal;word-break:normal}
 th{background:var(--surface);font-weight:600}
 b{font-weight:700}i{font-style:italic}del{opacity:.65}
 :not(pre)>code{background:var(--code);border:1px solid var(--border);border-radius:6px;padding:1px 5px;font-size:13px}
