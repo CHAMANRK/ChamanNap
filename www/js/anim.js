@@ -1,4 +1,4 @@
-// step27 (1.35000.0): waiting animation v1. 1.36000.0 (v2): long waits also show small acts (3 texts + 3 shapes) and /anim previews them.
+// step27 (1.35000.0): waiting animation v1. 1.36000.0 (v2): long waits also show small acts and /anim previews them. 1.36002.0: 14 acts (clock, bolt, smiley, tick + 4 more texts, 2-line text).
 // Fine dots form the word "Chaman": in the middle of an empty chat, and in the status row (where the old dot was) while the AI works.
 // On send the dots scatter over the CHAT AREA only, now and then regroup into "Chaman", and settle when the answer arrives.
 // One canvas over #chat (pointer-events none). No native code. If canvas is missing or anything throws, the animation turns itself off
@@ -29,12 +29,14 @@ function cwTplBuild(alphaAt,w,h,N,even){
 // browser only: draw "Chaman" once on a hidden canvas and read the inked pixels
 function cwSample(text,face,even){
   text=text||'Chaman';
-  const c=document.createElement('canvas'),H0=80;
+  const lines=String(text).split('\n');
+  const c=document.createElement('canvas'),H0=80,LH=Math.round(H0*1.2);
   const g=c.getContext&&c.getContext('2d');if(!g)return null;
   const font=face||('700 '+H0+'px ui-serif,Georgia,serif');
-  g.font=font;const tw=Math.ceil(g.measureText(text).width)+16;
-  c.width=tw;c.height=Math.ceil(H0*1.4);
-  g.font=font;g.textBaseline='alphabetic';g.fillStyle='#000';g.fillText(text,8,H0);
+  g.font=font;const ws=lines.map(l=>Math.ceil(g.measureText(l).width)),mw=Math.max.apply(null,ws),tw=mw+16;
+  c.width=tw;c.height=Math.ceil(H0*1.4)+(lines.length-1)*LH;
+  g.font=font;g.textBaseline='alphabetic';g.fillStyle='#000';
+  lines.forEach((l,i)=>g.fillText(l,8+(mw-ws[i])/2,H0+i*LH)); // lines are centred
   const d=g.getImageData(0,0,c.width,c.height).data;
   let x0=1e9,x1=-1,y0=1e9,y1=-1;
   for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++)if(d[(y*c.width+x)*4+3]>110){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}
@@ -46,21 +48,52 @@ function cwSample(text,face,even){
 function cwHeart(x,y){const X=x*1.3,Y=-y*1.3+.1,a=X*X+Y*Y-1;return a*a*a-X*X*Y*Y*Y<=0}
 function cwRing(x,y){const r=Math.hypot(x,y);if(r<.68||r>1)return false;const a=Math.atan2(y,x);return !(a>-.55&&a<.55)} // ring with a gap, so the spin is visible
 const CW_STAR=(()=>{const v=[];for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,r=i%2?.42:1;v.push([Math.cos(a)*r,Math.sin(a)*r])}return v})();
-function cwStar(x,y){const v=CW_STAR;let c=false;for(let i=0,j=v.length-1;i<v.length;j=i++){if((v[i][1]>y)!==(v[j][1]>y)&&x<(v[j][0]-v[i][0])*(y-v[i][1])/(v[j][1]-v[i][1])+v[i][0])c=!c}return c}
-// fx(t): scale + rotation of the target while the act is shown (t = seconds since the act started)
+function cwStar(x,y){return cwPoly(CW_STAR,x,y)}
+// capsule: distance from (x,y) to the segment a-b is below r
+function cwSeg(x,y,ax,ay,bx,by,r){const dx=bx-ax,dy=by-ay,t=Math.max(0,Math.min(1,((x-ax)*dx+(y-ay)*dy)/(dx*dx+dy*dy))),ex=x-ax-t*dx,ey=y-ay-t*dy;return ex*ex+ey*ey<r*r}
+function cwPoly(v,x,y){let c=false;for(let i=0,j=v.length-1;i<v.length;j=i++){if((v[i][1]>y)!==(v[j][1]>y)&&x<(v[j][0]-v[i][0])*(y-v[i][1])/(v[j][1]-v[i][1])+v[i][0])c=!c}return c}
+const CW_BOLT=[[.3,-1],[-.5,.1],[-.08,.1],[-.32,1],[.52,-.22],[.1,-.22]];
+function cwBolt(x,y){return cwPoly(CW_BOLT,x,y)}
+function cwTick(x,y){return cwSeg(x,y,-.72,.02,-.26,.52,.15)||cwSeg(x,y,-.26,.52,.78,-.56,.15)}
+// parts (clock, smiley): each part has its own group id g. Group 1/2 dots move on their own (clock hands turn, eyes blink); the rest is the still part.
+function cwClockFace(x,y){const r=Math.hypot(x,y);if(r>=.86&&r<=1)return true;if(r<.1)return true;for(let k=0;k<4;k++){const a=k*Math.PI/2;if(cwSeg(x,y,Math.cos(a)*.62,Math.sin(a)*.62,Math.cos(a)*.8,Math.sin(a)*.8,.055))return true}return false}
+function cwClockMin(x,y){return cwSeg(x,y,0,0,0,-.78,.055)}
+function cwClockHour(x,y){return cwSeg(x,y,0,0,0,-.5,.08)}
+function cwSmileFace(x,y){const r=Math.hypot(x,y);if(r>=.88&&r<=1)return true;if(r>=.5&&r<=.63){const a=Math.atan2(y,x);return a>.5&&a<Math.PI-.5}return false}
+function cwSmileEyes(x,y){return Math.hypot(x+.36,y+.28)<.13||Math.hypot(x-.36,y+.28)<.13}
+// fx(t): scale + rotation of the target while the act is shown (t = seconds since the act started); hd = clock hands angles, sq = eyes squash (blink)
 const CW_ACTS=[
   {n:'soch',k:'text',t:'soch raha hu',h:36},
   {n:'bas',k:'text',t:'bas aa gaya',h:36},
   {n:'counter',k:'count',h:64,al:['count']},
+  {n:'ruk',k:'text',t:'ruk ja bhai',h:36},
+  {n:'dimag',k:'text',t:'dimag chal\nraha hai',h:58},
+  {n:'chai',k:'text',t:'chai pi le\ntab tak',h:58},
+  {n:'net',k:'text',t:'net slow\nhai kya',h:58},
   {n:'heart',k:'shape',f:cwHeart,trim:1,h:84,al:['dil'],fx:t=>{const ph=(t*1.3)%1;const pu=ph<.14?Math.sin(ph/.14*Math.PI):(ph>.22&&ph<.34?.55*Math.sin((ph-.22)/.12*Math.PI):0);return{s:1+.13*pu,r:0}}},
   {n:'ring',k:'shape',f:cwRing,h:96,fx:t=>({s:1,r:t*3.4})},
-  {n:'star',k:'shape',f:cwStar,h:96,al:['tara'],fx:t=>({s:1+.09*Math.sin(t*6),r:t*.9})}
+  {n:'star',k:'shape',f:cwStar,h:96,al:['tara'],fx:t=>({s:1+.09*Math.sin(t*6),r:t*.9})},
+  {n:'clock',k:'shape',parts:[[cwClockFace,.70],[cwClockMin,.17],[cwClockHour,.13]],h:96,al:['ghadi'],fx:t=>({s:1,r:0,hd:[0,t*4.2,t*.35]})},
+  {n:'bolt',k:'shape',f:cwBolt,trim:1,h:96,al:['bijli'],fx:t=>({s:1+.07*Math.sin(t*16),r:.06*Math.sin(t*23)})},
+  {n:'smile',k:'shape',parts:[[cwSmileFace,.75],[cwSmileEyes,.25]],h:96,al:['smiley'],fx:t=>{const ph=t%1;return{s:1+.03*Math.sin(t*4),r:.12*Math.sin(t*3),sq:ph>.82?Math.max(.08,1-Math.sin((ph-.82)/.18*Math.PI)*.92):1}}},
+  {n:'tick',k:'shape',f:cwTick,trim:1,h:90,al:['right'],fx:t=>({s:1+.2*Math.max(0,1-t*2.5)*Math.cos(t*16),r:0})}
 ];
 function cwFindAct(q){q=String(q||'').trim().toLowerCase();if(!q)return null;return CW_ACTS.find(a=>a.n===q||(a.al||[]).indexOf(q)>=0)||CW_ACTS.find(a=>a.n.indexOf(q)===0)||null}
 // browser only: text / shape templates (built once, then cached; the counter is rebuilt when its number changes)
 function cwTextTpl(s){return cwSample(s,'700 80px ui-sans-serif,system-ui,sans-serif',true)}
 function cwShapeTpl(a){
-  const RS=120,f=(ix,iy)=>a.f((ix+.5)/RS*2-1,(iy+.5)/RS*2-1);
+  const RS=160,raster=(fn)=>(ix,iy)=>fn((ix+.5)/RS*2-1,(iy+.5)/RS*2-1);
+  if(a.parts){ // several parts, each its own dots + group id (0 = still, 1.. = moves on its own)
+    const pts=[],g=[],gc={};let left=CW.N;
+    a.parts.forEach((pt,i)=>{
+      const n=i===a.parts.length-1?left:Math.round(CW.N*pt[1]);left-=n;
+      const t=cwTplBuild(raster(pt[0]),RS,RS,n,true);if(!t)return;
+      let su=0,sv=0;t.pts.forEach(q=>{pts.push(q);g.push(i);su+=q[0];sv+=q[1]});
+      gc[i]=[su/n,sv/n]; // centre of the part (the eyes squash around it)
+    });
+    return pts.length===CW.N?{pts:pts,asp:1,g:g,gc:gc}:null;
+  }
+  const f=raster(a.f);
   let x0=0,y0=0,w=RS,h=RS;
   if(a.trim){let X0=1e9,X1=-1,Y0=1e9,Y1=-1;for(let y=0;y<RS;y++)for(let x=0;x<RS;x++)if(f(x,y)){if(x<X0)X0=x;if(x>X1)X1=x;if(y<Y0)Y0=y;if(y>Y1)Y1=y}if(X1<0)return null;x0=X0;y0=Y0;w=X1-X0+1;h=Y1-Y0+1}
   return cwTplBuild((x,y)=>f(x+x0,y+y0),w,h,0,true);
@@ -72,7 +105,7 @@ function cwActTpl(a){
   if(t)CW.ac[a.n]=t;
   return t;
 }
-function cwUseTpl(t,name){const P=CW.P,n=Math.min(P.length,t.pts.length);for(let i=0;i<n;i++){P[i].u=t.pts[i][0];P[i].v=t.pts[i][1]}CW.cur=name}
+function cwUseTpl(t,name){const P=CW.P,n=Math.min(P.length,t.pts.length);for(let i=0;i<n;i++){P[i].u=t.pts[i][0];P[i].v=t.pts[i][1];P[i].g=t.g?t.g[i]:0}CW.cur=name}
 function cwPickAct(){
   if(CW.force)return CW_ACTS.find(a=>a.n===CW.force)||null;
   const pool=CW_ACTS.filter(a=>a.n!==CW.lastAct&&!a.dead);
@@ -109,7 +142,7 @@ function animList(){return CW_ACTS.map(a=>a.n).join(', ')}
 async function animCmd(a){
   const q=String(a||'').trim().toLowerCase();
   const say=t=>H.push({role:'assistant',by:'App',info:1,content:t});
-  if(q==='list'||q==='help'||q==='?'){say('/anim = random demo (40 sec), /anim <naam> = sirf wahi (15 sec). Stop dabane se ruk jata hai.\nNaam: '+animList()+' (dil = heart, tara = star).');return}
+  if(q==='list'||q==='help'||q==='?'){say('/anim = random demo (40 sec), /anim <naam> = sirf wahi (15 sec). Stop dabane se ruk jata hai.\nNaam: '+animList()+' ('+CW_ACTS.filter(a=>a.al).map(a=>a.al[0]+' = '+a.n).join(', ')+').');return}
   let name='';
   if(q){const m=cwFindAct(q);if(!m){say('Ye animation nahi mila: '+q+'. Naam: '+animList()+'.');return}name=m.n}
   if(!cwOk()||CW.rm){say('Animation abhi band hai ('+(CW.rm?'reduced motion on hai':'canvas nahi chala')+'), isliye demo nahi dikha sakta.');return}
@@ -129,7 +162,7 @@ function cwSpawn(kind,A){
   CW.cur='word';
   CW.P=CW.tpl.pts.map(q=>{
     const w=cwPick();
-    const p={u:q[0],v:q[1],x:0,y:0,vx:0,vy:0,wx:w.x,wy:w.y,wt:cwR(0,3),sp:cwR(70,180),f:cwR(.6,2.2),ph:cwR(0,6.283),r:cwR(.7,1.1),d:cwR(0,.35)};
+    const p={u:q[0],v:q[1],x:0,y:0,vx:0,vy:0,wx:w.x,wy:w.y,wt:cwR(0,3),sp:cwR(70,180),f:cwR(.6,2.2),ph:cwR(0,6.283),r:cwR(.7,1.1),d:cwR(0,.35),g:0};
     if(kind==='formed'&&A){p.x=A.x+(p.u-.5)*A.w+cwR(-5,5);p.y=A.y+(p.v-.5)*A.h+cwR(-5,5)}
     else{p.x=cwR(0,CW.W);p.y=cwR(0,CW.H)}
     return p;
@@ -147,9 +180,12 @@ function cwBurst(A){
 function cwStep(P,dt,form,A,T,tm){
   const W=CW.W,H=CW.H;
   let rc=1,rs=0,sc=1;if(A.rot){rc=Math.cos(A.rot);rs=Math.sin(A.rot)}if(A.s)sc=A.s; // acts can spin / pulse
+  const hd=A.hd,sq=A.sq;let c1=1,s1=0,c2=1,s2=0;if(hd){c1=Math.cos(hd[1]);s1=Math.sin(hd[1]);c2=Math.cos(hd[2]);s2=Math.sin(hd[2])} // group 1/2 turn (clock hands), group 1 squashes (eyes blink)
   for(const p of P){
     if(form&&tm>=p.d){
-      let ox=(p.u-.5)*A.w,oy=(p.v-.5)*A.h;if(rs){const nx=ox*rc-oy*rs;oy=ox*rs+oy*rc;ox=nx}
+      let ox=(p.u-.5)*A.w,oy=(p.v-.5)*A.h;
+      if(p.g){if(hd){const c=p.g===1?c1:c2,s=p.g===1?s1:s2,nx=ox*c-oy*s;oy=ox*s+oy*c;ox=nx}else if(sq!==undefined&&p.g===1)oy=A.gcy+(oy-A.gcy)*sq}
+      if(rs){const nx=ox*rc-oy*rs;oy=ox*rs+oy*rc;ox=nx}
       const tx=A.x+ox*sc,ty=A.y+oy*sc;
       p.vx+=((tx-p.x)*46-p.vx*11)*dt;p.vy+=((ty-p.y)*46-p.vy*11)*dt;
       const sp=Math.hypot(p.vx,p.vy);if(sp>900){p.vx*=900/sp;p.vy*=900/sp}
@@ -179,7 +215,7 @@ function cwAdvance(dt,A){
     if(m==='fin'){CW.al=0;cwSet('off')}else CW.al=1;
     return;
   }
-  if(m==='act'&&CW.act){if(CW.act.fx){const f=CW.act.fx(CW.mt);A.s=f.s;A.rot=f.r}if(CW.act.k==='count')cwCountTick()}
+  if(m==='act'&&CW.act){if(CW.act.fx){const f=CW.act.fx(CW.mt);A.s=f.s;A.rot=f.r;if(f.hd)A.hd=f.hd;if(f.sq!==undefined&&CW.actTpl.gc){A.sq=f.sq;A.gcy=(CW.actTpl.gc[1][1]-.5)*A.h}}if(CW.act.k==='count')cwCountTick()}
   const form=m==='intro'||m==='idle'||m==='hold'||m==='regroup'||m==='act'||m==='fin';
   cwStep(CW.P,dt,form,A,CW.T,CW.mt);
   if(m==='intro'){CW.al=Math.min(1,CW.al+dt/.5);if(CW.mt>CW_TIME.intro)cwSet('idle')}

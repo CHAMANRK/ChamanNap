@@ -56,15 +56,34 @@ ok(ev("CW.P.every(p=>Math.abs(p.x-(180+(p.u-.5)*120))<1e-6)")&&ev('CW.al')===1,'
 // ---- v2: acts (3 texts + 3 shapes) and /anim demo ----
 // fake templates: the node sandbox has no canvas, so text samplers are stubbed; shapes are pure maths and run for real
 ev("cwTextTpl=(s)=>cwTplBuild((x,y)=>x>2&&x<10*s.length&&y>2&&y<18,12*s.length,20)");
-ok(ev("CW_ACTS.length")===6&&ev("CW_ACTS.map(a=>a.n).join()")==='soch,bas,counter,heart,ring,star','6 acts: 3 texts + 3 shapes');
-ok(ev("cwFindAct('dil').n")==='heart'&&ev("cwFindAct('tara').n")==='star'&&ev("cwFindAct('so').n")==='soch'&&ev("cwFindAct('xyz')")===null,'/anim names: alias, prefix, unknown');
-for(const n of ['heart','ring','star']){
+ok(ev("CW_ACTS.length")===14&&ev("CW_ACTS.map(a=>a.n).join()")==='soch,bas,counter,ruk,dimag,chai,net,heart,ring,star,clock,bolt,smile,tick','14 acts: 7 texts + 7 shapes');
+ok(ev("cwFindAct('dil').n")==='heart'&&ev("cwFindAct('tara').n")==='star'&&ev("cwFindAct('ghadi').n")==='clock'&&ev("cwFindAct('bijli').n")==='bolt'&&ev("cwFindAct('smiley').n")==='smile'&&ev("cwFindAct('so').n")==='soch'&&ev("cwFindAct('xyz')")===null,'/anim names: alias, prefix, unknown');
+for(const n of ['heart','ring','star','bolt','tick','clock','smile']){
   const t=ev("cwShapeTpl(cwFindAct('"+n+"'))");
   ok(t&&t.pts.length===560,n+' shape template has N dots');
 }
 ok(ev("cwHeart(0,0)")&&!ev("cwHeart(.95,-.95)")&&ev("cwStar(0,0)")&&!ev("cwStar(.95,.95)")&&!ev("cwRing(0,0)")&&ev("cwRing(-.85,0)")&&!ev("cwRing(.85,0)"),'shape maths: heart/star filled, ring hollow with a gap');
 const hb=ev("(()=>{const t=cwShapeTpl(cwFindAct('heart'));return t.asp})()");
 ok(hb>.9&&hb<1.4,'heart box trimmed (asp '+hb.toFixed(2)+')');
+// v2.1: clock hands and smiley eyes are groups of dots that move on their own
+{const ck=ev("cwShapeTpl(cwFindAct('clock'))"),sm=ev("cwShapeTpl(cwFindAct('smile'))");
+ const cnt=(t,g)=>t.g.filter(x=>x===g).length;
+ ok(ck.g.length===560&&cnt(ck,0)>250&&cnt(ck,1)>80&&cnt(ck,2)>60,'clock: face + minute hand + hour hand dots ('+cnt(ck,0)+'/'+cnt(ck,1)+'/'+cnt(ck,2)+')');
+ ok(sm.g.length===560&&cnt(sm,0)>380&&cnt(sm,1)>120&&sm.gc[1][1]<.45,'smiley: face + eyes (eyes sit above the middle)');
+ // minute hand points up at angle 0 and turns clockwise: at 90 deg its dots are right of the centre
+ ev("CW.W=360;CW.H=600;CW.cur='x'");
+ const A3="{x:180,y:300,w:96,h:96,hd:[0,Math.PI/2,0]}";
+ ev("CW.P=[];cwSpawn('formed',{x:180,y:300,w:96,h:24});cwUseTpl(globalThis.CKT=cwShapeTpl(cwFindAct('clock')),'clock');for(let i=0;i<150;i++)cwStep(CW.P,.033,true,"+A3+",i*.033,9)");
+ const mh=ev("(()=>{const a=CW.P.filter(p=>p.g===1);return[a.reduce((s,p)=>s+p.x,0)/a.length-180,a.reduce((s,p)=>s+p.y,0)/a.length-300]})()");
+ ok(mh[0]>10&&Math.abs(mh[1])<8,'minute hand at 90 deg points right ('+mh[0].toFixed(0)+','+mh[1].toFixed(0)+')');
+ ev("cwUseTpl(globalThis.SMT=cwShapeTpl(cwFindAct('smile')),'smile')");
+ const eyeSpread=k=>ev("(()=>{CW.P.forEach(p=>{p.x=180;p.y=300});for(let i=0;i<150;i++)cwStep(CW.P,.033,true,{x:180,y:300,w:96,h:96,sq:"+k+",gcy:(SMT.gc[1][1]-.5)*96},i*.033,9);const e=CW.P.filter(p=>p.g===1).map(p=>p.y);return Math.max(...e)-Math.min(...e)})()");
+ const open=eyeSpread(1),shut=eyeSpread(.1);
+ ok(shut<open*.4,'blink: eyes squash ('+open.toFixed(1)+' -> '+shut.toFixed(1)+' px tall)');
+ ok(ev("CW_ACTS.find(a=>a.n==='clock').fx(1).hd[1]")>ev("CW_ACTS.find(a=>a.n==='clock').fx(.5).hd[1]")&&ev("CW_ACTS.find(a=>a.n==='smile').fx(.9).sq")<.5&&ev("CW_ACTS.find(a=>a.n==='smile').fx(.3).sq")===1,'clock turns, smiley blinks once a second');
+ ok(ev("cwBolt(.1,-.5)")&&!ev("cwBolt(-.8,-.8)")&&ev("cwTick(.5,-.3)")&&ev("cwTick(-.5,.28)")&&!ev("cwTick(.6,.6)"),'bolt and tick shapes');
+ ev("cwUseTpl(CW.tpl,'word')");ok(ev("CW.P.every(p=>p.g===0)"),'back to the word: no dot keeps a group');
+}
 // normal wait: word first, then an act at every second stop, then the word again
 const A2="{x:180,y:300,w:120,h:24}";
 const adv=(sec)=>ev("for(let i=0;i<"+Math.round(sec/.033)+";i++)cwAdvance(.033,"+(ev("CW.mode")==='act'?"cwActAnchor()":A2)+")");
@@ -112,7 +131,7 @@ ok(ev("CW.rdur")>0&&ev("(()=>{CW.demo=0;let m=1e9,M=0;for(let i=0;i<50;i++){cons
 ctx.setInterval=setInterval;ctx.clearInterval=clearInterval; // real timers for animCmd (the load-time stub only had to keep anim.js quiet)
 ev("var H=[];var busy=true;CW.on=true;CW.dead=false;CW.rm=false");
 (async()=>{
-  await ev("animCmd('list')");ok(ev("H.length")===1&&/soch, bas, counter, heart, ring, star/.test(ev("H[0].content")),'/anim list names the acts');
+  await ev("animCmd('list')");ok(ev("H.length")===1&&/soch, bas, counter, ruk, dimag, chai, net, heart, ring, star, clock, bolt, smile, tick/.test(ev("H[0].content"))&&/ghadi = clock/.test(ev("H[0].content")),'/anim list names the acts and aliases');
   await ev("animCmd('xyz')");ok(/nahi mila/.test(ev("H[1].content")),'/anim unknown name says so');
   ev("CW.rm=true");await ev("animCmd('')");ok(/reduced motion/.test(ev("H[2].content"))&&ev('CW.demo')===0,'reduced motion: no demo, clear message');
   ev("CW.rm=false;CW.on=false");await ev("animCmd('heart')");ok(/band hai/.test(ev("H[3].content")),'no canvas: clear message');
