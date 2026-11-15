@@ -33,7 +33,7 @@ const rd=ev('CW.rdur');ok(rd>=4.5&&rd<=6.5,'roam lasts 4.5-6.5 s ('+rd.toFixed(1
 run(rd+.2);ok(ev('CW.mode')==='regroup','then regroup into the word');
 run(1.8);ok(ev('CW.mode')==='roam','and scatter again (loops for as long as the wait lasts)');
 // a long wait keeps cycling, never ends by itself
-run(60);ok(ev("CW.mode==='roam'||CW.mode==='regroup'"),'60 s wait: still animating');
+run(60);ok(ev("CW.mode==='roam'||CW.mode==='regroup'||CW.mode==='act'"),'60 s wait: still animating');
 // answer arrives
 ev("cwWant(false,false)");ok(ev('CW.mode')==='fin','answer arrives -> settle');
 run(.3);ok(ev('CW.al')>0&&ev('CW.al')<1&&ev('CW.mode')==='fin','word settles while fading (answer stays readable)');
@@ -47,4 +47,79 @@ ev("CW.mode='fin';cwWant(true,false)");ok(ev('CW.mode')==='hold','new message wh
 // reduced motion: still word only
 ev("CW.rm=true;cwSpawn('rand',"+A+");cwSet('idle')");run(.1);
 ok(ev("CW.P.every(p=>Math.abs(p.x-(180+(p.u-.5)*120))<1e-6)")&&ev('CW.al')===1,'reduced motion: still word, no movement');
-console.log(fail?'\nFAILED '+fail:'\nALL PASS '+pass);process.exit(fail?1:0);
+
+// even sampling (acts): no two dots on top of each other, and the plain word template is unchanged
+{const w=400,h=80;
+ const e=ev("cwTplBuild((x,y)=>x>20&&x<380&&y>12&&y<68,400,80,0,true)");
+ let mind=1e9;for(let i=0;i<e.pts.length;i++)for(let j=i+1;j<e.pts.length;j++){const dx=(e.pts[i][0]-e.pts[j][0])*w,dy=(e.pts[i][1]-e.pts[j][1])*h;mind=Math.min(mind,Math.hypot(dx,dy))}
+ ok(e.pts.length===560&&mind>3,'even sampling: N dots, none stacked (closest '+mind.toFixed(2)+' px)')}
+// ---- v2: acts (3 texts + 3 shapes) and /anim demo ----
+// fake templates: the node sandbox has no canvas, so text samplers are stubbed; shapes are pure maths and run for real
+ev("cwTextTpl=(s)=>cwTplBuild((x,y)=>x>2&&x<10*s.length&&y>2&&y<18,12*s.length,20)");
+ok(ev("CW_ACTS.length")===6&&ev("CW_ACTS.map(a=>a.n).join()")==='soch,bas,counter,heart,ring,star','6 acts: 3 texts + 3 shapes');
+ok(ev("cwFindAct('dil').n")==='heart'&&ev("cwFindAct('tara').n")==='star'&&ev("cwFindAct('so').n")==='soch'&&ev("cwFindAct('xyz')")===null,'/anim names: alias, prefix, unknown');
+for(const n of ['heart','ring','star']){
+  const t=ev("cwShapeTpl(cwFindAct('"+n+"'))");
+  ok(t&&t.pts.length===560,n+' shape template has N dots');
+}
+ok(ev("cwHeart(0,0)")&&!ev("cwHeart(.95,-.95)")&&ev("cwStar(0,0)")&&!ev("cwStar(.95,.95)")&&!ev("cwRing(0,0)")&&ev("cwRing(-.85,0)")&&!ev("cwRing(.85,0)"),'shape maths: heart/star filled, ring hollow with a gap');
+const hb=ev("(()=>{const t=cwShapeTpl(cwFindAct('heart'));return t.asp})()");
+ok(hb>.9&&hb<1.4,'heart box trimmed (asp '+hb.toFixed(2)+')');
+// normal wait: word first, then an act at every second stop, then the word again
+const A2="{x:180,y:300,w:120,h:24}";
+const adv=(sec)=>ev("for(let i=0;i<"+Math.round(sec/.033)+";i++)cwAdvance(.033,"+(ev("CW.mode")==='act'?"cwActAnchor()":A2)+")");
+ev("CW.rm=false;CW.demo=0;CW.force='';CW.mode='off';CW.al=0;cwWant(true,false);cwSpawn('formed',"+A2+");CW.needSpawn=null");
+ok(ev('CW.nextAct')===false&&ev('CW.wt')===0,'new wait: first stop is the word, wait clock starts at 0');
+const seq=[];let guard=0,last='';
+while(guard++<4000){adv(.033);const m=ev('CW.mode');if(m!==last){seq.push(m);last=m}if(seq.filter(x=>x==='act').length>=2&&m==='roam')break}
+ok(seq.join('>').indexOf('hold>roam>regroup>roam>act>roam>regroup>roam>act')===0,'order: hold, roam, WORD, roam, ACT, roam, WORD, roam, ACT ('+seq.slice(0,10).join('>')+')');
+ok(ev('CW.wt')>15,'wait clock keeps counting through acts ('+ev('CW.wt').toFixed(1)+' s)');
+// an act: dots reach the act's shape in the middle of the area, and every dot stays inside
+ev("CW.demo=0;CW.force='star';CW.nextAct=true;CW.mode='roam';CW.mt=99;CW.rdur=1;cwAdvance(.033,"+A2+")");
+ok(ev('CW.mode')==='act'&&ev('CW.act.n')==='star'&&ev('CW.cur')==='star','act starts, dots take the act template');
+adv(2);
+const aa=ev("cwActAnchor()");
+ok(Math.abs(aa.x-180)<1&&aa.y>200&&aa.y<300,'act sits in the middle of the chat area');
+ok(ev("CW.P.every(p=>p.x>=0&&p.x<=360&&p.y>=0&&p.y<=600)"),'act dots stay inside the chat area');
+const maxd=ev("(()=>{const A=cwActAnchor();return Math.max(...CW.P.map(p=>Math.hypot(p.x-A.x,p.y-A.y)))})()");
+ok(maxd<aa.h*1.3,'dots are gathered on the star (farthest '+maxd.toFixed(0)+'px of '+aa.h.toFixed(0)+')');
+adv(1);ok(ev('CW.mode')==='roam'&&ev('CW.cur')==='word','after the act: scatter, dots go back to the word places');
+// spin: ring target rotates
+ev("CW.force='ring';CW.mode='roam';CW.mt=99;CW.rdur=1;CW.nextAct=true;cwAdvance(.033,"+A2+")");
+ev("globalThis.R1=cwActAnchor();globalThis.X1=CW.P[0].x");adv(.8);
+ok(ev("CW.act.fx(1).r")>ev("CW.act.fx(.5).r")&&ev("CW.act.fx(.3).s")===1,'ring spins, does not pulse');
+ok(ev("CW_ACTS.find(a=>a.n==='heart').fx(.05).s")>1.05&&ev("CW_ACTS.find(a=>a.n==='heart').fx(.5).s")===1,'heart pulses (beat), rests between beats');
+// counter shows the seconds of the wait and updates
+ev("CW.force='counter';CW.wt=9.2;CW.mode='roam';CW.mt=99;CW.rdur=1;CW.nextAct=true;cwAdvance(.033,"+A2+")");
+ok(ev('CW.ctxt')==='9s','counter act shows 9s');
+ev("CW.wt=12.5;cwAdvance(.033,cwActAnchor())");
+ok(ev('CW.ctxt')==='12s','counter updates when the second changes');
+// answer arrives during an act: settle on the word and fade
+ev("cwWant(false,false)");ok(ev('CW.mode')==='fin'&&ev('CW.cur')==='word','answer during an act -> back to the word, then fade');
+adv(1);ok(ev('CW.mode')==='off','and stop');
+// act template cannot be built (no canvas): act is skipped, wait goes on with the word, no crash
+ev("CW.ac={};cwTextTpl=()=>null;CW.force='soch';CW.demo=0;CW.mode='roam';CW.P.length||cwSpawn('formed',"+A2+");CW.mt=99;CW.rdur=1;CW.nextAct=true;cwAdvance(.033,"+A2+")");
+ok(ev('CW.mode')==='regroup'&&ev("cwFindAct('soch').dead")===1,'no text template -> act skipped, no crash');
+// /anim demo
+ev("CW_ACTS.forEach(a=>delete a.dead);CW.force='';CW.demo=0;CW.rm=false");
+const id=ev("cwDemo('')");ok(id>0&&ev('CW.demo')===id,'cwDemo on');
+ev("CW.mode='hold';CW.mt=99;cwAdvance(.033,"+A2+")");
+ok(ev('CW.mode')==='roam'&&ev('CW.nextAct')===true&&ev('CW.rdur')<=2.4,'demo: short roam, act comes first');
+ev("cwDemoEnd(999)");ok(ev('CW.demo')===id,'old demo id cannot end a newer demo');
+ev("cwDemoEnd("+id+")");ok(ev('CW.demo')===0,'demo ends');
+ok(ev("CW.rdur")>0&&ev("(()=>{CW.demo=0;let m=1e9,M=0;for(let i=0;i<50;i++){const d=cwRoamDur();m=Math.min(m,d);M=Math.max(M,d)}return m>=4.5&&M<=6.5})()"),'real wait: roam still 4.5-6.5 s');
+// animCmd (node: H, busy stubs)
+ctx.setInterval=setInterval;ctx.clearInterval=clearInterval; // real timers for animCmd (the load-time stub only had to keep anim.js quiet)
+ev("var H=[];var busy=true;CW.on=true;CW.dead=false;CW.rm=false");
+(async()=>{
+  await ev("animCmd('list')");ok(ev("H.length")===1&&/soch, bas, counter, heart, ring, star/.test(ev("H[0].content")),'/anim list names the acts');
+  await ev("animCmd('xyz')");ok(/nahi mila/.test(ev("H[1].content")),'/anim unknown name says so');
+  ev("CW.rm=true");await ev("animCmd('')");ok(/reduced motion/.test(ev("H[2].content"))&&ev('CW.demo')===0,'reduced motion: no demo, clear message');
+  ev("CW.rm=false;CW.on=false");await ev("animCmd('heart')");ok(/band hai/.test(ev("H[3].content")),'no canvas: clear message');
+  // demo runs while busy, ends by itself when the turn stops (Stop pressed)
+  ev("CW.on=true;busy=true");const pr=ev("animCmd('heart')");
+  ok(ev('CW.demo')>0&&ev('CW.force')==='heart','/anim heart: demo on, only heart');
+  ev("busy=false");await pr;
+  ok(ev('CW.demo')===0&&ev('H.length')===4,'Stop (busy off): demo ends, no "khatam" message');
+  console.log(fail?'\nFAILED '+fail:'\nALL PASS '+pass);process.exit(fail?1:0);
+})();

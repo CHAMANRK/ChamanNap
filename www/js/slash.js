@@ -6,6 +6,7 @@ const SLASH=[
   {name:'rule',hint:'Message ko apne custom rules ke saath AI ko bhejo',rulemode:true,run:()=>ruleHelp()},
   {name:'rules',hint:'Custom rules dekho / on / off / delete',run:a=>rulesCmd(a)},
   {name:'remind',hint:'Reminder / notification schedule karo',run:a=>remindCmd(a)},
+  {name:'anim',hint:'Waiting animation ka demo (bina wait ke)',run:a=>animCmd(a)},
   {name:'provider',hint:'AI provider badlo',run:a=>setProv(String(a).trim().split(/\s+/)[0]||'')},
   {name:'p',hint:'/provider ka short',run:a=>setProv(String(a).trim().split(/\s+/)[0]||'')}
 ];
@@ -40,6 +41,7 @@ async function slashRun(sl,t){
   lnBegin('Command chal raha hai','wait');
   try{const r=await turnWait(tn,sl.cmd.run(sl.arg));if(r===STOPPED||tn.stop)H.push(stopNote(tn))}
   catch(e){if(tn.stop)H.push(stopNote(tn));else H.push({role:'assistant',by:'App',info:1,content:'Command fail: '+errMsg(e)})}
+  if(typeof cwDemoEnd==='function')cwDemoEnd();
   const lnWas=LN.on;lnEnd();if(lnWas)NS('finish',finOpt({open:false})).catch(()=>{});
   H=H.slice(-100);persist();TURN=null;setBusy(false);render();logFlush();
   if(typeof bubTurnEnd==='function')bubTurnEnd();
