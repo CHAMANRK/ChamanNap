@@ -42,6 +42,16 @@ jobs:
       - run: node scripts/patch-android.js
       - run: npx cap sync android
       - run: chmod +x android/gradlew && cd android && ./gradlew assembleDebug
+      - name: Check APK signature + version (must match the keystore SHA above, every build)
+        run: |
+          APK=android/app/build/outputs/apk/debug/app-debug.apk
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          echo "== keystore (SHA-256, expected) =="
+          keytool -list -keystore ~/.android/debug.keystore -storepass android | grep -i "SHA-256\|SHA256" || true
+          echo "== APK signer (SHA-256, actual; same hex without colons) =="
+          "$BT"/apksigner verify --print-certs "$APK" | grep -i "certificate SHA-256\|Signer"
+          echo "== APK package / versionCode =="
+          "$BT"/aapt dump badging "$APK" | grep "^package:"
       - uses: actions/upload-artifact@v4
         with:
           name: chaman-apk
