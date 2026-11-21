@@ -1,5 +1,6 @@
 const P=[
  {id:'chaman',name:'Chaman',g:1},
+ {id:'deepseek',name:'DeepSeek',url:'https://api.deepseek.com/chat/completions',model:'deepseek-flash',think:1,ns:1},
  {id:'groq',name:'Groq',url:'https://api.groq.com/openai/v1/chat/completions',model:'openai/gpt-oss-120b'},
  {id:'cerebras',name:'Cerebras',url:'https://api.cerebras.ai/v1/chat/completions',model:'gpt-oss-120b'},
  {id:'openrouter',name:'OpenRouter',url:'https://openrouter.ai/api/v1/chat/completions',model:'openrouter/free'},

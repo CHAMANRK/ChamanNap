@@ -228,7 +228,7 @@ async function remindCmd(arg){
 // ---- Step24 (3b-1): AI schedules need the provider keys inside the phone's native code (the app is closed when they run) ----
 function schAiCfg(){
   try{
-    return provOrder().filter(p=>!p.g&&p.url).map(p=>({id:p.id,name:String(p.name||p.id).replace(' (optional)',''),url:p.url,model:(S.models&&S.models[p.id])||p.model||'',keys:keysOf(p.id).slice(0,6),ptr:(S.ptr&&S.ptr[p.id])||0,read:p.id==='nvidia'?90:40})).filter(x=>x.keys.length);
+    return provOrder().filter(p=>!p.g&&!p.ns&&p.url).map(p=>({id:p.id,name:String(p.name||p.id).replace(' (optional)',''),url:p.url,model:(S.models&&S.models[p.id])||p.model||'',keys:keysOf(p.id).slice(0,6),ptr:(S.ptr&&S.ptr[p.id])||0,read:p.id==='nvidia'?90:40})).filter(x=>x.keys.length);
   }catch(e){return[]}
 }
 let SCH_AI_LAST='';

@@ -1,5 +1,5 @@
 const T=(p,ms)=>Promise.race([p,new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),ms))]);
-const TMO=p=>p.id==='nvidia'?130000:45000;
+const TMO=p=>p.id==='nvidia'||p.think?130000:45000;
 const keysOf=id=>(S.keys[id]||'').split(/[\s,]+/).filter(Boolean);
 
 async function callOpenAI(p,msgs,mdl,tools){
@@ -11,12 +11,13 @@ async function callOpenAI(p,msgs,mdl,tools){
     if(i>0)lnSet(p.name.replace(' (optional)','')+': dusri key try kar raha hu','wait');
     if((cool[k]||0)>Date.now()){last='keys cooldown me';continue}
     try{
-      const r=await T(fetch(p.url,{method:'POST',signal:sig,headers:{'Content-Type':'application/json','Authorization':'Bearer '+k},body:JSON.stringify(Object.assign({model:mdl||S.models[p.id]||p.model,messages:msgs,max_tokens:1024},tools?{tools:tools,tool_choice:'auto'}:{}))}),TMO(p));
+      const r=await T(fetch(p.url,{method:'POST',signal:sig,headers:{'Content-Type':'application/json','Authorization':'Bearer '+k},body:JSON.stringify(Object.assign({model:mdl||S.models[p.id]||p.model,messages:msgs,max_tokens:p.think?8192:1024},p.think?{thinking:{type:'enabled'}}:{},tools?{tools:tools,tool_choice:'auto'}:{}))}),TMO(p));
       if(!r.ok){let bd='';try{bd=(await r.text()).replace(/\s+/g,' ').slice(0,140)}catch(e){}
         if(tools&&[400,404,422].includes(r.status)&&/tool|function/i.test(bd))throw Object.assign(new Error('HTTP '+r.status+' '+bd),{noTools:true});
         cool[k]=Date.now()+(r.status===429?60000:(r.status===401||r.status===403)?600000:15000);last='HTTP '+r.status+(bd?' '+bd:'');continue}
       const j=await r.json();const mm=j.choices&&j.choices[0]&&j.choices[0].message;const t=mm&&mm.content;
       if(tools?!(t||(mm&&mm.tool_calls&&mm.tool_calls.length)):!t){last='empty reply';continue}
+      if(p.think&&mm&&mm.reasoning_content&&typeof lnThink==='function')lnThink(mm.reasoning_content);
       S.ptr[p.id]=idx;sv('nap_s',S);return tools?mm:t;
     }catch(e){if(e.noTools)throw e;if(sig&&sig.aborted)throw e;cool[k]=Date.now()+15000;last=e.message}
   }
@@ -59,7 +60,7 @@ function apiMsgs(vision){
 }
 const provName=id=>id==='auto'?'Auto':id==='chaman'?'Chaman (sirf chat)':(P.find(p=>p.id===id)||{name:id}).name.replace(' (optional)','');
 function provOrder(){
-  const ORD=['groq','nvidia','cerebras','openrouter','mistral'],rk=p=>{const i=ORD.indexOf(p.id);return i<0?99:i};
+  const ORD=['deepseek','groq','nvidia','cerebras','openrouter','mistral'],rk=p=>{const i=ORD.indexOf(p.id);return i<0?99:i};
   const base=P.filter(p=>!p.g).sort((a,b)=>rk(a)-rk(b)),sel=P.find(p=>p.id===S.prov);
   return sel?[sel].concat(base.filter(p=>p!==sel)):base;
 }

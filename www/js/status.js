@@ -1,7 +1,7 @@
 // step18: live status line. ONE store (LN), drawn twice: in the chat (instead of the 3 dots) and as the overlay line
 // over other apps (native 'line'). The app writes every word, the AI never does. Starts when the message is sent,
 // ends when the answer is ready: waiting for a provider, provider switch, tools, confirm waits.
-var LN={on:false,text:'',state:'run',items:[],open:false,tw:0,last:'',timer:0,hold:false};
+var LN={on:false,text:'',state:'run',items:[],open:false,tw:0,last:'',timer:0,hold:false,th:''};
 const LN_KEEP=40;
 const LN_LAB={
   torch:'Torch chala raha hu',set_volume:'Volume badal raha hu',set_brightness:'Brightness badal raha hu',
@@ -56,11 +56,21 @@ function lnTick(){
   const t=setTimeout(lnTick,1000);if(t&&t.unref)t.unref();LN.timer=t;
 }
 function lnBegin(text,state){
-  LN.on=true;LN.items=[];LN.open=false;LN.last='';LN.hold=false;
+  LN.on=true;LN.items=[];LN.open=false;LN.last='';LN.hold=false;LN.th='';
   LN.text=text||'Message bhej raha hu';LN.state=state||'wait';LN.tw=LN.state==='wait'?Date.now():0;
   if(LN.timer)clearTimeout(LN.timer);
   const t=setTimeout(lnTick,1000);if(t&&t.unref)t.unref();LN.timer=t;
   lnSend();
+}
+// DeepSeek thinking: the first line of its reasoning, shown under the status line in the chat only. It is never sent to the phone overlay
+// (the reasoning can quote an SMS or a file) and never saved in the chat history.
+function lnThink(txt){
+  try{
+    if(!LN.on)return;
+    const l=String(txt||'').split('\n').map(x=>x.replace(/[*_`#>]+/g,'').trim()).filter(Boolean)[0]||'';
+    if(!l)return;
+    LN.th=lnCut(l,68);lnDraw();
+  }catch(e){}
 }
 function lnSet(text,state){
   if(!LN.on)return;
@@ -90,7 +100,7 @@ function lnEnd(){
 const LN_ARR='<svg class="lna" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
 function lnHtml(roll){
   const n=LN.items.length,open=LN.open&&n>0;
-  let h=(typeof cwOk==='function'&&cwOk()?'<div class="cwx" aria-hidden="true"></div>':'')+'<div class="lnl"><span class="lnd '+LN.state+'"></span><span class="lnt'+(roll?' rl':'')+'">'+esc(lnShow())+'</span>'+(n?'<span class="lnk'+(open?' o':'')+'">'+LN_ARR+'</span>':'')+'</div>';
+  let h=(typeof cwOk==='function'&&cwOk()?'<div class="cwx" aria-hidden="true"></div>':'')+'<div class="lnl"><span class="lnd '+LN.state+'"></span><span class="lnt'+(roll?' rl':'')+'">'+esc(lnShow())+'</span>'+(n?'<span class="lnk'+(open?' o':'')+'">'+LN_ARR+'</span>':'')+'</div>'+(LN.th?'<div class="lnth">'+esc(LN.th)+'</div>':'');
   if(open){
     h+='<div class="lnx">'+LN.items.slice(-8).map(x=>'<div class="lni"><span class="lnd s '+x[1]+'"></span>'+esc(x[0])+'</div>'+(x[2]?'<div class="lnr">'+esc(x[2])+'</div>':'')).join('')+'</div>';
   }

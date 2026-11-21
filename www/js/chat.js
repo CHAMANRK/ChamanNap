@@ -38,7 +38,7 @@ async function runLoop(p){
     if(typeof out==='string'){const r=await finChk(out.trim());if(r)return r;continue}
     const tc=out.tool_calls||[];
     if(!tc.length){const r=await finChk((out.content||'').trim()||'(khaali jawab)');if(r)return r;continue}
-    msgs.push({role:'assistant',content:out.content||'',tool_calls:tc});
+    msgs.push(Object.assign({role:'assistant',content:out.content||'',tool_calls:tc},p.think&&out.reasoning_content?{reasoning_content:out.reasoning_content}:{}));
     for(const c of tc){
       let args={};try{args=JSON.parse(c.function.arguments||'{}')}catch(e){}
       const nm=c.function.name;
@@ -77,7 +77,7 @@ async function ask(){
       if(nx)lnSet(p.name.replace(' (optional)','')+' fail ('+lnWhy(e)+'), '+nx.name.replace(' (optional)','')+' try kar raha hu','wait');
     }
   }
-  throw new Error(errs.length?'Saare providers fail:\n'+errs.join('\n'):tn.rule?'/rule ke liye tools wala provider chahiye (Groq, Cerebras, OpenRouter, NVIDIA ya Mistral). Chaman model sirf chat karta hai.':'Koi provider set nahi hai. Settings me key daalo.');
+  throw new Error(errs.length?'Saare providers fail:\n'+errs.join('\n'):tn.rule?'/rule ke liye tools wala provider chahiye (DeepSeek, Groq, Cerebras, OpenRouter, NVIDIA ya Mistral). Chaman model sirf chat karta hai.':'Koi provider set nahi hai. Settings me key daalo.');
 }
 function setProv(v){
   v=(v||'').toLowerCase();const ids=['auto'].concat(P.map(p=>p.id));

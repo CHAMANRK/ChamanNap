@@ -1,4 +1,4 @@
-const PROV=['groq','cerebras','openrouter','nvidia','mistral'];
+const PROV=['deepseek','groq','cerebras','openrouter','nvidia','mistral'];
 let kiMode='first';
 function kind(label){
   const l=(label||'').toLowerCase();
@@ -15,6 +15,7 @@ function vkind(v){
   if(/^csk-/.test(v))return'cerebras';
   if(/^sk-or-/.test(v))return'openrouter';
   if(/^nvapi-/.test(v))return'nvidia';
+  if(/^sk-[A-Za-z0-9]{24,}$/.test(v))return'deepseek';
   if(/^hf_/.test(v))return'hf';
   return'';
 }
