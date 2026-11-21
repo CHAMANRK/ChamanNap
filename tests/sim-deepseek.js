@@ -85,5 +85,17 @@ const ev=c=>vm.runInContext(c,ctx);
  const o3=ev("parseKeys('sk-or-v1-abcdefabcdefabcdefabcdefabcdef12')");
  ok(o3.keys.openrouter&&!o3.keys.deepseek,'key import: sk-or- stays OpenRouter');
  ok(ev("P.find(p=>p.id==='deepseek').ns")===1,'DeepSeek is kept out of scheduled AI notifications (ns flag)');
+ // 6. DeepSeek as the vision provider (deepseek-flash takes images in the normal chat format)
+ calls.length=0;n=0;script.length=0;
+ ev("Object.keys(cool).forEach(k=>delete cool[k])");
+ script.push({msg:'Photo me ek ghadi hai.'});
+ ev("S.keys.deepseek='"+DK+"';S.vision={provider:'deepseek',model:'openrouter/free'};H.length=0;H.push({role:'user',content:'ye kya hai',imgs:['data:image/jpeg;base64,AAAA']});");
+ const vr=await ev("ask()");
+ ok(vr&&/ghadi/.test(vr.content)&&/DeepSeek/.test(vr.by||''),'vision answer via DeepSeek: '+(vr&&vr.by));
+ ok(calls[0]&&calls[0].u==='https://api.deepseek.com/chat/completions'&&calls[0].b.model==='deepseek-flash','vision call: DeepSeek endpoint, a leftover non-DeepSeek model name is replaced by deepseek-flash: '+(calls[0]&&calls[0].b.model));
+ const um=calls[0]&&calls[0].b.messages.find(m=>m.role==='user');
+ ok(um&&Array.isArray(um.content)&&um.content.some(c=>c.type==='image_url'&&/^data:image\/jpeg;base64,/.test(c.image_url.url)),'image goes as image_url data URL');
+ ok(!calls[0].b.tools,'vision call has no tools');
+ ok(ev("document.querySelector('#imp')&&true")!==undefined,'settings sim ok');
  console.log('\n'+pass+' passed, '+fail+' failed');process.exit(fail?1:0);
 })();

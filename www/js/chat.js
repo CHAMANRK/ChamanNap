@@ -59,7 +59,8 @@ async function ask(){
     const vp=P.find(p=>p.id===S.vision.provider)||P.find(p=>p.id==='nvidia');
     let t;
     lnSet('Photo dekh raha hu: '+vp.name,'wait');
-    try{t=await callOpenAI(vp,apiMsgs(true),S.vision.model)}catch(e){if(tn.stop)throw e;throw new Error('Vision ('+vp.name+') fail: '+e.message)}
+    const vmod=vp.think&&!/^deepseek/i.test(S.vision.model||'')?vp.model:S.vision.model;
+    try{t=await callOpenAI(vp,apiMsgs(true),vmod)}catch(e){if(tn.stop)throw e;throw new Error('Vision ('+vp.name+') fail: '+e.message)}
     if(!t)throw new Error('Vision ke liye '+vp.name+' ki key Settings me daalo.');
     return{content:t.trim(),by:vp.name+' - vision'};
   }
