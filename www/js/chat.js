@@ -9,6 +9,9 @@ async function runWithTools(p){
   }
   return r;
 }
+// 1.37002.0: step limit 30 (was 20). At the limit the AI gets one last call with no tools to say what was done and what it found.
+const LOOP_MAX=30;
+const LIMIT_ASK='[app] Tool steps ki limit ho gayi. Ab koi tool mat chalao. 3-4 chhoti lines me bata: ab tak kya kiya, kya mila (jaise count ya jo bhi Najeef ne pucha), aur kaam kahan tak hua ya kya baaki hai. Sirf wahi likho jo tumne asli me dekha ya app ne bataya, andaza mat lagao.';
 async function runLoop(p){
   const tn=TURN||{stop:false},msgs=apiMsgs(false),steps=[],by=p.name.replace(' (optional)',''),used={run:0,write:false,mem:false};
   tn.steps=steps;
@@ -27,7 +30,20 @@ async function runLoop(p){
     }
     return await fin(c);
   };
-  for(let n=0;n<20;n++){
+  const limitEnd=async()=>{
+    const fixed='Tool steps ki limit ('+LOOP_MAX+') ho gayi, kaam adhura ho sakta hai.';
+    if(tn.stop)return stopped();
+    try{
+      lnSet(by+' se aakhri report ka wait','wait');
+      msgs.push({role:'user',content:LIMIT_ASK});
+      const o=await callOpenAI(p,msgs,undefined,tools,'none');
+      const c=String(o&&typeof o==='object'?(o.content||''):(o||'')).trim();
+      if(tn.stop)return stopped();
+      if(c)return await fin(c+'\n\n('+fixed+')');
+    }catch(e){if(tn.stop)return stopped()}
+    return await fin(fixed);
+  };
+  for(let n=0;n<LOOP_MAX;n++){
     if(tn.stop)return stopped();
     let out;
     lnSet(by+' se jawab ka wait','wait');
@@ -51,7 +67,7 @@ async function runLoop(p){
     if(tn.stop)return stopped();
     if(SCR_STOP)return{content:'Stop dabaya gaya, kaam rok diya.',by,steps};
   }
-  return await fin('Tool steps ki limit (20) ho gayi, kaam adhura ho sakta hai.');
+  return await limitEnd();
 }
 async function ask(){
   const tn=TURN||{stop:false},lm=H[H.length-1];

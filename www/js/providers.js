@@ -2,7 +2,7 @@ const T=(p,ms)=>Promise.race([p,new Promise((_,r)=>setTimeout(()=>r(new Error('t
 const TMO=p=>p.id==='nvidia'||p.think?130000:45000;
 const keysOf=id=>(S.keys[id]||'').split(/[\s,]+/).filter(Boolean);
 
-async function callOpenAI(p,msgs,mdl,tools){
+async function callOpenAI(p,msgs,mdl,tools,tchoice){
   const ks=keysOf(p.id);if(!ks.length)return null;
   const sig=TURN&&TURN.ac?TURN.ac.signal:undefined;
   const n=ks.length,start=(S.ptr[p.id]||0)%n;let last='';
@@ -11,7 +11,7 @@ async function callOpenAI(p,msgs,mdl,tools){
     if(i>0)lnSet(p.name.replace(' (optional)','')+': dusri key try kar raha hu','wait');
     if((cool[k]||0)>Date.now()){last='keys cooldown me';continue}
     try{
-      const r=await T(fetch(p.url,{method:'POST',signal:sig,headers:{'Content-Type':'application/json','Authorization':'Bearer '+k},body:JSON.stringify(Object.assign({model:mdl||S.models[p.id]||p.model,messages:msgs,max_tokens:p.think?8192:1024},p.think?{thinking:{type:'enabled'}}:{},tools?{tools:tools,tool_choice:'auto'}:{}))}),TMO(p));
+      const r=await T(fetch(p.url,{method:'POST',signal:sig,headers:{'Content-Type':'application/json','Authorization':'Bearer '+k},body:JSON.stringify(Object.assign({model:mdl||S.models[p.id]||p.model,messages:msgs,max_tokens:p.think?8192:1024},p.think?{thinking:{type:'enabled'}}:{},tools?{tools:tools,tool_choice:tchoice||'auto'}:{}))}),TMO(p));
       if(!r.ok){let bd='';try{bd=(await r.text()).replace(/\s+/g,' ').slice(0,140)}catch(e){}
         if(tools&&[400,404,422].includes(r.status)&&/tool|function/i.test(bd))throw Object.assign(new Error('HTTP '+r.status+' '+bd),{noTools:true});
         cool[k]=Date.now()+(r.status===429?60000:(r.status===401||r.status===403)?600000:15000);last='HTTP '+r.status+(bd?' '+bd:'');continue}
@@ -48,11 +48,19 @@ function userText(m,vision,last){
   });
   return t.trim()||'(attachment)';
 }
+const STEPS_KEEP=15;
+function stepsNote(m){
+  const a=(m.steps||[]).slice(-STEPS_KEEP).map(x=>'- '+String(x).replace(/\s+/g,' ').trim().slice(0,110));
+  return a.length?'\n\n[app steps of that turn (the app wrote these, last '+a.length+' of '+m.steps.length+')]\n'+a.join('\n'):'';
+}
 function apiMsgs(vision){
   const hist=H.filter(m=>!m.err&&!m.info).slice(-20);let li=-1;
   hist.forEach((m,i)=>{if(m.role==='user')li=i});
+  // 1.37002.0: the AI also sees the app's own step list of its last 2 tool turns, so "kya kya hua" is answered from facts, not a guess
+  const withSteps=new Set();
+  for(let i=hist.length-1;i>=0&&withSteps.size<2;i--)if(hist[i].role!=='user'&&hist[i].steps&&hist[i].steps.length)withSteps.add(i);
   return [{role:'system',content:S.system}].concat(hist.map((m,i)=>{
-    if(m.role!=='user')return{role:m.role,content:aiText(m)};
+    if(m.role!=='user')return{role:m.role,content:aiText(m)+(withSteps.has(i)?stepsNote(m):'')};
     const t=userText(m,vision,i===li);
     if(vision&&i===li&&m.imgs&&m.imgs.length)return{role:'user',content:[{type:'text',text:t}].concat(m.imgs.map(u=>({type:'image_url',image_url:{url:u}})))};
     return{role:'user',content:t};
