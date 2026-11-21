@@ -22,7 +22,7 @@ async function runLoop(p){
   const guard={n:0};
   let tools=TOOLS;
   FILE_TURN={w:'',p:{}};SCR_STOP=false;LEFT_APP=false;PILL_ERR='';NS('reset').catch(()=>{});
-  const fin=async c=>{if(tools){await autoMem(p,msgs,used,c,steps);if(typeof autoPresent==='function')await autoPresent()}return{content:c,by,steps}};
+  const fin=async c=>{if(used.ui&&c==='(khaali jawab)')c='';if(tools){await autoMem(p,msgs,used,c,steps);if(typeof autoPresent==='function')await autoPresent()}return{content:c,by,steps,uiOnly:!c&&used.ui}};
   const finChk=async c=>{
     if(fakeOut(c)){
       if(!guard.n){guard.n=1;lnSet('Jawab dobara pooch raha hu','wait');msgs.push({role:'assistant',content:c},{role:'user',content:FAKE_MSG});logAdd('guard','AI ne khud tool-output jaisa likha, ek baar dobara pucha');return null}
@@ -58,7 +58,7 @@ async function runLoop(p){
     for(const c of tc){
       let args={};try{args=JSON.parse(c.function.arguments||'{}')}catch(e){}
       const nm=c.function.name;
-      if(nm==='termux_run')used.run++;else if(nm==='termux_write_file'||nm==='file_write'||nm==='edit_file')used.write=true;else if(nm==='memory_save')used.mem=true;
+      if(nm==='termux_run')used.run++;else if(nm==='termux_write_file'||nm==='file_write'||nm==='edit_file')used.write=true;else if(nm==='memory_save')used.mem=true;else if(nm==='ui_render')used.ui=true;
       if(tn.stop)return stopped();
       tn.tool=nm;
       msgs.push({role:'tool',tool_call_id:c.id,content:await execTool(nm,args,steps)});
@@ -151,6 +151,7 @@ $('#f').addEventListener('submit',async e=>{
   if(typeof sesEnsure==='function')sesEnsure();
   logAdd('you',t+(PEND.length?' [files: '+PEND.map(a=>a.name).join(', ')+']':''));
   const pl=PEND.slice(),um={role:'user',content:t,files:pl.map(a=>({name:a.name,size:a.size,kind:a.kind,body:a.body,cut:a.cut})),imgs:pl.filter(a=>a.kind==='img').map(a=>a.img)};
+  if(typeof UI_CHIP!=='undefined'&&UI_CHIP){um.chip=UI_CHIP;UI_CHIP=''}
   H.push(um);
   PEND=[];rendP();render();
   lnBegin('Message bhej raha hu','wait');
@@ -165,7 +166,7 @@ $('#f').addEventListener('submit',async e=>{
     }
 const r=await turnWait(tn,ask());
     if(r===STOPPED||tn.stop)H.push(stopNote(tn));
-    else{H.push({role:'assistant',content:r.content,by:r.by,steps:r.steps});logAdd('chaman','('+(r.by||'?')+') '+r.content)}}
+    else{if(r.uiOnly&&!r.content&&typeof uiMerge==='function')uiMerge(r);else H.push({role:'assistant',content:r.content,by:r.by,steps:r.steps});logAdd('chaman','('+(r.by||'?')+') '+r.content)}}
   catch(err){if(tn.stop)H.push(stopNote(tn));else{H.push({role:'assistant',content:err.message,err:1});logAdd('error',err.message)}}
   const lnWas=LN.on;lnEnd();if(lnWas)NS('finish',finOpt({open:false})).catch(()=>{});
   H=H.slice(-100);persist();TURN=null;setBusy(false);render();logFlush();

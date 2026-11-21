@@ -6,6 +6,8 @@ async function callOpenAI(p,msgs,mdl,tools,tchoice){
   const ks=keysOf(p.id);if(!ks.length)return null;
   const sig=TURN&&TURN.ac?TURN.ac.signal:undefined;
   const n=ks.length,start=(S.ptr[p.id]||0)%n;let last='';
+  // 1.38000.0: right after ui_render a model may answer with nothing (the widget is the answer): that is not an empty-reply failure
+  const lt=msgs[msgs.length-1],uiWait=!!(lt&&lt.role==='tool'&&String(lt.content||'').indexOf('Widget "')===0);
   for(let i=0;i<n;i++){
     const idx=(start+i)%n,k=ks[idx];
     if(i>0)lnSet(p.name.replace(' (optional)','')+': dusri key try kar raha hu','wait');
@@ -16,7 +18,7 @@ async function callOpenAI(p,msgs,mdl,tools,tchoice){
         if(tools&&[400,404,422].includes(r.status)&&/tool|function/i.test(bd))throw Object.assign(new Error('HTTP '+r.status+' '+bd),{noTools:true});
         cool[k]=Date.now()+(r.status===429?60000:(r.status===401||r.status===403)?600000:15000);last='HTTP '+r.status+(bd?' '+bd:'');continue}
       const j=await r.json();const mm=j.choices&&j.choices[0]&&j.choices[0].message;const t=mm&&mm.content;
-      if(tools?!(t||(mm&&mm.tool_calls&&mm.tool_calls.length)):!t){last='empty reply';continue}
+      if(tools?!(t||(mm&&mm.tool_calls&&mm.tool_calls.length)||uiWait):!t){last='empty reply';continue}
       if(p.think&&mm&&mm.reasoning_content&&typeof lnThink==='function')lnThink(mm.reasoning_content);
       S.ptr[p.id]=idx;sv('nap_s',S);return tools?mm:t;
     }catch(e){if(e.noTools)throw e;if(sig&&sig.aborted)throw e;cool[k]=Date.now()+15000;last=e.message}

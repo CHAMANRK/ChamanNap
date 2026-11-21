@@ -24,6 +24,7 @@ function logTool(name,a){
     case'api_check':return name;
     case'rule_save':return name+' '+cut(a.name,40)+' ('+String(a.when==null?'':a.when).length+'+'+String(a.steps==null?'':a.steps).length+' chars)';
     case'rule_list':return name;
+    case'ui_render':return name+' '+cut(a.id,32)+' ('+(Array.isArray(a.blocks)?a.blocks.length:0)+' blocks)';
     case'notify_now':return name+' ('+String(a.title==null?'':a.title).length+'+'+String(a.text==null?'':a.text).length+' chars)';
     case'schedule_ai':return name+' ('+(a.in_minutes!=null?'in '+a.in_minutes+' min':(a.date||'')+' '+(a.time||''))+', '+(a.repeat||'none')+', '+String(a.prompt==null?'':a.prompt).length+' chars)';
     case'schedule_add':return name+' ('+(a.in_minutes!=null?'in '+a.in_minutes+' min':(a.date||'')+' '+(a.time||''))+', '+(a.repeat||'none')+', '+String(a.title==null?'':a.title).length+'+'+String(a.text==null?'':a.text).length+' chars)';

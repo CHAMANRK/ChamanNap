@@ -8,7 +8,7 @@ const LN_LAB={
   call:'Call ki taiyari',send_sms:'SMS ki taiyari',read_sms:'SMS padh raha hu',
   screen_read:'Screen padh raha hu',screen_click:'Tap kar raha hu',screen_type:'Type kar raha hu',screen_scroll:'Scroll kar raha hu',screen_key:'Key daba raha hu',
   open_url:'Link khol raha hu',tap_when_visible:'Button ka wait',run_flow:'Steps chala raha hu',set_switch:'Switch badal raha hu',
-  rules_read:'Rules padh raha hu',file_list:'Folder dekh raha hu',file_read:'File padh raha hu',file_search:'Files dhoondh raha hu',
+  rules_read:'Rules padh raha hu',ui_render:'Widget bana raha hu',file_list:'Folder dekh raha hu',file_read:'File padh raha hu',file_search:'Files dhoondh raha hu',
   file_write:'File likh raha hu',edit_file:'File edit kar raha hu',file_mkdir:'Folder bana raha hu',file_move:'File move kar raha hu',
   file_delete:'File hata raha hu',file_present:'File dikha raha hu',generate_image:'Image bana raha hu',api_check:'Termux:API check kar raha hu',
   termux_run:'Command chala raha hu',termux_write_file:'File likh raha hu',termux_read_file:'File padh raha hu',

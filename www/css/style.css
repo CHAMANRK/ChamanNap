@@ -184,3 +184,51 @@ details.sec[open]>summary{border-bottom:1px solid var(--border)}
 .cwc{position:absolute;display:none;pointer-events:none;z-index:1}
 .cwx{height:32px;width:116px;pointer-events:none}
 .cw .empty b{color:transparent}
+
+/* Rich UI widgets (1.38000.0, P1). Tokens only, light and dark, no neon. Wide content lives in .tw (sideways scroll). */
+.uiw{white-space:normal;overflow-wrap:break-word;display:flex;flex-direction:column;gap:10px;margin:8px 0}
+.uiw.frz{opacity:.6}
+.uiw .p{white-space:pre-wrap;overflow-wrap:anywhere}
+.uit{font:600 17px ui-serif,Georgia,serif}
+.uimd .p:first-child{margin-top:0}.uimd .p:last-child{margin-bottom:0}
+.uic{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.uich-h{display:flex;flex-direction:column}.uich-h small{color:var(--muted);font-size:13px}
+.uicf{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--border);padding-top:10px}
+.uibtns{display:flex;flex-wrap:wrap;gap:8px}
+.uib{min-height:44px;padding:0 16px;border-radius:12px;font-weight:600;font-size:15px;border:1px solid var(--border);background:var(--surface);color:var(--text)}
+.uib.p{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.uib.d{color:var(--danger);border-color:var(--danger);background:none}
+.uib:active:not(:disabled){filter:brightness(.92)}
+.uib:disabled{opacity:.45}
+.uich{display:flex;flex-direction:column;gap:8px}
+.uio{display:flex;align-items:center;gap:12px;min-height:44px;padding:8px 12px;border-radius:12px;border:1px solid var(--border);background:var(--surface);text-align:left;color:var(--text)}
+.uio.on{border-color:var(--accent);background:var(--user)}
+.uim{flex:none;width:20px;height:20px;border-radius:50%;border:2px solid var(--muted);display:grid;place-items:center}
+.uio.mu .uim{border-radius:6px}
+.uio.on .uim{border-color:var(--accent);background:var(--accent)}
+.uio.on .uim::after{content:"";width:8px;height:8px;border-radius:50%;background:var(--on-accent)}
+.uio.mu.on .uim::after{border-radius:2px}
+.uol{display:flex;flex-direction:column;min-width:0}.uol small{color:var(--muted);font-size:13px}
+.uio:disabled{opacity:.6}
+.uif{display:flex;flex-direction:column;gap:10px}
+.uifl{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--muted)}
+.uifl.row{flex-direction:row;align-items:center;justify-content:space-between;min-height:44px}
+.uifl input,.uifl select,.uifl textarea{color:var(--text);min-height:44px}
+.uiw input.uisw{width:22px;height:22px;min-height:0;accent-color:var(--accent)}
+.uisl{display:flex;align-items:center;gap:12px}.uisl input{padding:0;border:0;background:none;accent-color:var(--accent)}
+.uisv{min-width:3ch;text-align:right;color:var(--text)}
+.uierr{color:var(--danger);font-size:13px;white-space:normal}.uierr:empty{display:none}
+.uiold{color:var(--muted);font-size:13px;font-style:italic}
+.srt{cursor:pointer;user-select:none}
+.srt[data-d]::after{content:"";display:inline-block;margin-left:6px;border:4px solid transparent;vertical-align:middle}
+.srt[data-d=a]::after{border-bottom:5px solid var(--accent);border-top:0}
+.srt[data-d=z]::after{border-top:5px solid var(--accent);border-bottom:0}
+.uikv{display:grid;grid-template-columns:minmax(80px,38%) 1fr;gap:6px 12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 12px}
+.uik{color:var(--muted);font-size:14px}.uiv{overflow-wrap:anywhere}
+.uia{border-radius:12px;border:1px solid var(--border);border-left-width:4px;padding:10px 12px;background:var(--surface)}
+.uia.info{border-left-color:var(--accent)}.uia.success{border-left-color:#4f9a72}.uia.warn{border-left-color:#b08a3a}.uia.error{border-left-color:var(--danger)}
+.uia b{display:block}.uia .p{margin:2px 0}
+.uipl{font-size:14px;color:var(--muted);margin-bottom:4px}
+.uipb{height:10px;border-radius:99px;background:var(--code);border:1px solid var(--border);overflow:hidden}.uipb i{display:block;height:100%;background:var(--accent);border-radius:99px}
+.uisp{height:12px}
+.uichip{width:auto;max-width:80%;padding:4px 12px;font-size:14px;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:999px}

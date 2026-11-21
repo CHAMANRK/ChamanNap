@@ -53,7 +53,7 @@ function bubTurnEnd(){
   const from=BUB.from;BUB.from=false;
   let m=null;
   for(let k=H.length-1;k>=0;k--){const x=H[k];if(x.role==='user')break;if(x.role==='assistant'&&!x.confirm&&!x.imgp){m=x;break}}
-  const t=m?bubPlain(m.content):'';
+  const t=m?(m.ui?'Widget chat me dikha diya, Chaman app kholo.':bubPlain(m.content)):'';
   NS('bubbleAnswer',{text:t,open:!!from,fail:!!(m&&m.err)}).catch(()=>{});
 }
 // the newest pending confirm card of the chat goes to the panel as a compact card (title, 2-6 lines, buttons)

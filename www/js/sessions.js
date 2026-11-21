@@ -19,7 +19,7 @@ function sesMd(s,h){
   const o=['# '+(s.title||'Session'),'','Session: '+s.id,''];
   h.forEach(m=>{
     if(m.role==='user')o.push('**Najeef:** '+(m.content||'')+((m.files||[]).length?'\n[files: '+m.files.map(a=>a.name+(a.path?' -> '+a.path.replace(WS_ROOT+'/',''):'')).join(', ')+']':''),'');
-    else if(!m.confirm)o.push('**'+(m.by||'Chaman')+':** '+(m.content||''),'');
+    else if(!m.confirm)o.push('**'+(m.by||'Chaman')+':** '+(m.content||(m.ui?'[widget '+m.ui.id+']':'')),'');
   });
   return o.join('\n');
 }
