@@ -2,10 +2,12 @@
 // Two ways in: the ui_render tool, or a ```ui fenced JSON block in the reply (works for chat-only models too). A tap sends a normal user message (a new AI turn).
 // Safety: the JSON is never executed. uiValidate() builds a clean copy with only known types and props (unknown type = skipped), every text goes through esc(),
 // the DOM carries only indexes (data-b / data-i), the action is looked up again from the stored widget when tapped. No script, no network, no raw HTML.
+// P3 (1.40000.0): html block = a game file from /sdcard/Chaman/ui/ that runs in a sandboxed iframe in a panel above the chat (no network, no app data, one-way bridge chaman.send).
 // P2 (1.39000.0): chart (bar/line/pie as inline SVG built from numbers), board (monospace grid), image (workspace path or gen:<id>), widgets that came from an older app run
 // are 'expired' (static + hint), Settings switch "Rich UI in chat" (S.ui.off). Later phases (not here): html sandbox + bridge (P3), diagram, mermaid, inline html (P4).
 const UI_MAX={json:32768,blocks:60,elems:300,depth:5,str:2000,opts:20,fields:20,rows:100,cols:12,items:12,kv:50};
 let UI_HI=-1,UI_K=0,UI_CHIP='',UI_INFO={},UI_N=0;
+const UIG={fr:null,el:null,src:'',name:'',title:'',b:null,html:'',n:0,last:0,loads:0,pend:'',pt:0,seq:0};
 const UI_FRESH=new WeakSet(),UI_ST={},UI_CACHE=new WeakMap(),UI_SCACHE=new Map(),UI_IDX=new WeakMap();
 const uiOn=()=>!(S.ui&&S.ui.off===true);
 const ea=t=>esc(String(t)).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -28,6 +30,11 @@ function uiImgPath(src){
   const p=fpath(src);
   if(!p||p===WS_ROOT||!/\.(png|jpe?g|webp|gif|svg)$/i.test(p)||(typeof fNotes==='function'&&fNotes(p)))return'';
   return p;
+}
+function uiHtmlPath(src){
+  if(typeof fpath!=='function'||!src||/\.\.|\0/.test(src)||/^[a-z][a-z0-9+.-]*:/i.test(src))return'';
+  const p=fpath(src);
+  return p&&p.indexOf(WS_ROOT+'/ui/')===0&&/\.html$/i.test(p)&&p.length>WS_ROOT.length+8?p:'';
 }
 function uiAction(a,dflt){
   if(!a||typeof a!=='object'||Array.isArray(a))return dflt||{type:'none'};
@@ -136,6 +143,11 @@ function uiBlock(b,depth,cx){
       if(!/^gen:[A-Za-z0-9_-]{1,40}$/.test(src)){src=uiImgPath(src);if(!src){cx.n--;cx.skip++;return null}}
       o={type:T,src,alt:uiStr(b.alt,200),caption:uiStr(b.caption,300),height:Math.max(60,Math.min(600,Math.round(uiNum(b.height,240))))};break;
     }
+    case'html':{ // P3: only a game FILE in /sdcard/Chaman/ui/ (inline html strings are not accepted yet)
+      uiCount(cx);const src=uiHtmlPath(uiStr(b.src,300,'html src').trim());
+      if(!src){cx.n--;cx.skip++;return null}
+      o={type:T,src,title:uiStr(b.title,60),label:uiStr(b.label,30).trim()||'Play',height:Math.max(120,Math.min(700,Math.round(uiNum(b.height,460))))};break;
+    }
     case'divider':case'spacer':uiCount(cx);o={type:T};break;
     default:cx.skip++;return null; // unknown (or a later-phase type like chart/html/diagram): silently skipped
   }
@@ -194,6 +206,11 @@ function uiScan(){
     info[w.hi+':'+w.k]=later?'old':!w.fresh?'expired':(w.keep||(isLast&&w.hi>lastUser))?'live':'frozen';
   });
   UI_INFO=info;
+  if(UIG.src){
+    let has=false;
+    H.forEach(m=>uiExtract(m).forEach(w=>{const ix=uiIndex(w.ui);for(const k in ix)if(ix[k].type==='html'&&ix[k].src===UIG.src)has=true}));
+    if(!has||!uiOn())uiGClose();
+  }
 }
 // a widget message made in this app run is fresh; anything loaded from storage or an old session is not (it shows as expired)
 function uiFresh(m){if(m&&typeof m==='object')UI_FRESH.add(m)}
@@ -252,6 +269,7 @@ function uiB(b,key,live){
     case'alert':return'<div class="uia '+b.style+'" role="note">'+(b.title?'<b>'+esc(b.title)+'</b>':'')+(b.md?'<div>'+mdBlocks(b.md)+'</div>':'')+'</div>';
     case'progress':{const pc=(b.value/b.max*100).toFixed(1);return'<div class="uipr">'+(b.label?'<div class="uipl">'+esc(b.label)+'</div>':'')+'<div class="uipb" role="progressbar" aria-valuemin="0" aria-valuemax="'+b.max+'" aria-valuenow="'+b.value+'"><i style="width:'+pc+'%"></i></div></div>'}
     case'code':return'<div class="code"><div class="cbar">'+(b.lang?'<span class="lang">'+esc(b.lang)+'</span>':'')+'<button type="button" class="cp" aria-label="Copy code">'+ICO_COPY+'</button></div><pre><code>'+esc(b.code)+'</code></pre></div>';
+    case'html':return'<div class="uig"><div class="uigi"><b>'+esc(b.title||uiGName(b.src))+'</b><small>'+esc(b.src.replace(WS_ROOT+'/',''))+'</small></div><button type="button" class="uib p" data-ua="play" data-b="'+id+'">'+esc(b.label)+'</button></div>';
     case'chart':return uiChartH(b);
     case'board':return'<div class="uibd '+b.size+'"><div class="tw"><pre class="uibp">'+b.rows.map(esc).join('\n')+'</pre></div>'+(b.legend?'<div class="uibl">'+esc(b.legend)+'</div>':'')+'</div>';
     case'image':{
@@ -423,6 +441,7 @@ function uiFormVars(w,b,f,st){
       const s=uiSt(key,b.bid);s.sort=s.sort&&s.sort.c===i?(s.sort.d>0?{c:i,d:-1}:null):{c:i,d:1};uiRefresh(w);return;
     }
     if(ua==='btn'&&b.type==='buttons'){const it=b.items[i];if(!it||(!live&&it.action.type!=='copy'))return;uiRun(it.action,it.label,t);return}
+    if(ua==='play'&&b.type==='html'){uiGOpen(b);return}
     if(!live)return;
     if(ua==='opt'&&b.type==='choice'){
       const s=uiSt(key,b.bid),o=b.options[i];if(!o)return;
@@ -451,8 +470,99 @@ function uiFormVars(w,b,f,st){
   });
 }}
 
+// ---------- P3: game panel (sandboxed iframe + one-way bridge) ----------
+// Why a panel and not inside the chat: render() rebuilds the whole chat on every message, and an iframe that is moved or rebuilt reloads (the game would restart on each AI reply).
+// The panel lives outside #chat, so it survives. The iframe is sandbox="allow-scripts" (no same-origin: it cannot touch the app, its storage, keys, Files/Termux), the CSP blocks all network.
+const UIG_CSP="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-src 'none'; object-src 'none'";
+const uiGName=p=>String(p||'').split('/').pop().replace(/\.html$/i,'').replace(/[^A-Za-z0-9_-]/g,'').slice(0,24)||'game';
+function uiTheme(){
+  try{const a=document.documentElement.getAttribute('data-theme');if(a==='dark'||a==='light')return a}catch(e){}
+  return'light';
+}
+// The game file goes AFTER our own head (CSP meta + bridge), as plain content of our body: its own <html>/<head>/<body> tags are merged by the HTML parser,
+// so nothing the file contains (comments, a fake <head>, another meta) can come before the CSP.
+function uiGameDoc(html,theme){
+  theme=theme==='dark'?'dark':'light';
+  return'<!doctype html><html data-theme="'+theme+'" style="color-scheme:'+theme+'"><head><meta http-equiv="Content-Security-Policy" content="'+UIG_CSP+'">'
+   +'<meta name="viewport" content="width=device-width,initial-scale=1"><script>window.chaman={theme:"'+theme+'",send:function(t){try{parent.postMessage({__chaman:1,t:String(t).slice(0,200)},"*")}catch(e){}}};<\/script></head><body>'
+   +String(html)+'</body></html>';
+}
+async function uiReadText(path){
+  const r=await NF('read',{path,start:1,max:1000000,maxBytes:200001}),t=String(r&&r.text||'');
+  if(!t.trim())throw new Error('file khaali hai');
+  if(t.length>200000||(r.to!=null&&r.lines!=null&&r.to<r.lines))throw new Error('file 200KB se badi hai');
+  return t;
+}
+function uiGPanel(){
+  if(UIG.el&&UIG.el.isConnected)return UIG.el;
+  const p=document.createElement('div');p.id='uigp';p.hidden=true;
+  p.innerHTML='<div class="uigh"><b class="uigt"></b><span class="uigs">sandbox, net band</span><button type="button" class="ib" data-g="re" aria-label="Dobara shuru"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></button><button type="button" class="ib" data-g="x" aria-label="Game band karo"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div><div class="uigb"></div>';
+  const pend=$('#pend');pend.parentNode.insertBefore(p,pend);
+  p.addEventListener('click',e=>{const t=e.target.closest('[data-g]');if(!t)return;if(t.dataset.g==='x')uiGClose();else uiGRestart()});
+  UIG.el=p;return p;
+}
+async function uiGOpen(b){
+  if(!uiOn())return;
+  if(UIG.fr&&UIG.src===b.src)return; // already running: a second tap must not restart it
+  uiGClose();
+  const p=uiGPanel(),tok=++UIG.seq;
+  Object.assign(UIG,{src:b.src,b:b,name:uiGName(b.src),title:b.title||uiGName(b.src),n:0,last:0,loads:0,pend:'',html:''});
+  p.style.setProperty('--uigh',b.height+'px');p.querySelector('.uigt').textContent=UIG.title;
+  p.querySelector('.uigb').innerHTML='<div class="uigm">Game load ho raha hai...</div>';p.hidden=false;
+  let html;
+  try{html=await uiReadText(b.src)}catch(e){if(tok===UIG.seq)uiGMsg('Game file nahi padh payi ('+String(e&&e.message||e).slice(0,80)+'). Pehle file_write se banwao.',true);return}
+  if(tok!==UIG.seq)return;
+  UIG.html=html;uiGMount();
+}
+function uiGMount(){
+  const body=UIG.el.querySelector('.uigb');body.textContent='';
+  const f=document.createElement('iframe');
+  f.setAttribute('sandbox','allow-scripts');f.setAttribute('referrerpolicy','no-referrer');f.setAttribute('title',UIG.title||'game');
+  UIG.loads=0;UIG.n=0;UIG.last=0;
+  f.addEventListener('load',()=>{if(UIG.fr!==f)return;UIG.loads++;if(UIG.loads>1)uiGMsg('Game bahar jaane ki koshish kar raha tha, isliye roka. Dobara shuru dabao.',true)});
+  f.srcdoc=uiGameDoc(UIG.html,uiTheme());UIG.fr=f;body.appendChild(f);
+}
+function uiGMsg(msg,kill){
+  if(kill&&UIG.fr){try{UIG.fr.remove()}catch(e){}UIG.fr=null}
+  if(UIG.el){const body=UIG.el.querySelector('.uigb');body.innerHTML='<div class="uigm uierr"></div>';body.firstChild.textContent=msg}
+}
+function uiGRestart(){
+  if(UIG.fr){try{UIG.fr.remove()}catch(e){}UIG.fr=null}
+  if(UIG.html){uiGMount();return}
+  if(UIG.b){const b=UIG.b;UIG.src='';uiGOpen(b)}
+}
+function uiGClose(){
+  UIG.seq++;
+  if(UIG.fr){try{UIG.fr.remove()}catch(e){}}
+  if(UIG.pt){clearInterval(UIG.pt);UIG.pt=0}
+  Object.assign(UIG,{fr:null,src:'',b:null,html:'',pend:''});
+  if(UIG.el){UIG.el.hidden=true;const body=UIG.el.querySelector('.uigb');if(body)body.textContent=''}
+}
+// bridge: the game may only say something (200 chars, 1 per 1.5 s, 20 per run). It reaches the AI as "[game:name] text": game code, not Najeef's words.
+function uiBridge(e){
+  if(!UIG.fr||!uiOn()||e.source!==UIG.fr.contentWindow)return;
+  const d=e.data;if(!d||d.__chaman!==1||typeof d.t!=='string')return;
+  const t=d.t.replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,200);if(!t)return;
+  const now=Date.now();
+  if(UIG.n>=20||now-UIG.last<1500)return;
+  UIG.last=now;UIG.n++;uiGSend(t);
+}
+function uiGSend(t){
+  const msg='[game:'+UIG.name+'] '+t;
+  if(uiSendText(msg,t.slice(0,40)))return;
+  UIG.pend=t; // the AI is busy: keep the newest event and send it as soon as it is free (max 15 s)
+  if(UIG.pt)return;
+  let k=0;
+  UIG.pt=setInterval(()=>{
+    k++;
+    if(!UIG.fr||k>30){clearInterval(UIG.pt);UIG.pt=0;UIG.pend='';return}
+    if(UIG.pend&&uiSendText('[game:'+UIG.name+'] '+UIG.pend,UIG.pend.slice(0,40))){clearInterval(UIG.pt);UIG.pt=0;UIG.pend=''}
+  },500);
+}
+if(typeof window!=='undefined'&&typeof window.addEventListener==='function')window.addEventListener('message',uiBridge);
+
 // ---------- ui_render tool ----------
-TOOLS.push(fn('ui_render','Show an interactive widget in the chat: buttons, choice (MCQ / options), form, table, keyvalue, alert, progress, code, card, text. A tap sends its value back as Najeef\'s next message (a new turn for you). Use it only when tapping beats typing (quiz, options, a form with several fields, a small table); a short answer stays plain text. Widget JSON: {v:1, id, title?, keep?, blocks:[...]}. Call rules_read ui for every block type and the action format.',{
+TOOLS.push(fn('ui_render','Show an interactive widget in the chat: buttons, choice (MCQ / options), form, table, keyvalue, alert, progress, code, card, text. A tap sends its value back as Najeef\'s next message (a new turn for you). Use it only when tapping beats typing (quiz, options, a form with several fields, a small table); a short answer stays plain text. Widget JSON: {v:1, id, title?, keep?, blocks:[...]}. Call rules_read ui for every block type and the action format, rules_read game for chat games (type html).',{
   v:{type:'integer',description:'always 1'},
   id:{type:'string',description:'a-z 0-9 and dash, max 32. The same id again replaces the older widget.'},
   title:{type:'string'},
@@ -468,6 +578,7 @@ function uiNote(ui){
     else if(b.type==='buttons')bits.push('buttons['+b.items.map(i=>i.label).join(' | ').slice(0,120)+']');
     else if(b.type==='form')bits.push('form['+b.fields.map(f=>f.key).join(', ')+']');
     else if(b.type==='table')bits.push('table '+b.rows.length+' rows');
+    else if(b.type==='html')bits.push('game '+uiGName(b.src)+' (panel me khulta hai)');
     else if(b.type==='card'){walk(b.body);walk(b.footer)}
     else bits.push(b.type);
   });

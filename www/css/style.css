@@ -253,3 +253,14 @@ details.sec[open]>summary{border-bottom:1px solid var(--border)}
 .uiimg figcaption{color:var(--muted);font-size:13px}
 .uiimg.ph{display:grid;place-items:center;background:var(--code);border-radius:12px;color:var(--muted);font-size:13px}
 .uiexp{color:var(--muted);font-size:13px;font-style:italic}
+/* Rich UI P3 (1.40000.0): game panel above the chat (outside #chat, so it survives re-renders) */
+#uigp{flex:none;display:flex;flex-direction:column;height:min(var(--uigh,460px),70%);border-top:1px solid var(--border);background:var(--surface)}
+#uigp[hidden]{display:none}
+.uigh{display:flex;align-items:center;gap:6px;padding:4px 4px 4px 14px;border-bottom:1px solid var(--border)}
+.uigt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.uigs{color:var(--muted);font-size:12px;white-space:nowrap}
+.uigb{flex:1;min-height:0;position:relative}
+.uigb iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--bg)}
+.uigm{padding:16px}
+.uig{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px}
+.uigi{display:flex;flex-direction:column;min-width:0}.uigi small{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis}

@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="hi"><head><meta charset="utf-8"><title>Snake</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{--bg:#f2f4f1;--fg:#19211c;--mut:#65726a;--acc:#2d6f52;--food:#a8645d;--grid:#dce2da;--card:#fff}
+[data-theme=dark]{--bg:#0f1614;--fg:#e4ebe6;--mut:#8a978f;--acc:#6fb08f;--food:#cf8a82;--grid:#26312c;--card:#171f1c}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:15px system-ui,sans-serif;overflow:hidden}
+#app{height:100%;display:flex;flex-direction:column;align-items:center;gap:8px;padding:8px}
+#bar{width:100%;max-width:420px;display:flex;justify-content:space-between;font-weight:600}
+#bar span{color:var(--mut);font-weight:400}
+#stage{position:relative;flex:1;min-height:0;width:100%;display:flex;align-items:center;justify-content:center}
+canvas{background:var(--card);border:1px solid var(--grid);border-radius:12px;touch-action:none;max-width:100%;max-height:100%}
+#ov{position:absolute;inset:0;display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;background:color-mix(in srgb,var(--bg) 78%,transparent);border-radius:12px;text-align:center}
+#ov button,#pad button{min-height:44px;min-width:44px;border:1px solid var(--grid);border-radius:12px;background:var(--card);color:var(--fg);font-size:18px}
+#ov button{background:var(--acc);color:var(--bg);border-color:var(--acc);padding:0 22px;font-size:16px;font-weight:600}
+#pad{display:grid;grid-template-columns:repeat(3,56px);grid-template-rows:repeat(2,44px);gap:6px}
+#pad .u{grid-column:2}#pad .l{grid-column:1;grid-row:2}#pad .d{grid-column:2;grid-row:2}#pad .r{grid-column:3;grid-row:2}
+</style></head><body><div id="app">
+<div id="bar"><div>Score: <b id="sc">0</b></div><div><span>Best</span> <b id="bs">0</b></div></div>
+<div id="stage"><canvas id="cv" width="360" height="360"></canvas><div id="ov"><div id="msg">Swipe ya buttons se ghumao</div><button id="go">Shuru</button></div></div>
+<div id="pad"><button class="u" data-d="u" aria-label="Upar">&#9650;</button><button class="l" data-d="l" aria-label="Left">&#9664;</button><button class="d" data-d="d" aria-label="Neeche">&#9660;</button><button class="r" data-d="r" aria-label="Right">&#9654;</button></div>
+</div>
+<script>
+(function(){
+var N=18,cv=document.getElementById('cv'),cx=cv.getContext('2d'),S=cv.width/N;
+var sc=document.getElementById('sc'),bs=document.getElementById('bs'),ov=document.getElementById('ov'),msg=document.getElementById('msg');
+var snake,dir,nd,food,score,best=0,timer=0,alive=false;
+try{best=+localStorage.getItem('snake_best')||0}catch(e){}bs.textContent=best;
+function col(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
+function fit(){var st=document.getElementById('stage'),s=Math.floor(Math.min(st.clientWidth,st.clientHeight));if(s>120){cv.style.width=cv.style.height=s+'px'}}
+function spawn(){do{food={x:Math.floor(Math.random()*N),y:Math.floor(Math.random()*N)}}while(snake.some(function(p){return p.x===food.x&&p.y===food.y}))}
+function draw(){
+  cx.clearRect(0,0,cv.width,cv.height);cx.strokeStyle=col('--grid');cx.lineWidth=.5;
+  for(var i=1;i<N;i++){cx.beginPath();cx.moveTo(i*S,0);cx.lineTo(i*S,cv.height);cx.moveTo(0,i*S);cx.lineTo(cv.width,i*S);cx.stroke()}
+  cx.fillStyle=col('--food');cx.beginPath();cx.arc(food.x*S+S/2,food.y*S+S/2,S*.38,0,7);cx.fill();
+  cx.fillStyle=col('--acc');snake.forEach(function(p,i){cx.globalAlpha=i?0.85:1;cx.fillRect(p.x*S+1,p.y*S+1,S-2,S-2)});cx.globalAlpha=1;
+}
+function start(){snake=[{x:5,y:9},{x:4,y:9},{x:3,y:9}];dir=nd={x:1,y:0};score=0;sc.textContent=0;spawn();alive=true;ov.style.display='none';draw();clearInterval(timer);timer=setInterval(tick,130)}
+function over(){
+  alive=false;clearInterval(timer);
+  if(score>best){best=score;bs.textContent=best;try{localStorage.setItem('snake_best',best)}catch(e){}}
+  msg.textContent='Game over. Score: '+score;document.getElementById('go').textContent='Phir khelo';ov.style.display='flex';
+  if(window.chaman)window.chaman.send('game over, score '+score+', best '+best);
+}
+function tick(){
+  dir=nd;var h={x:snake[0].x+dir.x,y:snake[0].y+dir.y};
+  if(h.x<0||h.y<0||h.x>=N||h.y>=N||snake.some(function(p){return p.x===h.x&&p.y===h.y}))return over();
+  snake.unshift(h);
+  if(h.x===food.x&&h.y===food.y){score++;sc.textContent=score;spawn()}else snake.pop();
+  draw();
+}
+function turn(d){if(!alive)return;var m={u:{x:0,y:-1},d:{x:0,y:1},l:{x:-1,y:0},r:{x:1,y:0}}[d];if(m.x+dir.x||m.y+dir.y)nd=m}
+document.getElementById('go').onclick=start;
+document.getElementById('pad').addEventListener('click',function(e){var b=e.target.closest('button');if(b)turn(b.dataset.d)});
+document.addEventListener('keydown',function(e){var k={ArrowUp:'u',ArrowDown:'d',ArrowLeft:'l',ArrowRight:'r',w:'u',s:'d',a:'l',d:'r'}[e.key];if(k){e.preventDefault();turn(k)}});
+var t0=null;
+cv.addEventListener('touchstart',function(e){t0=e.touches[0]},{passive:true});
+cv.addEventListener('touchend',function(e){if(!t0)return;var t=e.changedTouches[0],dx=t.clientX-t0.clientX,dy=t.clientY-t0.clientY;t0=null;if(Math.max(Math.abs(dx),Math.abs(dy))<20)return;turn(Math.abs(dx)>Math.abs(dy)?(dx>0?'r':'l'):(dy>0?'d':'u'))},{passive:true});
+window.addEventListener('resize',fit);fit();snake=[{x:5,y:9}];food={x:12,y:9};draw();
+})();
+</script></body></html>

@@ -4,7 +4,7 @@ const els={},handlers={};
 const mk=sel=>{const o={value:'',style:{},dataset:{},options:[],classList:{add(){},remove(){},toggle(){},contains(){return false}},addEventListener(t,f){const k=sel+':'+t,pv=handlers[k];handlers[k]=pv?async e=>{await pv(e);await f(e)}:f},insertAdjacentHTML(){},querySelector(){return mk('x')},closest(){return null},appendChild(){},remove(){},select(){},click(){},focus(){},set onclick(f){handlers[sel+':click']=f},set onchange(f){},scrollHeight:0,scrollTop:0,disabled:false,textContent:'',srcdoc:''};let h='';Object.defineProperty(o,'innerHTML',{get(){return h},set(v){h=v;if(sel==='#prov')o.options=v.split('<option').slice(1)}});return o};
 const doc={querySelector:s=>els[s]||(els[s]=mk(s)),createElement:()=>mk('c'),body:mk('body'),documentElement:{dataset:{}},addEventListener(){}};
 const store={};let n=0;const bodies=[];let script=[];let copied=null;
-const ctx={document:doc,localStorage:{getItem:k=>store[k]||null,setItem:(k,v)=>{store[k]=v}},matchMedia:()=>({matches:true,addEventListener(){}}),navigator:{clipboard:{writeText:async t=>{copied=t}}},console,setTimeout:(f,ms)=>{const t=setTimeout(f,ms>10000?1e9:Math.min(ms,3));if(ms>10000)t.unref();return t},clearTimeout,URL,Image:function(){},Event:function(t){this.type=t},
+const ctx={document:doc,localStorage:{getItem:k=>store[k]||null,setItem:(k,v)=>{store[k]=v}},matchMedia:()=>({matches:true,addEventListener(){}}),navigator:{clipboard:{writeText:async t=>{copied=t}}},console,setTimeout:(f,ms)=>{const t=setTimeout(f,ms>10000?1e9:Math.min(ms,3));if(ms>10000)t.unref();return t},clearTimeout,setInterval,clearInterval,URL,Image:function(){},Event:function(t){this.type=t},
  fetch:async(u,o)=>{bodies.push(JSON.parse(o.body));const s=script[n++];if(s===undefined)return{ok:false,status:500,text:async()=>'no script',json:async()=>({})};const msg=typeof s==='string'?{role:'assistant',content:s}:{role:'assistant',content:null,tool_calls:s};return{ok:true,status:200,json:async()=>({choices:[{message:msg}]}),text:async()=>''}}};
 ctx.window=ctx;
 let b64reply={b64:'AAAA',mime:'image/png'};const nreads=[];
@@ -226,12 +226,67 @@ const lastUser=()=>{const h=getH();for(let k=h.length-1;k>=0;k--)if(h[k].role===
  t("S.ui={}");ok(t('uiTools()').some(x=>x.function.name==='ui_render'),'switch on again: ui_render is back');
  {let html='';try{t('sheet()');html=Object.values(els).map(e=>e.innerHTML||'').join('')}catch(e){html='ERR '+e.message}
   ok(/id="ui_on"/.test(html)&&/Rich UI in chat/.test(html),'Settings has the "Rich UI in chat" switch ('+(html.slice(0,3)==='ERR'?html:'ok')+')');}
+ // ---- 7e. P3: html game widget
+ const HP=src=>{const r=V({v:1,blocks:[{type:'html',src},{type:'text',md:'t'}]});return r.ok&&r.ui.blocks[0].type==='html'?r.ui.blocks[0]:null};
+ ok(HP('/sdcard/Chaman/ui/snake.html')&&HP('/sdcard/Chaman/ui/snake.html').src==='/sdcard/Chaman/ui/snake.html','html: game file in ui/ accepted');
+ ok(HP('ui/snake.HTML')&&HP('ui/games/a.html'),'html: relative path and sub-folder of ui/ ok');
+ ok(!HP('/sdcard/Chaman/work/snake.html')&&!HP('/sdcard/Chaman/snake.html')&&!HP('/sdcard/Chaman/notes/x.html'),'html: other folders (work, root, notes) rejected');
+ ok(!HP('/sdcard/Chaman/ui/x.txt')&&!HP('/sdcard/Chaman/ui/x.js')&&!HP('/sdcard/Chaman/ui/x.htm'),'html: only .html');
+ ok(!HP('/sdcard/Chaman/ui/../notes/x.html')&&!HP('ui/../../x.html')&&!HP('/etc/ui/x.html')&&!HP('/sdcard/DCIM/ui/x.html'),'html: .. and outside the workspace rejected');
+ ok(!HP('https://evil.com/ui/x.html')&&!HP('file:///sdcard/Chaman/ui/x.html')&&!HP('javascript:alert(1)')&&!HP('data:text/html,<script>1</script>')&&!HP(''),'html: urls / schemes / empty rejected');
+ r=V({v:1,blocks:[{type:'html',html:'<script>alert(1)</script>',height:300},{type:'text',md:'t'}]});
+ ok(r.ok&&r.ui.blocks.length===1&&r.ui.skipped===1,'html: inline html string is not accepted (skipped), file only');
+ ok(!V({v:1,blocks:[{type:'html',html:'<b>x</b>'}]}).ok,'a widget with only an inline html block is invalid');
+ r=V({v:1,blocks:[{type:'html',src:'ui/a.html',height:9999},{type:'html',src:'ui/b.html',height:5,label:'<b>',title:XSS}]});
+ ok(r.ui.blocks[0].height===700&&r.ui.blocks[1].height===120&&r.ui.blocks[0].label==='Play','html: height 120..700, default label Play');
+ ch=t('(r)=>uiW(r.ui,"1:0","live")')(r);ok(/data-ua="play"/.test(ch)&&!/<iframe/i.test(ch)&&!/<script|<img/i.test(ch)&&ch.indexOf('&lt;script&gt;')>0,'html card in chat: Play button only, no iframe, texts escaped');
+ ok(/game snake/.test(t('uiNote')({id:'g',blocks:[{type:'html',src:'/sdcard/Chaman/ui/snake.html'}]})),'AI history note names the game');
+ ok(t("uiGName('/sdcard/Chaman/ui/My Snake!.html')")==='MySnake'&&t("uiGName('/x/ui/'+'a'.repeat(60)+'.html')").length===24,'game name for the [game:..] prefix is cleaned (letters digits _ -, max 24)');
+ // game document
+ const GD=t('uiGameDoc')('<!-- <head> --><head><meta http-equiv="Content-Security-Policy" content="default-src *"><base href="https://evil/"></head><body><script>var GAME=1</script></body>','dark');
+ const iCsp=GD.indexOf("default-src 'none'"),iGame=GD.indexOf('var GAME=1'),iFake=GD.indexOf('<!-- <head>');
+ ok(/^<!doctype html>/i.test(GD)&&iCsp>0&&iCsp<iFake&&iCsp<iGame,'game doc: our CSP comes before anything from the game file (a fake <head>, comment or meta cannot come first)');
+ ok(/connect-src 'none'/.test(GD)&&/base-uri 'none'/.test(GD)&&/form-action 'none'/.test(GD)&&/frame-src 'none'/.test(GD)&&!/default-src \*/.test(GD.slice(0,iGame-50))||GD.indexOf("default-src 'none'")<GD.indexOf('default-src *'),'game doc: CSP has no network, no base, no forms, no frames');
+ ok((GD.match(/window\.chaman=/g)||[]).length===1&&/data-theme="dark"/.test(GD)&&/theme:"dark"/.test(GD),'game doc: bridge defined once, theme passed');
+ ok(/<html data-theme="light"/.test(t('uiGameDoc')('x'))&&/<\/script><\/head><body>x<\/body><\/html>$/.test(t('uiGameDoc')('x')),'game doc: plain content is wrapped, default theme light');
+ // bridge
+ const WIN={},SENT=[];
+ t("UIG.fr=null");const setG=()=>{t('UIG').fr={contentWindow:WIN};t('UIG').name='snake';t('UIG').n=0;t('UIG').last=0;t('UIG').pend='';SENT.length=0};
+ t("uiSendText=(m,c)=>{GSENT.push([m,c]);return !GBUSY}");ctx.GSENT=SENT;ctx.GBUSY=false;
+ const B2=(src,d)=>t('uiBridge')({source:src,data:d});
+ setG();B2(WIN,{__chaman:1,t:'score 5'});ok(SENT.length===1&&SENT[0][0]==='[game:snake] score 5'&&SENT[0][1]==='score 5','bridge: event becomes "[game:snake] score 5" with a chip');
+ t('UIG').last=0;B2({},{__chaman:1,t:'x'});B2(null,{__chaman:1,t:'x'});B2(WIN,{t:'no flag'});B2(WIN,{__chaman:1,t:5});B2(WIN,{__chaman:1,t:'   '});B2(WIN,null);B2(WIN,'string');
+ ok(SENT.length===1,'bridge: other windows, missing flag, non-string, empty, junk are ignored');
+ t('UIG.last=Date.now()');B2(WIN,{__chaman:1,t:'too fast'});ok(SENT.length===1,'bridge: a second event within 1.5 s is dropped');
+ t('UIG.last=0');B2(WIN,{__chaman:1,t:'a\nb\u0000c'+'x'.repeat(300)});ok(SENT.length===2&&SENT[1][0].length<='[game:snake] '.length+200&&!/[\n\u0000]/.test(SENT[1][0])&&SENT[1][1].length<=40,'bridge: control characters removed, 200 char cap, chip max 40');
+ for(let i=0;i<30;i++){t('UIG.last=0');B2(WIN,{__chaman:1,t:'e'+i})}
+ ok(SENT.length===20,'bridge: at most 20 events per run ('+SENT.length+')');
+ setG();t('UIG').last=0;ctx.GBUSY=true;B2(WIN,{__chaman:1,t:'late event'});
+ ok(SENT.length===1&&t('UIG').pend==='late event','bridge: AI busy = event kept (newest)');
+ ctx.GBUSY=false;await new Promise(x=>setTimeout(x,1700));ok(SENT.length===2&&SENT[1][0]==='[game:snake] late event'&&t('UIG').pend==='','bridge: the kept event is sent once the AI is free');
+ setG();t("UIG.fr=null");B2(WIN,{__chaman:1,t:'x'});ok(SENT.length===0,'bridge: no game open = ignored');
+ setG();t("S.ui={off:true}");B2(WIN,{__chaman:1,t:'x'});ok(SENT.length===0,'bridge: Rich UI off = ignored');t("S.ui={}");
+ // panel closes when its widget is gone / switch off
+ t("UIG.fr={remove(){}};UIG.src='/sdcard/Chaman/ui/snake.html'");
+ setH([{role:'user',content:'q'},{role:'assistant',local:1,content:'',aiNote:'w',ui:{v:1,id:'g',blocks:[{type:'html',src:'/sdcard/Chaman/ui/snake.html'}]}}]);
+ ok(t('UIG.src')==='/sdcard/Chaman/ui/snake.html','panel stays open while its widget is in the chat');
+ setH([{role:'user',content:'q'}]);ok(t('UIG.src')===''&&t('UIG.fr')===null,'panel closes when its widget is gone (new chat)');
+ t("UIG.fr={remove(){}};UIG.src='/sdcard/Chaman/ui/snake.html'");t("S.ui={off:true}");
+ setH([{role:'user',content:'q'},{role:'assistant',local:1,content:'',aiNote:'w',ui:{v:1,id:'g',blocks:[{type:'html',src:'/sdcard/Chaman/ui/snake.html'}]}}]);
+ ok(t('UIG.src')==='','panel closes when Rich UI is switched off');t("S.ui={}");
+ // rules
+ ok(t("ruleAreas('chat me snake game banao')").includes('game')&&t("ruleAreas('ek tic tac toe khelte hain')").includes('game')&&!t("ruleAreas('torch on kar')").includes('game'),'rules: area "game" is added for game requests only');
+ setH([{role:'user',content:'chat me ek quiz game banao'}]);const RB=t('rulesBlock()');ok(/CHAT GAMES/.test(RB)&&/WIDGETS/.test(RB),'rules: quiz + game request gets both areas');
+ ok(/\/sdcard\/Chaman\/ui\//.test(t('RULES.game'))&&/chaman\.send/.test(t('RULES.game'))&&/not from Najeef/.test(t('RULES.game'))&&/never delete, send, pay/.test(t('RULES.game')),'rules: game area explains the folder, the bridge and that [game:] text is not Najeef');
+ ok(t("TOOLS.find(x=>x.function.name==='rules_read').function.parameters.properties.area.enum").includes('game')&&/rules_read game/.test(t("TOOLS.find(x=>x.function.name==='ui_render').function.description")),'rules_read enum has game; ui_render points to it');
+ ok(/games in a panel/.test(t('skillText()')),'skill text mentions games');
+ ok(/rules_read game/.test(t('RULES.ui'))&&!/html \(games\) and diagram do not exist/.test(t('RULES.ui')),'ui rules point to the game area');
  // ---- 8. rules / skill / enum
  ok(t("ruleAreas('ek quiz lo mera')").includes('ui')&&t("ruleAreas('torch on kar')").includes('ui')===false,'rule area "ui" is picked for quiz, not for torch');
  ok(/ui_render/.test(t("rulesTool({area:'ui'},s=>s,{})")),'rules_read ui works');
  ok(t("TOOLS.find(x=>x.function.name==='rules_read').function.parameters.properties.area.enum").includes('ui'),'rules_read enum has ui');
  ok(/ui_render/.test(t('skillText()')),'skill text lists ui_render');
- ok(t("RULES_VER")==='2026-11-21.2','RULES_VER bumped');
+ ok(t("RULES_VER")==='2026-11-22.1','RULES_VER bumped');
  ok(/```ui/.test(t("RULES.ui"))&&/HE says/.test(t("RULES.ui")),'rules tell the AI about the fence fallback and that a button value is Najeef\'s words');
  // ---- 9. switch off
  t("S.ui={off:true}");o=t('fmt')('```ui\n'+F+'\n```');ok(/<pre>/.test(o)&&/off hai/.test(o),'Rich UI off: fence stays code');
