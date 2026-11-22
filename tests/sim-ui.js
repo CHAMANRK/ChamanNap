@@ -235,8 +235,9 @@ const lastUser=()=>{const h=getH();for(let k=h.length-1;k>=0;k--)if(h[k].role===
  ok(!HP('/sdcard/Chaman/ui/../notes/x.html')&&!HP('ui/../../x.html')&&!HP('/etc/ui/x.html')&&!HP('/sdcard/DCIM/ui/x.html'),'html: .. and outside the workspace rejected');
  ok(!HP('https://evil.com/ui/x.html')&&!HP('file:///sdcard/Chaman/ui/x.html')&&!HP('javascript:alert(1)')&&!HP('data:text/html,<script>1</script>')&&!HP(''),'html: urls / schemes / empty rejected');
  r=V({v:1,blocks:[{type:'html',html:'<script>alert(1)</script>',height:300},{type:'text',md:'t'}]});
- ok(r.ok&&r.ui.blocks.length===1&&r.ui.skipped===1,'html: inline html string is not accepted (skipped), file only');
- ok(!V({v:1,blocks:[{type:'html',html:'<b>x</b>'}]}).ok,'a widget with only an inline html block is invalid');
+ ok(r.ok&&r.ui.blocks.length===2&&r.ui.blocks[0].type==='html'&&/^inline:/.test(r.ui.blocks[0].src)&&r.ui.blocks[0].html==='<script>alert(1)</script>','html: inline html accepted (P4), runs in the same sandbox panel');
+ ok(!V({v:1,blocks:[{type:'html',html:'x'.repeat(30001)}]}).ok&&V({v:1,blocks:[{type:'html',html:'x'.repeat(30000)}]}).ok,'html: inline limit 30000 chars');
+ ok(!V({v:1,blocks:[{type:'html',html:'   '}]}).ok,'html: blank inline html is invalid');
  r=V({v:1,blocks:[{type:'html',src:'ui/a.html',height:9999},{type:'html',src:'ui/b.html',height:5,label:'<b>',title:XSS}]});
  ok(r.ui.blocks[0].height===700&&r.ui.blocks[1].height===120&&r.ui.blocks[0].label==='Play','html: height 120..700, default label Play');
  ch=t('(r)=>uiW(r.ui,"1:0","live")')(r);ok(/data-ua="play"/.test(ch)&&!/<iframe/i.test(ch)&&!/<script|<img/i.test(ch)&&ch.indexOf('&lt;script&gt;')>0,'html card in chat: Play button only, no iframe, texts escaped');
@@ -252,7 +253,7 @@ const lastUser=()=>{const h=getH();for(let k=h.length-1;k>=0;k--)if(h[k].role===
  // bridge
  const WIN={},SENT=[];
  t("UIG.fr=null");const setG=()=>{t('UIG').fr={contentWindow:WIN};t('UIG').name='snake';t('UIG').n=0;t('UIG').last=0;t('UIG').pend='';SENT.length=0};
- t("uiSendText=(m,c)=>{GSENT.push([m,c]);return !GBUSY}");ctx.GSENT=SENT;ctx.GBUSY=false;
+ ctx.ORIGSEND=t('uiSendText');t("uiSendText=(m,c)=>{GSENT.push([m,c]);return !GBUSY}");ctx.GSENT=SENT;ctx.GBUSY=false;
  const B2=(src,d)=>t('uiBridge')({source:src,data:d});
  setG();B2(WIN,{__chaman:1,t:'score 5'});ok(SENT.length===1&&SENT[0][0]==='[game:snake] score 5'&&SENT[0][1]==='score 5','bridge: event becomes "[game:snake] score 5" with a chip');
  t('UIG').last=0;B2({},{__chaman:1,t:'x'});B2(null,{__chaman:1,t:'x'});B2(WIN,{t:'no flag'});B2(WIN,{__chaman:1,t:5});B2(WIN,{__chaman:1,t:'   '});B2(WIN,null);B2(WIN,'string');
@@ -266,6 +267,7 @@ const lastUser=()=>{const h=getH();for(let k=h.length-1;k>=0;k--)if(h[k].role===
  ctx.GBUSY=false;await new Promise(x=>setTimeout(x,1700));ok(SENT.length===2&&SENT[1][0]==='[game:snake] late event'&&t('UIG').pend==='','bridge: the kept event is sent once the AI is free');
  setG();t("UIG.fr=null");B2(WIN,{__chaman:1,t:'x'});ok(SENT.length===0,'bridge: no game open = ignored');
  setG();t("S.ui={off:true}");B2(WIN,{__chaman:1,t:'x'});ok(SENT.length===0,'bridge: Rich UI off = ignored');t("S.ui={}");
+ t('uiSendText=ORIGSEND');
  // panel closes when its widget is gone / switch off
  t("UIG.fr={remove(){}};UIG.src='/sdcard/Chaman/ui/snake.html'");
  setH([{role:'user',content:'q'},{role:'assistant',local:1,content:'',aiNote:'w',ui:{v:1,id:'g',blocks:[{type:'html',src:'/sdcard/Chaman/ui/snake.html'}]}}]);
@@ -281,12 +283,147 @@ const lastUser=()=>{const h=getH();for(let k=h.length-1;k>=0;k--)if(h[k].role===
  ok(t("TOOLS.find(x=>x.function.name==='rules_read').function.parameters.properties.area.enum").includes('game')&&/rules_read game/.test(t("TOOLS.find(x=>x.function.name==='ui_render').function.description")),'rules_read enum has game; ui_render points to it');
  ok(/games in a panel/.test(t('skillText()')),'skill text mentions games');
  ok(/rules_read game/.test(t('RULES.ui'))&&!/html \(games\) and diagram do not exist/.test(t('RULES.ui')),'ui rules point to the game area');
+
+ // ---- 7f. P4: mermaid subset
+ const MM=c=>t('uiMermaid')(c);
+ let m=MM('graph TD\n A[Start] --> B{Valid?}\n B -->|yes| C[Home]\n B -->|no| D((Error))');
+ ok(!m.err&&m.dir==='TB'&&m.nodes.length===4&&m.edges.length===3,'mermaid: basic flowchart (4 nodes, 3 edges)');
+ ok(m.nodes[0].shape==='box'&&m.nodes[1].shape==='diamond'&&m.nodes[3].shape==='circle'&&m.nodes[1].label==='Valid?','mermaid: shapes [] {} (()) and labels');
+ ok(m.edges[1].label==='yes'&&m.edges[2].label==='no'&&m.edges[0].arrow===true,'mermaid: |label| on edges');
+ m=MM('flowchart LR\nA-->B-->C');ok(m.dir==='LR'&&m.edges.length===2&&m.edges[1].from==='B'&&m.edges[1].to==='C','mermaid: LR and chains without spaces');
+ m=MM('graph RL\nA-->B');ok(m.dir==='LR','mermaid: RL is treated as LR');
+ m=MM('graph TD\nA -- text here --> B\nB -.-> C\nC ==> D\nD --- E\nE -. dotted .-> F\nF == big == > G'.replace(' > G','>G'));
+ ok(!m.err&&m.edges[0].label==='text here'&&m.edges[0].style==='solid'&&m.edges[1].style==='dashed'&&m.edges[2].style==='thick'&&m.edges[3].arrow===false&&m.edges[4].style==='dashed'&&m.edges[4].label==='dotted'&&m.edges[5].style==='thick','mermaid: -- text -->, -.->, ==>, ---, -. text .->, == text ==>');
+ m=MM('graph TD\nA & B --> C & D');ok(m.edges.length===4,'mermaid: A & B --> C & D = 4 edges');
+ m=MM('graph TD; A-->B; B-->C %% not a comment mid-line'.replace(' %% not a comment mid-line',''));ok(!m.err&&m.edges.length===2,'mermaid: ; separators');
+ m=MM('%% hello\ngraph TD\nsubgraph S\nA-->B\nend\nstyle A fill:#f00\nclassDef x fill:#fff\nclass A x\nlinkStyle 0 stroke:red\nclick A cb\nB-->C');
+ ok(!m.err&&m.nodes.length===3&&m.edges.length===2,'mermaid: comments, subgraph/end, style, classDef, class, linkStyle, click are ignored');
+ m=MM('graph TD\nA["Hello (world)"] --> B[Two<br/>lines]');ok(!m.err&&m.nodes[0].label==='Hello (world)'.replace('(world)','(world)')&&m.nodes[1].label==='Two lines','mermaid: quoted labels, <br/>');
+ m=MM('graph TD\nA-->B\nA[Late label]');ok(m.nodes[0].label==='Late label'&&m.nodes.length===2,'mermaid: a later definition gives the label');
+ m=MM('graph TD\nA([Pill]) --> B[[Sub]] --> C(Round)');ok(m.nodes[0].shape==='round'&&m.nodes[1].shape==='box'&&m.nodes[2].shape==='round','mermaid: ([ ]) [[ ]] ( ) shapes');
+ for(const bad of ['sequenceDiagram\nA->>B: hi','gantt\ntitle x','classDiagram\nclass A','stateDiagram-v2\n[*] --> A','pie\n"a":1','graph TD\nA ->> B','graph TD\nA --> ','graph TD\n???','','graph TD\n%% only comment'])ok(!!MM(bad).err,'mermaid: unsupported is an error, never guessed: '+JSON.stringify(bad).slice(0,32));
+ ok(/sequenceDiagram/.test(MM('sequenceDiagram\nA->>B: hi').err),'mermaid: error names the unsupported type');
+ // ---- diagram validator
+ const DG=(o)=>V({v:1,blocks:[Object.assign({type:'diagram'},o)]});
+ r=DG({nodes:[{id:'a',label:'Start',shape:'start'},{id:'b',label:'Ok?',shape:'decision'},{id:'c',shape:'ellipse'},{id:'d',shape:'weird'}],edges:[{from:'a',to:'b'},{from:'b',to:'c',label:'yes',style:'dashed'},{from:'b',to:'zz'}]});
+ ok(r.ok&&r.ui.blocks[0].nodes.map(n=>n.shape).join()==='round,diamond,circle,box,box'&&r.ui.blocks[0].nodes[4].id==='zz'&&r.ui.blocks[0].nodes[4].label==='zz','diagram: shape aliases, unknown shape = box, an edge target that is not listed is created');
+ ok(r.ui.blocks[0].edges[1].style==='dashed'&&r.ui.blocks[0].edges[0].style==='solid'&&r.ui.blocks[0].edges[0].arrow===true,'diagram: edge style and arrow');
+ r=DG({format:'flow',nodes:[{id:'a'}],edges:[]});ok(r.ok,'diagram: format "flow" = nodes');
+ r=DG({format:'mermaid',code:'graph LR\nA-->B'});ok(r.ok&&r.ui.blocks[0].dir==='LR'&&r.ui.blocks[0].nodes.length===2,'diagram: mermaid code converted');
+ r=DG({code:'graph TD\nX-->Y'});ok(r.ok&&r.ui.blocks[0].nodes.length===2,'diagram: code without format is mermaid');
+ r=DG({format:'mermaid',code:'sequenceDiagram\nA->>B: x'});ok(!r.ok&&/mermaid/.test(r.err)&&/sequenceDiagram/.test(r.err),'diagram: bad mermaid = the widget is rejected with a clear error');
+ ok(!DG({nodes:Array.from({length:41},(_,i)=>({id:'n'+i}))}).ok&&DG({nodes:Array.from({length:40},(_,i)=>({id:'n'+i}))}).ok,'diagram: 40 nodes max');
+ ok(!DG({nodes:[{id:'a'}],edges:Array.from({length:81},()=>({from:'a',to:'a'}))}).ok,'diagram: 80 edges max');
+ ok(!DG({nodes:[{id:'a',label:'x'.repeat(81)}]}).ok&&DG({nodes:[{id:'a',label:'x'.repeat(80)}]}).ok,'diagram: label 80 chars max');
+ ok(!DG({nodes:[],edges:[]}).ok&&!DG({}).ok,'diagram: empty = dropped');
+ r=DG({nodes:[{id:'a b'},{id:'ok'},{id:'ok',label:'dup'},{label:'noid'}],edges:[{from:'ok',to:'ok'},{from:'',to:'ok'},{from:'ok'}]});
+ ok(r.ok&&r.ui.blocks[0].nodes.length===1&&r.ui.blocks[0].edges.length===1,'diagram: bad ids, duplicates and half edges are skipped');
+ // ---- layout
+ const LAY=(d)=>t('uiDgLayout')(Object.assign({dir:'TB'},d));
+ const dgOf=(nodes,edges,dir)=>t('(a)=>a')({nodes:nodes.map(n=>typeof n==='string'?{id:n,label:n,shape:'box'}:n),edges:edges.map(e=>Object.assign({label:'',style:'solid',arrow:true},e)),dir:dir||'TB'});
+ const okLay=(L)=>{const fin=v=>Number.isFinite(v);let good=L.nodes.every(n=>fin(n.x)&&fin(n.y)&&n.w>0&&n.h>0)&&L.edges.every(e=>e&&!/NaN|undefined|Infinity/.test(e.d));
+   for(const n of L.nodes){if(n.x-n.w/2<-0.5||n.y-n.h/2<-0.5||n.x+n.w/2>L.vb.w+0.5||n.y+n.h/2>L.vb.h+0.5)good=false}
+   for(let i=0;i<L.nodes.length;i++)for(let j=i+1;j<L.nodes.length;j++){const a=L.nodes[i],b=L.nodes[j];if(Math.abs(a.x-b.x)<(a.w+b.w)/2-0.5&&Math.abs(a.y-b.y)<(a.h+b.h)/2-0.5)good=false}
+   return good};
+ let L1=LAY(dgOf(['a','b','c','d'],[{from:'a',to:'b'},{from:'a',to:'c'},{from:'b',to:'d'},{from:'c',to:'d'}]));
+ ok(okLay(L1),'layout: diamond-shaped graph, no overlap, everything inside the view box, no NaN');
+ const ny=id=>L1.nodes.find(n=>n.id===id).y,nx=id=>L1.nodes.find(n=>n.id===id).x;
+ ok(ny('a')<ny('b')&&ny('b')===ny('c')&&ny('b')<ny('d')&&Math.abs(nx('a')-(nx('b')+nx('c'))/2)<2,'layout: TB layers go downwards, siblings share a row, parent is centred over its children');
+ L1=LAY(dgOf(['a','b','c'],[{from:'a',to:'b'},{from:'b',to:'c'},{from:'c',to:'a'}]));ok(okLay(L1),'layout: a cycle (a>b>c>a) works');
+ const yy=id=>L1.nodes.find(n=>n.id===id).y;ok(yy('a')<yy('b')&&yy('b')<yy('c'),'layout: the cycle is broken at its back edge (a above b above c)');
+ L1=LAY(dgOf(['a','b'],[{from:'a',to:'a'},{from:'a',to:'b'},{from:'b',to:'a'}]));ok(okLay(L1)&&L1.edges.length===3,'layout: self loop + 2-cycle');
+ L1=LAY(dgOf(['a','b','c','d','e'],[{from:'a',to:'b'},{from:'b',to:'c'},{from:'c',to:'d'},{from:'a',to:'d'},{from:'d',to:'e'}]));
+ ok(okLay(L1),'layout: long edge (a>d skips layers) with dummy vertices, no overlap');
+ L1=LAY(dgOf(['a','b','c','d'],[{from:'a',to:'b'},{from:'c',to:'d'}]));ok(okLay(L1),'layout: two disconnected parts');
+ L1=LAY(dgOf(['x'],[]));ok(okLay(L1)&&L1.vb.w>0&&L1.vb.h>0,'layout: a single node');
+ L1=LAY(dgOf(['a','b','c'],[{from:'a',to:'b'},{from:'b',to:'c'}],'LR'));
+ ok(okLay(L1)&&L1.nodes[0].x<L1.nodes[1].x&&L1.nodes[1].x<L1.nodes[2].x&&Math.abs(L1.nodes[0].y-L1.nodes[2].y)<2&&L1.vb.w>L1.vb.h,'layout: LR goes left to right, wide view box');
+ const big=Array.from({length:40},(_,i)=>'n'+i),bigE=[];for(let i=1;i<40;i++){bigE.push({from:'n'+Math.floor((i-1)/2),to:'n'+i});if(i%5===0)bigE.push({from:'n'+i,to:'n'+Math.floor(i/3)})}
+ const t0=Date.now();L1=LAY(dgOf(big,bigE));ok(okLay(L1)&&Date.now()-t0<400,'layout: 40 nodes + back edges: valid and fast ('+(Date.now()-t0)+' ms)');
+ L1=LAY(dgOf([{id:'a',label:'A very long label that must wrap onto several lines and then get cut',shape:'box'},{id:'b',label:'Short',shape:'diamond'},{id:'c',label:'Circle',shape:'circle'}],[{from:'a',to:'b',label:'yes'},{from:'b',to:'c',label:'no'}]));
+ ok(okLay(L1)&&L1.nodes[0].lines.length<=3&&L1.nodes[0].lines.every(l=>l.length<=16),'layout: long labels wrapped (max 3 lines of 16)');
+ // ---- diagram HTML
+ r=V({v:1,id:'dg',blocks:[{type:'diagram',title:XSS,nodes:[{id:'a',label:XSS,shape:'diamond'},{id:'b',label:'B',shape:'circle'},{id:'c',label:'C',shape:'round'},{id:'d',label:'D'}],edges:[{from:'a',to:'b',label:XSS.slice(0,40)},{from:'b',to:'c',style:'dashed'},{from:'c',to:'d',style:'thick',arrow:false}]}]});
+ ch=t('(r)=>uiW(r.ui,"1:0","live")')(r);
+ ok(r.ok&&/<svg class="uds"/.test(ch)&&(ch.match(/<path class="ude/g)||[]).length===3&&/<polygon/.test(ch)&&/<ellipse/.test(ch)&&/<rect class="udn"/.test(ch)&&/marker-end/.test(ch)&&(ch.match(/marker-end/g)||[]).length===2,'diagram HTML: svg, 3 edges (2 with arrows), diamond/circle/box shapes');
+ ok(!/NaN|undefined|Infinity/.test(ch)&&!/<script|<img/i.test(ch)&&ch.indexOf('&lt;script&gt;')>0,'diagram HTML: numbers clean, labels escaped');
+ {const TG=new Set('div span b small button svg defs marker path rect polygon ellipse text tspan hr pre code i'.split(' ')),AT=new Set('class data-ui data-live data-ua data-b data-i data-base type disabled aria-label viewBox preserveAspectRatio role id refX refY markerWidth markerHeight orient marker-end d points x y width height rx ry cx cy text-anchor'.split(' '));let bt='',ba='';
+  for(const mm of ch.matchAll(/<\/?([a-zA-Z0-9]+)((?:\s+[a-zA-Z-]+(?:="[^"<>]*")?)*)\s*\/?>/g)){if(!TG.has(mm[1]))bt=mm[1];for(const a of mm[2].matchAll(/\s+([a-zA-Z-]+)(?:="([^"]*)")?/g))if(!AT.has(a[1]))ba=a[1]}
+  ok(!bt&&!ba,'diagram HTML: only whitelisted tags and attributes (bad: '+bt+' '+ba+')');}
+ ok(/data-base="[\d. ]+"/.test(ch)&&(ch.match(/data-ua="dz"/g)||[]).length===3&&/aria-label="Zoom in"/.test(ch),'diagram HTML: base view box + 3 zoom buttons (+, -, Fit)');
+ // pan / zoom maths
+ const BASE={x:0,y:0,w:400,h:300};
+ let vz=t('uiDgView')(BASE,BASE,'in');ok(Math.abs(vz.w-320)<1e-6&&Math.abs(vz.h-240)<1e-6&&Math.abs(vz.x+vz.w/2-200)<1e-6&&Math.abs(vz.y+vz.h/2-150)<1e-6,'zoom in: 80% window around the centre');
+ vz=t('uiDgView')(BASE,BASE,'out');ok(Math.abs(vz.w-500)<1e-6&&Math.abs(vz.x+vz.w/2-200)<1e-6,'zoom out: 125%');
+ ok(JSON.stringify(t('uiDgView')({x:50,y:40,w:100,h:75},BASE,'reset'))===JSON.stringify(BASE),'reset = the base view');
+ let vv=BASE;for(let i=0;i<40;i++)vv=t('uiDgView')(vv,BASE,'in');ok(Math.abs(vv.w-60)<1e-6,'zoom in stops at 15% of the base');
+ vv=BASE;for(let i=0;i<40;i++)vv=t('uiDgView')(vv,BASE,'out');ok(Math.abs(vv.w-1600)<1e-6,'zoom out stops at 4x the base');
+ vz=t('uiDgView')(BASE,BASE,0.5,100,60);ok(Math.abs(vz.w-200)<1e-6&&Math.abs((100-vz.x)/vz.w-0.25)<1e-6&&Math.abs((60-vz.y)/vz.h-0.2)<1e-6,'pinch zoom keeps the focal point under the fingers');
+ // ---- badge + stat
+ r=V({v:1,blocks:[{type:'badge',items:[{label:'Naya',color:'red'},{label:'Ok',color:'GREEN'},{label:'Info',color:'blue'},{label:'Gray',color:'gray'},{label:'Cyan',color:'cyan'},{label:'Unknown',color:'pink'},{label:'Plain'},'Shorthand',{label:''}]}]});
+ ok(r.ok&&r.ui.blocks[0].items.map(i=>i.color).join()==='red,green,blue,grey,teal,grey,grey,grey'&&r.ui.blocks[0].items.length===8,'badge: colors normalised (GREEN, gray, cyan>teal, unknown>grey), string items ok, empty label dropped');
+ r=V({v:1,blocks:[{type:'badge',label:'Solo',color:'orange'}]});ok(r.ok&&r.ui.blocks[0].items[0].label==='Solo'&&r.ui.blocks[0].items[0].color==='orange','badge: single label at top level');
+ ok(!V({v:1,blocks:[{type:'badge',items:[]}]}).ok&&V({v:1,blocks:[{type:'badge',items:Array.from({length:30},(_,i)=>'b'+i)}]}).ui.blocks[0].items.length===24,'badge: empty dropped, 24 max');
+ r=V({v:1,id:'bd',blocks:[{type:'badge',items:[{label:'Red',color:'red'},{label:'Tap me',color:'green',action:{type:'send',value:'tapped <b>',silent:true}},{label:'Copy me',color:'blue',action:{type:'copy',value:'abc'}},{label:XSS.slice(0,38),color:'purple',action:{type:'open',value:'x'}}]}]});
+ ch=t('(r)=>uiW(r.ui,"1:0","live")')(r);
+ ok((ch.match(/<span class="uibg /g)||[]).length===2&&(ch.match(/<button type="button" class="uibg tap /g)||[]).length===2&&/uibg red/.test(ch)&&/uibg tap green/.test(ch)&&/uibg purple/.test(ch),'badge HTML: plain = span, with action = tappable button, per-colour classes');
+ ok(ch.indexOf('&lt;script&gt;')>0&&!/<script|<img/i.test(ch),'badge HTML: escaped');
+ ch=t('(r)=>uiW(r.ui,"1:0","frozen")')(r);ok((ch.match(/uibg tap [a-z]+" data-ua="bdg" data-b="1" data-i="\d"( disabled)?/g)||[]).filter(x=>/disabled/.test(x)).length===1,'badge HTML: frozen widget disables send badges, copy badge stays');
+ setH([{role:'user',content:'x'},{role:'assistant',local:1,content:'',aiNote:'w',ui:{v:1,id:'bd',blocks:[{type:'badge',items:[{label:'Haan',color:'green',action:{type:'send',value:'haan, chalo'}},{label:'Copy',color:'blue',action:{type:'copy',value:'abc 1'}},{label:'Static',color:'red'}]}]}}]);t('render()');script=['ok'];n=0;
+ await tap(fakeW('1:0',true),'bdg',1,0);ok(lastUser().content==='haan, chalo'&&!lastUser().chip,'badge tap: suggestion chip sends its value');
+ setH([{role:'user',content:'x'},{role:'assistant',local:1,content:'',aiNote:'w',ui:{v:1,id:'bd',blocks:[{type:'badge',items:[{label:'Haan',color:'green',action:{type:'send',value:'haan, chalo'}},{label:'Copy',color:'blue',action:{type:'copy',value:'abc 1'}}]}]}}]);
+ const lb=getH().length;copied=null;await tap(fakeW('1:0',false),'bdg',1,0);ok(getH().length===lb,'badge tap on a frozen widget: nothing sent');
+ await tap(fakeW('1:0',false),'bdg',1,1);await new Promise(x=>setTimeout(x,10));ok(copied==='abc 1','badge copy works on a frozen widget');
+ r=V({v:1,blocks:[{type:'stat',items:[{k:'Status',v:'Live',type:'status',color:'green'},{k:'Tag',v:'New',type:'badge',color:'red'},{k:'Disk',v:'70',type:'progress',max:100},{k:'Ring',v:'3',type:'ring',max:10},{k:'Users',v:1200,type:'number'},{k:'Plain',v:'x'},{k:'Bad',v:'y',type:'weird'}]}]});
+ ok(r.ok&&r.ui.blocks[0].items.map(i=>i.type).join()==='status,badge,progress,progress,number,text,text','stat: types (ring = progress, unknown = text)');
+ ch=t('(r)=>uiW(r.ui,"1:0","live")')(r);ok(/uidot green/.test(ch)&&/uibg red/.test(ch)&&(ch.match(/class="uipb sm"/g)||[]).length===2&&/width:70\.0%/.test(ch)&&/width:30\.0%/.test(ch)&&/1200/.test(ch),'stat HTML: status dot, badge, 2 progress bars (70%, 30%), number');
+ ch=t('(r)=>uiW(r.ui,"1:0","live")')(V({v:1,blocks:[{type:'stat',state:'empty'}]}));ok(/uiemp/.test(ch)&&/Kuch nahi/.test(ch),'stat: empty state');
+ ch=t('(r)=>uiW(r.ui,"1:0","live")')(V({v:1,blocks:[{type:'stat',state:'skeleton',items:[{k:'a',v:'b'},{k:'c',v:'d'}]}]}));ok((ch.match(/class="uisk"/g)||[]).length===2,'stat: skeleton state');
+ ch=t('(r)=>uiW(r.ui,"1:0","live")')(V({v:1,blocks:[{type:'stat',items:[{k:XSS,v:XSS,type:'badge',color:'red'},{k:XSS,v:XSS,type:'status'},{k:XSS,v:'<b>',type:'progress'}]}]}));ok(!/<script|<img|<b>/i.test(ch)&&ch.indexOf('&lt;script&gt;')>0&&!/NaN/.test(ch),'stat: escaped, bad progress value is 0');
+ ok(!V({v:1,blocks:[{type:'stat',items:[]}]}).ok,'stat: no items and no state is dropped');
+ // ---- rev-2 names as aliases
+ r=V({v:1,blocks:[{type:'button',items:[{label:'A',variant:'primary',action:{type:'send',value:'a'}},{label:'B',variant:'danger'},{label:'C',variant:'ghost'},{label:'D',variant:'fab'},{label:'E',style:'primary'}]}]});
+ ok(r.ok&&r.ui.blocks[0].type==='buttons'&&r.ui.blocks[0].items.map(i=>i.style).join()==='primary,danger,secondary,secondary,primary','alias: button {variant} = buttons {style}');
+ r=V({v:1,blocks:[{type:'media',kind:'image',src:'work/a.png'},{type:'media',src:'gen:x1'},{type:'media',kind:'gallery',src:'work/a.png'},{type:'media',kind:'video',src:'work/a.mp4'},{type:'text',md:'t'}]});
+ ok(r.ok&&r.ui.blocks.filter(b=>b.type==='image').length===2&&r.ui.skipped===2,'alias: media {kind:image} = image; other media kinds are skipped (later phase)');
+ r=V({v:1,blocks:[{type:'canvas',kind:'game',src:'ui/snake.html',height:300},{type:'canvas',src:'ui/x.html'},{type:'canvas',kind:'board',rows:['X.O']},{type:'canvas',kind:'scene3d',src:'ui/x.html'},{type:'canvas',kind:'draw'},{type:'canvas',kind:'game',html:'<b>hi</b>'}]});
+ ok(r.ok&&r.ui.blocks.map(b=>b.type).join()==='html,html,board,html'&&r.ui.skipped===2&&r.ui.blocks[3].html==='<b>hi</b>','alias: canvas game > html (file or inline), canvas board > board, other kinds skipped');
+ // ---- inline html identity / panel
+ const i1=V({v:1,blocks:[{type:'html',html:'<b>one</b>',title:'Demo A'}]}).ui.blocks[0],i2=V({v:1,blocks:[{type:'html',html:'<b>one</b>'}]}).ui.blocks[0],i3=V({v:1,blocks:[{type:'html',html:'<b>two</b>'}]}).ui.blocks[0];
+ ok(i1.src===i2.src&&i1.src!==i3.src,'inline html: same html = same identity, different html = different');
+ ok(V({v:1,blocks:[{type:'html',src:'ui/real.html',html:'<b>x</b>'}]}).ui.blocks[0].src==='/sdcard/Chaman/ui/real.html'&&V({v:1,blocks:[{type:'html',src:'ui/real.html',html:'<b>x</b>'}]}).ui.blocks[0].html==='','inline html: a valid src file wins over html');
+ ok(V({v:1,blocks:[{type:'html',src:'/etc/x.html',html:'<b>x</b>'}]}).ui.blocks[0].html==='<b>x</b>','inline html: an invalid src falls back to the inline html');
+ ch=t('(r)=>uiW(r.ui,"1:0","live")')(V({v:1,blocks:[{type:'html',html:'<script>1</script>'}]}));ok(/inline html/.test(ch)&&/Demo/.test(ch)&&!/<script/i.test(ch)&&!/<iframe/i.test(ch),'inline html card: title Demo, "inline html", code never in the chat');
+ ok(/game inline/.test(t('uiNote')({id:'g',blocks:[{type:'html',src:'inline:ab',html:'x'}]})),'AI history note says inline game');
+ t("UIG.fr={remove(){}};UIG.src='"+i1.src+"'");
+ setH([{role:'user',content:'q'},{role:'assistant',local:1,content:'',aiNote:'w',ui:{v:1,id:'g',blocks:[{type:'html',html:'<b>one</b>',title:'Demo A'}]}}]);
+ ok(t('UIG.src')===i1.src,'panel stays open while its inline widget is in the chat');
+ setH([{role:'user',content:'q'}]);ok(t('UIG.src')==='','panel closes when the inline widget is gone');
+ // ---- {json} placeholder
+ const CJ={v:1,id:'cj',blocks:[{type:'choice',mode:'multi',options:[{label:'Chai',value:'tea'},{label:'Doodh',value:'milk'},'Pani'],submit:{label:'OK',action:{type:'send',value:'pick {json}'}}}]};
+ t('for(const k in UI_ST)delete UI_ST[k]');
+ setH([{role:'user',content:'x'},{role:'assistant',local:1,content:'',aiNote:'w',ui:CJ}]);t('render()');script=['ok'];n=0;
+ await tap(fakeW('1:0',true),'opt',1,0);await tap(fakeW('1:0',true),'opt',1,2);await tap(fakeW('1:0',true),'sub',1,0);
+ ok(lastUser().content==='pick ["tea","Pani"]','{json} for choice = JSON array of values');
+ const FJ={v:1,id:'fj',blocks:[{type:'form',fields:[{key:'naam',label:'Naam',type:'text',required:true},{key:'umar',label:'Umar',type:'number'},{key:'chai',label:'Chai',type:'switch'},{key:'shehar',label:'Shehar',type:'text'}],submit:{label:'Bhejo',action:{type:'send',value:'form: {json}'}}}]};
+ setH([{role:'user',content:'x'},{role:'assistant',local:1,content:'',aiNote:'w',ui:FJ}]);t('render()');script=['ok'];n=0;
+ await tap(fakeW('1:0',true,[fld('naam',1,'Najeef','text'),fld('umar',1,'30','number'),fld('chai',1,'on','checkbox',true),fld('shehar',1,'Lucknow "UP"','text')]),'sub',1,0);
+ ok(lastUser().content==='form: {"naam":"Najeef","umar":30,"chai":true,"shehar":"Lucknow \\"UP\\""}','{json} for form = real JSON (number as number, switch as true/false, quotes escaped)');
+ // ---- rules (P4)
+ ok(t("ruleAreas('login ka flowchart banao')").includes('diagram')&&t("ruleAreas('mermaid diagram do')").includes('diagram')&&t("ruleAreas('architecture dikhao')").includes('diagram')&&!t("ruleAreas('torch on kar')").includes('diagram'),'rules: area "diagram" for flowchart requests only');
+ t("S.ui={off:true}");ok(!t("ruleAreas('flowchart banao')").includes('diagram')&&!t("ruleAreas('snake game')").includes('game'),'rules: switch off adds none of ui/game/diagram');t("S.ui={}");
+ setH([{role:'user',content:'chat me ek quiz game banao aur flowchart bhi'}]);{const RB2=t('rulesBlock()');ok(/CHAT GAMES/.test(RB2)&&/DIAGRAMS/.test(RB2)&&/WIDGETS/.test(RB2),'rules: game + diagram + ui all fit together');}
+ ok(/sequenceDiagram/.test(t('RULES.diagram'))&&/mermaid/.test(t('RULES.diagram'))&&/40 nodes/.test(t('RULES.diagram'))&&/NOT supported/.test(t('RULES.diagram')),'rules: diagram area lists mermaid support and limits');
+ ok(/badge/.test(t('RULES.ui'))&&/red\|green\|blue\|grey/.test(t('RULES.ui'))&&/\{json\}/.test(t('RULES.ui'))&&/media \{kind:image/.test(t('RULES.ui'))&&/canvas \{kind:game/.test(t('RULES.ui'))&&/Older names also work/.test(t('RULES.ui')),'rules: ui area has badge colours, {json}, rev-2 names and says old names work');
+ ok(/inline/.test(t('RULES.game'))&&/30000/.test(t('RULES.game')),'rules: game area mentions inline html (30000 chars)');
+ ok(t("TOOLS.find(x=>x.function.name==='rules_read').function.parameters.properties.area.enum").includes('diagram')&&/rules_read diagram/.test(t("TOOLS.find(x=>x.function.name==='ui_render').function.description")),'rules_read enum has diagram; ui_render points to it');
+ ok(/diagrams/.test(t('skillText()')),'skill text mentions diagrams');
  // ---- 8. rules / skill / enum
  ok(t("ruleAreas('ek quiz lo mera')").includes('ui')&&t("ruleAreas('torch on kar')").includes('ui')===false,'rule area "ui" is picked for quiz, not for torch');
  ok(/ui_render/.test(t("rulesTool({area:'ui'},s=>s,{})")),'rules_read ui works');
  ok(t("TOOLS.find(x=>x.function.name==='rules_read').function.parameters.properties.area.enum").includes('ui'),'rules_read enum has ui');
  ok(/ui_render/.test(t('skillText()')),'skill text lists ui_render');
- ok(t("RULES_VER")==='2026-11-22.1','RULES_VER bumped');
+ ok(t("RULES_VER")==='2026-11-22.2','RULES_VER bumped');
  ok(/```ui/.test(t("RULES.ui"))&&/HE says/.test(t("RULES.ui")),'rules tell the AI about the fence fallback and that a button value is Najeef\'s words');
  // ---- 9. switch off
  t("S.ui={off:true}");o=t('fmt')('```ui\n'+F+'\n```');ok(/<pre>/.test(o)&&/off hai/.test(o),'Rich UI off: fence stays code');
