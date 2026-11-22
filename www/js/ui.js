@@ -2,10 +2,11 @@
 // Two ways in: the ui_render tool, or a ```ui fenced JSON block in the reply (works for chat-only models too). A tap sends a normal user message (a new AI turn).
 // Safety: the JSON is never executed. uiValidate() builds a clean copy with only known types and props (unknown type = skipped), every text goes through esc(),
 // the DOM carries only indexes (data-b / data-i), the action is looked up again from the stored widget when tapped. No script, no network, no raw HTML.
-// Later phases (not here): chart, board, image, html sandbox, diagram, expired hint after reload, Settings switch (uiOn already reads S.ui.off).
+// P2 (1.39000.0): chart (bar/line/pie as inline SVG built from numbers), board (monospace grid), image (workspace path or gen:<id>), widgets that came from an older app run
+// are 'expired' (static + hint), Settings switch "Rich UI in chat" (S.ui.off). Later phases (not here): html sandbox + bridge (P3), diagram, mermaid, inline html (P4).
 const UI_MAX={json:32768,blocks:60,elems:300,depth:5,str:2000,opts:20,fields:20,rows:100,cols:12,items:12,kv:50};
 let UI_HI=-1,UI_K=0,UI_CHIP='',UI_INFO={},UI_N=0;
-const UI_ST={},UI_CACHE=new WeakMap(),UI_SCACHE=new Map(),UI_IDX=new WeakMap();
+const UI_FRESH=new WeakSet(),UI_ST={},UI_CACHE=new WeakMap(),UI_SCACHE=new Map(),UI_IDX=new WeakMap();
 const uiOn=()=>!(S.ui&&S.ui.off===true);
 const ea=t=>esc(String(t)).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 const uiHas=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
@@ -21,6 +22,13 @@ function uiStr(v,max,what){
 const uiKey=v=>{const s=String(v==null?'':v).trim();return /^[A-Za-z0-9_-]{1,32}$/.test(s)?s:''};
 const uiNum=(v,d)=>{const n=typeof v==='number'?v:parseFloat(v);return isFinite(n)?n:d};
 function uiCount(cx,k){cx.n+=(k==null?1:k);if(cx.n>UI_MAX.elems)throw new Error('elements '+UI_MAX.elems+' se zyada');}
+// image src must be a picture inside the workspace (never notes/, never outside, no ..)
+function uiImgPath(src){
+  if(typeof fpath!=='function'||!src||/\.\.|\0/.test(src)||/^[a-z][a-z0-9+.-]*:/i.test(src))return''; // no url / data: / javascript: schemes
+  const p=fpath(src);
+  if(!p||p===WS_ROOT||!/\.(png|jpe?g|webp|gif|svg)$/i.test(p)||(typeof fNotes==='function'&&fNotes(p)))return'';
+  return p;
+}
 function uiAction(a,dflt){
   if(!a||typeof a!=='object'||Array.isArray(a))return dflt||{type:'none'};
   if(a.type==='send')return{type:'send',value:uiStr(a.value,1000,'action value'),silent:a.silent===true};
@@ -106,6 +114,28 @@ function uiBlock(b,depth,cx){
     case'alert':uiCount(cx);o={type:T,style:['info','success','warn','error'].includes(b.style)?b.style:'info',title:uiStr(b.title,200),md:uiStr(b.md,UI_MAX.str,'alert text')};break;
     case'progress':{uiCount(cx);const mx=Math.max(1e-9,uiNum(b.max,100));o={type:T,value:Math.max(0,Math.min(mx,uiNum(b.value,0))),max:mx,label:uiStr(b.label,200)};break}
     case'code':uiCount(cx);o={type:T,lang:uiStr(b.lang,20).replace(/[^\w+#.-]/g,''),code:uiStr(b.code,UI_MAX.str,'code')};break;
+    case'chart':{
+      uiCount(cx);
+      const labels=(Array.isArray(b.labels)?b.labels.slice(0,24):[]).map(x=>uiStr(x,60,'chart label')),series=[];
+      for(const q of(Array.isArray(b.series)?b.series.slice(0,6):[])){
+        if(!q||typeof q!=='object')continue;
+        const vals=labels.map((_,i)=>Array.isArray(q.values)?uiNum(q.values[i],0):0);
+        uiCount(cx);series.push({name:uiStr(q.name,60),values:vals});
+      }
+      if(!labels.length||!series.length){cx.n--;cx.skip++;return null}
+      uiCount(cx,labels.length);
+      o={type:T,kind:['bar','line','pie'].includes(b.kind)?b.kind:'bar',title:uiStr(b.title,120),unit:uiStr(b.unit,12),labels,series};break;
+    }
+    case'board':{
+      uiCount(cx);const rows=(Array.isArray(b.rows)?b.rows.slice(0,30):[]).map(r=>uiStr(r,80,'board row'));
+      if(!rows.length){cx.n--;cx.skip++;return null}
+      o={type:T,rows,legend:uiStr(b.legend,300),size:['sm','md','lg'].includes(b.size)?b.size:'md'};break;
+    }
+    case'image':{
+      uiCount(cx);let src=uiStr(b.src,300,'image src').trim();
+      if(!/^gen:[A-Za-z0-9_-]{1,40}$/.test(src)){src=uiImgPath(src);if(!src){cx.n--;cx.skip++;return null}}
+      o={type:T,src,alt:uiStr(b.alt,200),caption:uiStr(b.caption,300),height:Math.max(60,Math.min(600,Math.round(uiNum(b.height,240))))};break;
+    }
     case'divider':case'spacer':uiCount(cx);o={type:T};break;
     default:cx.skip++;return null; // unknown (or a later-phase type like chart/html/diagram): silently skipped
   }
@@ -157,14 +187,17 @@ function uiExtract(m){ // [{k,ui}] valid widgets of one message; k counts every 
 // live = can be tapped. Only the newest widget is live (after a user message it freezes), unless keep:true. Same id later = replaced (old).
 function uiScan(){
   const L=[];let lastUser=-1;
-  H.forEach((m,hi)=>{if(m.role==='user')lastUser=hi;uiExtract(m).forEach(w=>L.push({hi,k:w.k,id:w.ui.id,keep:w.ui.keep}))});
+  H.forEach((m,hi)=>{if(m.role==='user')lastUser=hi;uiExtract(m).forEach(w=>L.push({hi,k:w.k,id:w.ui.id,keep:w.ui.keep,fresh:UI_FRESH.has(m)}))});
   const info={};
   L.forEach((w,i)=>{
     const later=L.slice(i+1).some(x=>x.id===w.id),isLast=i===L.length-1;
-    info[w.hi+':'+w.k]=later?'old':(w.keep||(isLast&&w.hi>lastUser))?'live':'frozen';
+    info[w.hi+':'+w.k]=later?'old':!w.fresh?'expired':(w.keep||(isLast&&w.hi>lastUser))?'live':'frozen';
   });
   UI_INFO=info;
 }
+// a widget message made in this app run is fresh; anything loaded from storage or an old session is not (it shows as expired)
+function uiFresh(m){if(m&&typeof m==='object')UI_FRESH.add(m)}
+const uiTools=()=>uiOn()?TOOLS:TOOLS.filter(t=>t.function.name!=='ui_render');
 function uiCtx(hi){UI_HI=hi;UI_K=0;return''}
 const uiHide=(m,hi)=>!!(m&&m.ui&&UI_INFO[hi+':0']==='old');
 const uiStat=key=>UI_INFO[key]||'frozen';
@@ -173,7 +206,7 @@ const uiStat=key=>UI_INFO[key]||'frozen';
 const uiSt=(key,bid)=>UI_ST[key+'|'+bid]||(UI_ST[key+'|'+bid]={sel:[],v:{},sort:null});
 function uiW(ui,key,st){
   uiIndex(ui);const live=st==='live';
-  return'<div class="uiw'+(live?'':' frz')+'" data-ui="'+ea(key)+'" data-live="'+(live?1:0)+'">'+(ui.title?'<div class="uit">'+esc(ui.title)+'</div>':'')+ui.blocks.map(b=>uiB(b,key,live)).join('')+'</div>';
+  return'<div class="uiw'+(live?'':' frz')+'" data-ui="'+ea(key)+'" data-live="'+(live?1:0)+'">'+(ui.title?'<div class="uit">'+esc(ui.title)+'</div>':'')+ui.blocks.map(b=>uiB(b,key,live)).join('')+(st==='expired'?'<div class="uiexp">Ye widget purana hai (app dobara khuli), ab tap nahi hota. Naya maang lo.</div>':'')+'</div>';
 }
 function uiB(b,key,live){
   const id=b.bid;
@@ -219,12 +252,96 @@ function uiB(b,key,live){
     case'alert':return'<div class="uia '+b.style+'" role="note">'+(b.title?'<b>'+esc(b.title)+'</b>':'')+(b.md?'<div>'+mdBlocks(b.md)+'</div>':'')+'</div>';
     case'progress':{const pc=(b.value/b.max*100).toFixed(1);return'<div class="uipr">'+(b.label?'<div class="uipl">'+esc(b.label)+'</div>':'')+'<div class="uipb" role="progressbar" aria-valuemin="0" aria-valuemax="'+b.max+'" aria-valuenow="'+b.value+'"><i style="width:'+pc+'%"></i></div></div>'}
     case'code':return'<div class="code"><div class="cbar">'+(b.lang?'<span class="lang">'+esc(b.lang)+'</span>':'')+'<button type="button" class="cp" aria-label="Copy code">'+ICO_COPY+'</button></div><pre><code>'+esc(b.code)+'</code></pre></div>';
+    case'chart':return uiChartH(b);
+    case'board':return'<div class="uibd '+b.size+'"><div class="tw"><pre class="uibp">'+b.rows.map(esc).join('\n')+'</pre></div>'+(b.legend?'<div class="uibl">'+esc(b.legend)+'</div>':'')+'</div>';
+    case'image':{
+      const u=uiImgUrl(b.src);
+      if(u==='err')return'<div class="uierr">Image nahi mili ('+esc(b.src.indexOf('gen:')===0?'ab memory me nahi, save nahi hui thi':b.src.replace(WS_ROOT+'/',''))+')</div>';
+      if(!u)return'<div class="uiimg ph" data-isrc="'+ea(b.src)+'" style="height:'+b.height+'px"><span>Image load ho rahi hai</span></div>';
+      return'<figure class="uiimg"><img src="'+ea(u)+'" alt="'+ea(b.alt)+'" style="max-height:'+b.height+'px">'+(b.caption?'<figcaption>'+esc(b.caption)+'</figcaption>':'')+'</figure>';
+    }
     case'divider':return'<hr>';
     case'spacer':return'<div class="uisp"></div>';
   }
   return'';
 }
 const dis0=live=>live?'':' disabled';
+// ---- chart: inline SVG, every coordinate comes from numbers (toFixed), every text through esc() ----
+const uiC=n=>(+n).toFixed(1);
+const uiF=n=>{n=+n;if(!isFinite(n))return'0';const a=Math.abs(n);return a>=1e6?(+(n/1e6).toFixed(1))+'M':a>=1e4?(+(n/1e3).toFixed(1))+'k':String(+n.toFixed(2))};
+function uiNice(lo,hi){
+  const raw=(hi-lo||1)/4,p=Math.pow(10,Math.floor(Math.log10(raw))),f=raw/p,st=(f<=1?1:f<=2?2:f<=5?5:10)*p;
+  return{lo:Math.floor(lo/st+1e-9)*st,hi:Math.ceil(hi/st-1e-9)*st,st};
+}
+const uiCut=(t,n)=>t.length>n?t.slice(0,n-1)+'.':t;
+function uiChartH(b){
+  const n=b.labels.length,ns=b.series.length,pie=b.kind==='pie';
+  const head=(b.title||b.unit?'<div class="uct">'+esc(b.title)+(b.unit?' <small>('+esc(b.unit)+')</small>':'')+'</div>':'');
+  const aria=ea(b.kind+' chart, '+b.series.map(s=>s.name||'series').join(', ')+', '+n+' points');
+  let body='',lg='';
+  if(pie){
+    const vals=b.labels.map((l,i)=>Math.max(0,b.series[0].values[i]||0)),tot=vals.reduce((a,x)=>a+x,0);
+    if(tot<=0)return head+'<div class="uierr">Chart ka data khaali hai.</div>';
+    let a0=-Math.PI/2,sl='';
+    vals.forEach((v,i)=>{
+      if(v<=0)return;const fr=v/tot,a1=a0+fr*2*Math.PI;
+      if(fr>=0.9999)sl+='<circle class="c'+(i%6)+'" cx="100" cy="100" r="88"></circle>';
+      else sl+='<path class="c'+(i%6)+'" d="M100 100L'+uiC(100+88*Math.cos(a0))+' '+uiC(100+88*Math.sin(a0))+'A88 88 0 '+(fr>.5?1:0)+' 1 '+uiC(100+88*Math.cos(a1))+' '+uiC(100+88*Math.sin(a1))+'Z"></path>';
+      a0=a1;
+    });
+    body='<svg class="upie" viewBox="0 0 200 200" role="img" aria-label="'+aria+'">'+sl+'</svg>';
+    lg='<div class="ulg col">'+b.labels.map((l,i)=>vals[i]>0?'<span><i class="c'+(i%6)+'"></i>'+esc(l)+' <small>'+uiF(vals[i])+' ('+(vals[i]/tot*100).toFixed(0)+'%)</small></span>':'').join('')+'</div>';
+  }else{
+    const W=360,Hh=210,pl=40,pr=8,pt=14,pb=n>6?54:28;
+    let lo=0,hi=0;b.series.forEach(s=>s.values.forEach(v=>{if(v<lo)lo=v;if(v>hi)hi=v}));
+    if(hi===lo)hi=lo+1;
+    const nz=uiNice(lo,hi);lo=nz.lo;hi=nz.hi;
+    const ph=Hh-pt-pb,y=v=>pt+(1-(v-lo)/(hi-lo))*ph,gw=(W-pl-pr)/n;let g='';
+    const cnt=Math.min(10,Math.round((hi-lo)/nz.st));
+    for(let i=0;i<=cnt;i++){const t=lo+i*nz.st,yy=y(t);g+='<line class="ug" x1="'+pl+'" x2="'+(W-pr)+'" y1="'+uiC(yy)+'" y2="'+uiC(yy)+'"></line><text class="ut" x="'+(pl-4)+'" y="'+uiC(yy+3)+'" text-anchor="end">'+uiF(t)+'</text>'}
+    b.labels.forEach((l,i)=>{const x=pl+(i+.5)*gw,yy=Hh-pb+13;g+='<text class="ut" x="'+uiC(x)+'" y="'+uiC(yy)+'" text-anchor="'+(n>6?'end':'middle')+'"'+(n>6?' transform="rotate(-35 '+uiC(x)+' '+uiC(yy)+')"':'')+'>'+esc(uiCut(l,10))+'</text>'});
+    const y0=y(0),showV=n*ns<=10;
+    if(b.kind==='bar'){
+      const bw=Math.max(2,Math.min(30,gw*.72/ns));
+      b.series.forEach((s,j)=>s.values.forEach((v,i)=>{
+        const x=pl+i*gw+(gw-bw*ns)/2+j*bw,yy=y(v),top=Math.min(yy,y0),h=Math.abs(yy-y0);
+        if(h>=.3)g+='<rect class="c'+(j%6)+'" x="'+uiC(x)+'" y="'+uiC(top)+'" width="'+uiC(Math.max(1,bw-1))+'" height="'+uiC(h)+'" rx="2"></rect>';
+        if(showV)g+='<text class="ut v" x="'+uiC(x+bw/2)+'" y="'+uiC(v>=0?top-3:top+h+10)+'" text-anchor="middle">'+uiF(v)+'</text>';
+      }));
+    }else{
+      b.series.forEach((s,j)=>{
+        const pts=s.values.map((v,i)=>[pl+(i+.5)*gw,y(v)]);
+        g+='<polyline class="l'+(j%6)+'" fill="none" points="'+pts.map(q=>uiC(q[0])+','+uiC(q[1])).join(' ')+'"></polyline>';
+        pts.forEach(q=>{g+='<circle class="c'+(j%6)+'" cx="'+uiC(q[0])+'" cy="'+uiC(q[1])+'" r="3"></circle>'});
+      });
+    }
+    body='<svg class="usv" viewBox="0 0 '+W+' '+Hh+'" role="img" aria-label="'+aria+'">'+g+'</svg>';
+    if(ns>1)lg='<div class="ulg">'+b.series.map((s,j)=>'<span><i class="c'+(j%6)+'"></i>'+esc(s.name||'Series '+(j+1))+'</span>').join('')+'</div>';
+  }
+  return'<div class="ucw">'+head+body+lg+'</div>';
+}
+// ---- image: workspace file (read through the native Files plugin) or gen:<id> (in-memory generated image) ----
+const UI_IMG=new Map();
+function uiImgUrl(src){
+  if(src.indexOf('gen:')===0){
+    const p=typeof IMG_PV!=='undefined'&&IMG_PV[src.slice(4)];
+    return p&&typeof ipUrl==='function'?ipUrl(p):'err';
+  }
+  const c=UI_IMG.get(src);
+  if(typeof c==='string')return c;
+  if(c&&(c.wait||Date.now()-c.t<10000))return c.wait?'':'err'; // a failed load is tried again after 10 s
+  UI_IMG.set(src,{wait:true,t:Date.now()});
+  NF('readB64',{path:src}).then(r=>{
+    if(!r||!r.b64||r.b64.length>4000000||!/^image\/(png|jpeg|webp|gif|svg\+xml)$/.test(r.mime||''))throw new Error('x');
+    UI_IMG.set(src,'data:'+r.mime+';base64,'+r.b64);
+  }).catch(()=>UI_IMG.set(src,{t:Date.now()})).then(()=>uiImgRedraw(src));
+  return'';
+}
+function uiImgRedraw(src){
+  if(typeof document.querySelectorAll!=='function')return;
+  const seen=new Set();
+  document.querySelectorAll('.uiimg[data-isrc]').forEach(e=>{if(e.dataset.isrc===src){const w=e.closest('.uiw');if(w&&!seen.has(w)){seen.add(w);uiRefresh(w)}}});
+}
 // message-level hook used by render(): the widget of a tool message
 function uiH(m,hi){
   if(!m.ui)return'';
@@ -362,7 +479,7 @@ async function uiTool(a,note,fl){
   const r=uiValidate(a);
   if(!r.ok){fl.bad=true;return note('Widget valid nahi ('+r.err+'). Theek karke dobara bhejo, ya rules_read ui padho.')}
   const ui={v:1,id:r.ui.id,title:r.ui.title,keep:r.ui.keep,blocks:JSON.parse(JSON.stringify(r.ui.blocks,(k,v)=>k==='bid'?undefined:v))};
-  H.push({role:'assistant',local:1,content:'',aiNote:uiNote(ui),ui:ui});
+  const wm={role:'assistant',local:1,content:'',aiNote:uiNote(ui),ui:ui};H.push(wm);uiFresh(wm);
   note('Widget dikhaya: '+ui.id+(r.ui.skipped?' ('+r.ui.skipped+' unknown block skip hua)':''));
   return'Widget "'+ui.id+'" chat me dikh gaya. Najeef ke tap ka wait karo: jawab me ek chhoti line se zyada mat likho aur widget ka text dobara mat likho. Wahi id dobara bhejoge to ye widget replace hoga.';
 }
@@ -372,5 +489,5 @@ function uiMerge(r){
     const m=H[k];if(m.role==='user')break;
     if(m.ui){m.steps=r.steps;m.by=r.by;return}
   }
-  H.push({role:'assistant',content:'(widget)',by:r.by,steps:r.steps});
+  H.push({role:'assistant',content:'(widget)',by:r.by,steps:r.steps});uiFresh(H[H.length-1]);
 }

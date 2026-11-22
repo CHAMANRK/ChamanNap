@@ -13,15 +13,19 @@ def run(theme, scenario, shot):
         pg.add_init_script("localStorage.setItem('nap_first','1');localStorage.setItem('nap_ses',JSON.stringify({id:'S1',t0:1,title:'t'}));sessionStorage.setItem('nap_sid','S1');localStorage.setItem('nap_h',%s);localStorage.setItem('nap_s',%s)"%(json.dumps(json.dumps(H)),json.dumps(json.dumps({"rn":{"on":False,"warm":False,"net":[],"netInit":True},"lg":{"on":False},"theme":theme}))))
         pg.goto("http://localhost:8765/index.html"); pg.wait_for_timeout(700)
         return pg,b,errs
-def shot(theme,name,H,after=None):
+def shot(theme,name,H,after=None,stale=False):
     with sync_playwright() as p:
         b=p.chromium.launch(); ctx=b.new_context(viewport={"width":390,"height":800},device_scale_factor=2,color_scheme=theme); pg=ctx.new_page()
         errs=[]; pg.on("pageerror",lambda e:errs.append(str(e)))
         pg.add_init_script("localStorage.setItem('nap_first','1');localStorage.setItem('nap_ses',JSON.stringify({id:'S1',t0:1,title:'t'}));sessionStorage.setItem('nap_sid','S1');localStorage.setItem('nap_h',%s);localStorage.setItem('nap_s',%s)"%(json.dumps(json.dumps(H)),json.dumps(json.dumps({"rn":{"on":False,"warm":False,"net":[],"netInit":True},"lg":{"on":False},"theme":theme}))))
         pg.goto("http://localhost:8765/index.html"); pg.wait_for_timeout(600)
+        pg.evaluate("(b64)=>{IMG_PV['t1']={b64:b64,ext:'png',size:1};"+('' if stale else "H.forEach(m=>uiFresh(m));")+"render()}",TINY); pg.wait_for_timeout(250)
         res=after(pg) if after else None
         pg.screenshot(path="/tmp/shots/%s-%s.png"%(name,theme))
         b.close(); return errs,res
+TINY=open('/tmp/tiny_b64.txt').read() if __import__('os').path.exists('/tmp/tiny_b64.txt') else ''
+CHARTS={'v':1,'id':'ch','blocks':[{'type':'chart','kind':'bar','title':'Mahine ka kharcha','unit':'Rs','labels':['Jan','Feb','Mar','Apr','May'],'series':[{'name':'Khana','values':[1200,1800,1500,2200,1700]},{'name':'Safar','values':[400,300,900,250,600]}]},{'type':'chart','kind':'line','title':'Score','labels':['W1','W2','W3','W4'],'series':[{'name':'Quiz','values':[3,5,4,8]}]},{'type':'chart','kind':'pie','title':'Hissa','labels':['Khana','Safar','Kiraya'],'series':[{'name':'s','values':[45,15,40]}]}]}
+BOARD={'v':1,'id':'bd','blocks':[{'type':'board','rows':['X | O | .','--+---+--','. | X | O','--+---+--','. | . | X'],'legend':'X = tum, O = Chaman. Tumne jeet liya!'},{'type':'image','src':'gen:t1','caption':'Generated preview','height':140},{'type':'image','src':'gen:missing'}]}
 out={}
 for th in ("light","dark"):
     H=[{"role":"user","content":"quiz lo"},msg(QUIZ)]
@@ -30,6 +34,23 @@ for th in ("light","dark"):
     e,_=shot(th,"form",H); out["form-"+th]=e
     H=[{"role":"user","content":"phones compare"},msg(TABLE),{"role":"assistant","content":BAD}]
     e,_=shot(th,"table",H); out["table-"+th]=e
+for th in ("light","dark"):
+    e,_=shot(th,"charts",[{"role":"user","content":"chart do"},msg(CHARTS)]); out["charts-"+th]=e
+    e,_=shot(th,"board",[{"role":"user","content":"board"},msg(BOARD)]); out["board-"+th]=e
+e,_=shot("light","expired",[{"role":"user","content":"quiz lo"},msg(QUIZ),{"role":"user","content":"B"},msg(TABLE)],stale=True); out["expired"]=e
+def expired_chk(pg):
+    pg.click(".uio:nth-child(2)",force=True,timeout=2000) if pg.query_selector(".uio") else None
+    return pg.evaluate("[document.querySelectorAll('.uiexp').length,H.filter(m=>m.role==='user').length]")
+e,r=shot("light","expired2",[{"role":"user","content":"quiz lo"},msg(QUIZ)],expired_chk,stale=True); print("EXPIRED",r,e)
+def toggle_chk(pg):
+    pg.evaluate("S.ui={off:true};render()")
+    return pg.evaluate("[document.querySelectorAll('.uiw').length,document.querySelectorAll('.uierr').length]")
+e,r=shot("light","off",[{"role":"user","content":"quiz lo"},msg(QUIZ)],toggle_chk); print("OFF",r,e)
+def set_chk(pg):
+    pg.click("#setb") if pg.query_selector("#setb") else None
+    pg.wait_for_timeout(300)
+    return pg.evaluate("!!document.querySelector('#ui_on')")
+e,r=shot("light","settings",[{"role":"user","content":"x"}],set_chk); print("SETTINGS",r,e)
 # interaction tests (light)
 H=[{"role":"user","content":"quiz lo"},msg(QUIZ)]
 def tap_opt(pg):

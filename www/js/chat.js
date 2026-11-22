@@ -20,7 +20,7 @@ async function runLoop(p){
   const rb=rulesBlock();if(rb)msgs[0].content+=rb;
   const cb=typeof crBlock==='function'?crBlock():'';if(cb)msgs[0].content+=cb;
   const guard={n:0};
-  let tools=TOOLS;
+  let tools=typeof uiTools==='function'?uiTools():TOOLS;
   FILE_TURN={w:'',p:{}};SCR_STOP=false;LEFT_APP=false;PILL_ERR='';NS('reset').catch(()=>{});
   const fin=async c=>{if(used.ui&&c==='(khaali jawab)')c='';if(tools){await autoMem(p,msgs,used,c,steps);if(typeof autoPresent==='function')await autoPresent()}return{content:c,by,steps,uiOnly:!c&&used.ui}};
   const finChk=async c=>{
@@ -166,7 +166,7 @@ $('#f').addEventListener('submit',async e=>{
     }
 const r=await turnWait(tn,ask());
     if(r===STOPPED||tn.stop)H.push(stopNote(tn));
-    else{if(r.uiOnly&&!r.content&&typeof uiMerge==='function')uiMerge(r);else H.push({role:'assistant',content:r.content,by:r.by,steps:r.steps});logAdd('chaman','('+(r.by||'?')+') '+r.content)}}
+    else{if(r.uiOnly&&!r.content&&typeof uiMerge==='function')uiMerge(r);else{H.push({role:'assistant',content:r.content,by:r.by,steps:r.steps});if(typeof uiFresh==='function')uiFresh(H[H.length-1])}logAdd('chaman','('+(r.by||'?')+') '+r.content)}}
   catch(err){if(tn.stop)H.push(stopNote(tn));else{H.push({role:'assistant',content:err.message,err:1});logAdd('error',err.message)}}
   const lnWas=LN.on;lnEnd();if(lnWas)NS('finish',finOpt({open:false})).catch(()=>{});
   H=H.slice(-100);persist();TURN=null;setBusy(false);render();logFlush();

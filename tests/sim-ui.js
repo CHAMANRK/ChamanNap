@@ -7,10 +7,11 @@ const store={};let n=0;const bodies=[];let script=[];let copied=null;
 const ctx={document:doc,localStorage:{getItem:k=>store[k]||null,setItem:(k,v)=>{store[k]=v}},matchMedia:()=>({matches:true,addEventListener(){}}),navigator:{clipboard:{writeText:async t=>{copied=t}}},console,setTimeout:(f,ms)=>{const t=setTimeout(f,ms>10000?1e9:Math.min(ms,3));if(ms>10000)t.unref();return t},clearTimeout,URL,Image:function(){},Event:function(t){this.type=t},
  fetch:async(u,o)=>{bodies.push(JSON.parse(o.body));const s=script[n++];if(s===undefined)return{ok:false,status:500,text:async()=>'no script',json:async()=>({})};const msg=typeof s==='string'?{role:'assistant',content:s}:{role:'assistant',content:null,tool_calls:s};return{ok:true,status:200,json:async()=>({choices:[{message:msg}]}),text:async()=>''}}};
 ctx.window=ctx;
-ctx.Capacitor={nativePromise:async()=>({})};
+let b64reply={b64:'AAAA',mime:'image/png'};const nreads=[];
+ctx.Capacitor={nativePromise:async(pl,m,o)=>{if(pl==='Files'&&m==='readB64'){nreads.push(o.path);if(!b64reply)throw new Error('nofile');return b64reply}return{}}};
 vm.createContext(ctx);
 process.chdir(__dirname+'/../www');
-for(const f of ['prompts','core','status','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','notes','slash','fast','intents','termuxapi','runner','crules','ui','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
+for(const f of ['prompts','core','status','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','notes','slash','fast','intents','termuxapi','runner','crules','imagegen','ui','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
 const t=s=>vm.runInContext(s,ctx),getH=()=>t('H');
 let fails=0;const ok=(c,l)=>{console.log((c?'PASS ':'FAIL ')+l);if(!c)fails++};
 const tc=(id,name,args)=>({id,type:'function',function:{name,arguments:JSON.stringify(args)}});
@@ -53,10 +54,10 @@ const lastUser=()=>{const h=getH();for(let k=h.length-1;k>=0;k--)if(h[k].role===
  ok(r.ok,'xss widget validates');
  const html=t('(r)=>uiW(r.ui,"1:0","live")')(r);
  ok(html.indexOf('&lt;script&gt;')>0&&html.indexOf('&quot;')>0&&html.indexOf('&#39;')>0,'texts are escaped (tags, double and single quotes)');
- const TAGS=new Set('div span b small button input select option textarea label table thead tbody tr th td hr pre code i br blockquote del svg path rect'.split(' '));
- const ATTR=new Set('class data-ui data-live data-ua data-b data-i data-d data-uf data-k data-e role aria-checked aria-valuemin aria-valuemax aria-valuenow type style disabled checked selected value placeholder maxlength min max rows tabindex inputmode aria-label viewBox d x y width height rx'.split(' '));
+ const TAGS=new Set('div span b small button input select option textarea label table thead tbody tr th td hr pre code i br blockquote del svg path rect img figure figcaption line text polyline circle title'.split(' '));
+ const ATTR=new Set('class data-ui data-live data-ua data-b data-i data-d data-uf data-k data-e role aria-checked aria-valuemin aria-valuemax aria-valuenow type style disabled checked selected value placeholder maxlength min max rows tabindex inputmode aria-label viewBox d x y width height rx src alt data-isrc x1 x2 y1 y2 text-anchor transform points cx cy r fill'.split(' '));
  let badTag='',badAttr='',nt=0;
- for(const m of html.matchAll(/<\/?([a-zA-Z0-9]+)((?:\s+[a-zA-Z-]+(?:="[^"<>]*")?)*)\s*\/?>/g)){nt++;if(!TAGS.has(m[1].toLowerCase()))badTag=m[1];for(const a of m[2].matchAll(/\s+([a-zA-Z-]+)(?:="([^"]*)")?/g)){if(!ATTR.has(a[1]))badAttr=a[1];if(a[1]==='style'&&!/^(text-align:(left|right|center)|width:[\d.]+%)$/.test(a[2]))badAttr='style='+a[2]}}
+ for(const m of html.matchAll(/<\/?([a-zA-Z0-9]+)((?:\s+[a-zA-Z-]+(?:="[^"<>]*")?)*)\s*\/?>/g)){nt++;if(!TAGS.has(m[1].toLowerCase()))badTag=m[1];for(const a of m[2].matchAll(/\s+([a-zA-Z-]+)(?:="([^"]*)")?/g)){if(!ATTR.has(a[1]))badAttr=a[1];if(a[1]==='style'&&!/^(text-align:(left|right|center)|width:[\d.]+%|(max-)?height:\d+px)$/.test(a[2]))badAttr='style='+a[2]}}
  ok(html.replace(/<\/?[a-zA-Z0-9]+(?:\s+[a-zA-Z-]+(?:="[^"<>]*")?)*\s*\/?>/g,'').indexOf('<')<0,'every "<" in the output belongs to a well-formed whitelisted tag ('+nt+' tags), injected text has none');
  ok(!badTag,'only whitelisted tag names (bad: '+badTag+')');
  ok(!badAttr,'only whitelisted attributes, style only the fixed ones (bad: '+badAttr+')');
@@ -70,7 +71,7 @@ const lastUser=()=>{const h=getH();for(let k=h.length-1;k>=0;k--)if(h[k].role===
  o=t('fmt')('```js\nlet a=1\n```');ok(/<pre>/.test(o)&&!/uierr/.test(o),'normal code fence unchanged');
  o=t('fmt')('```ui\n'+F+'\n```\ntext\n```ui\n'+F+'\n```');ok((o.match(/class="uiw/g)||[]).length===2,'two fences = two widgets');
  // ---- 4. live / frozen / old
- const setH=a=>{const HH=t('H');HH.length=0;a.forEach(m=>HH.push(m));t('uiScan()')};
+ const setH=(a,stale)=>{const HH=t('H');HH.length=0;a.forEach(m=>{HH.push(m);if(!stale)t('uiFresh')(m)});t('uiScan()')};
  const W=(id,keep)=>({role:'assistant',local:1,content:'',aiNote:'w',ui:{v:1,id,keep:!!keep,blocks:[{type:'text',md:id}]}});
  const st=k=>t('UI_INFO')[k];
  setH([{role:'user',content:'quiz'},W('a')]);ok(st('1:0')==='live','newest widget is live');
@@ -151,12 +152,86 @@ const lastUser=()=>{const h=getH();for(let k=h.length-1;k>=0;k--)if(h[k].role===
  await tap(w2,'sort',1,1);ok(colOf(w2.outerHTML)==='100,10,9','second tap = descending');
  await tap(w2,'sort',1,1);ok(colOf(w2.outerHTML)==='10,9,100','third tap = original order');
  const w3=fakeW('1:0',false);await tap(w3,'sort',1,0);ok(/<td style="text-align:left">a<\/td>[^]*<td style="text-align:left">b<\/td>[^]*<td style="text-align:left">c<\/td>/.test(w3.outerHTML),'sorting a text column works (and also on a frozen widget)');
+ // ---- 7b. P2: chart
+ const CH={v:1,id:'c',blocks:[{type:'chart',kind:'bar',title:'Kharcha',unit:'Rs',labels:['Jan','Feb','Mar'],series:[{name:'Khana',values:[100,250,'x']},{name:'Safar',values:[40,NaN,90]}]}]};
+ r=V(CH);ok(r.ok&&r.ui.blocks[0].series[0].values.join()==='100,250,0'&&r.ui.blocks[0].series[1].values.join()==='40,0,90','chart: non-numbers become 0');
+ let ch=t('(r)=>uiW(r.ui,"1:0","live")')(r);
+ ok((ch.match(/<rect /g)||[]).length===4&&/<svg/.test(ch)&&!/NaN|undefined|Infinity/.test(ch),'bar chart: one rect per non-zero value (4), no NaN in the SVG');
+ ok((ch.match(/<span><i class="c\d"/g)||[]).length===2&&/Khana/.test(ch),'bar chart: legend for 2 series');
+ r=V({v:1,id:'l',blocks:[{type:'chart',kind:'line',labels:['a','b','c','d'],series:[{name:'x',values:[1,3,2,5]},{name:'y',values:[2,2,2,2]}]}]});
+ ch=t('(r)=>uiW(r.ui,"1:0","live")')(r);ok((ch.match(/<polyline /g)||[]).length===2&&(ch.match(/<circle /g)||[]).length===8,'line chart: 2 lines, 8 points');
+ r=V({v:1,id:'p',blocks:[{type:'chart',kind:'pie',labels:['A','B','C'],series:[{name:'s',values:[50,30,-5]}]}]});
+ ch=t('(r)=>uiW(r.ui,"1:0","live")')(r);ok((ch.match(/<path /g)||[]).length===2&&/62%|80%|63%/.test(ch)&&!/NaN/.test(ch),'pie: negative value ignored, 2 slices, percentages in legend');
+ r=V({v:1,id:'p1',blocks:[{type:'chart',kind:'pie',labels:['A','B'],series:[{values:[7,0]}]}]});
+ ch=t('(r)=>uiW(r.ui,"1:0","live")')(r);ok(/<circle class="c0"/.test(ch)&&!/<path /.test(ch),'pie with one slice = full circle');
+ r=V({v:1,id:'p0',blocks:[{type:'chart',kind:'pie',labels:['A'],series:[{values:[0]}]}]});
+ ok(/data khaali/.test(t('(r)=>uiW(r.ui,"1:0","live")')(r)),'pie with no data: message, no crash');
+ ok(!V({v:1,blocks:[{type:'chart',labels:[],series:[]},{type:'chart',labels:['a'],series:[]}]}).ok,'chart without labels or series is dropped');
+ r=V({v:1,blocks:[{type:'chart',kind:'weird',labels:Array.from({length:40},(_,i)=>'l'+i),series:Array.from({length:9},()=>({values:[1]}))}]});
+ ok(r.ok&&r.ui.blocks[0].kind==='bar'&&r.ui.blocks[0].labels.length===24&&r.ui.blocks[0].series.length===6,'chart: unknown kind = bar, 24 labels and 6 series max');
+ r=V({v:1,blocks:[{type:'chart',kind:'bar',title:XSS,labels:[XSS,'b'],series:[{name:XSS,values:[-5,10]}]}]});
+ ch=t('(r)=>uiW(r.ui,"1:0","live")')(r);ok(!/<script|<img/i.test(ch)&&ch.indexOf('&lt;')>0,'chart texts are escaped');
+ ok(/<rect[^>]*height="[\d.]+"/.test(ch),'negative bar draws');
+ // board
+ r=V({v:1,id:'b',blocks:[{type:'board',rows:['X.O','.X.','O.X'],legend:'X = tum <b>',size:'lg'},{type:'board',rows:[]}]});
+ ok(r.ok&&r.ui.blocks.length===1,'board: empty board dropped');
+ ch=t('(r)=>uiW(r.ui,"1:0","live")')(r);ok(/uibd lg/.test(ch)&&/X\.O\n\.X\.\nO\.X/.test(ch)&&/&lt;b&gt;/.test(ch),'board: rows kept line by line, legend escaped');
+ ok(!V({v:1,blocks:[{type:'board',rows:['x'.repeat(81)]}]}).ok,'board row longer than 80 rejected');
+ // image
+ const IP=src=>{const r=V({v:1,blocks:[{type:'image',src},{type:'text',md:'t'}]});return r.ok&&r.ui.blocks[0].type==='image'?r.ui.blocks[0].src:null};
+ ok(IP('/sdcard/Chaman/work/a.png')==='/sdcard/Chaman/work/a.png','image: workspace path ok');
+ ok(IP('work/b.JPG')==='/sdcard/Chaman/work/b.JPG','image: relative path is placed in the workspace');
+ ok(IP('gen:abc_12')==='gen:abc_12','image: gen:<id> ok');
+ ok(IP('/sdcard/Chaman/notes/x.png')===null,'image: notes/ is closed');
+ ok(IP('/sdcard/DCIM/x.png')===null&&IP('/etc/x.png')===null,'image: outside the workspace rejected');
+ ok(IP('/sdcard/Chaman/../x.png')===null&&IP('work/../../x.png')===null,'image: .. rejected');
+ ok(IP('/sdcard/Chaman/work/a.html')===null&&IP('/sdcard/Chaman/work/a.txt')===null&&IP('https://x.com/a.png')===null&&IP('data:image/png;base64,AAAA')===null&&IP('javascript:alert(1)')===null,'image: only picture files, no urls / data / javascript');
+ ok(IP('gen:a b')===null&&IP('')===null,'image: bad gen id / empty rejected');
+ r=V({v:1,blocks:[{type:'image',src:'work/a.png',alt:XSS,caption:XSS,height:9999}]});
+ ok(r.ui.blocks[0].height===600,'image height capped at 600');
+ t("UI_IMG.clear()");nreads.length=0;b64reply={b64:'AAAA',mime:'image/png'};
+ let ih=t('(r)=>uiW(r.ui,"1:0","live")')(r);ok(/uiimg ph/.test(ih)&&/data-isrc/.test(ih)&&nreads.length===1,'image: placeholder first, file read once');
+ await new Promise(x=>setTimeout(x,20));
+ ih=t('(r)=>uiW(r.ui,"1:0","live")')(r);ok(/<img src="data:image\/png;base64,AAAA"/.test(ih)&&/max-height:600px/.test(ih)&&nreads.length===1,'image: after load shows the picture (cached, no second read)');
+ ok(ih.indexOf('&lt;script&gt;')>0&&!/<script/i.test(ih),'image: caption and alt escaped');
+ t("UI_IMG.clear()");b64reply={b64:'AAAA',mime:'text/html'};
+ t('(r)=>uiW(r.ui,"1:0","live")')(r);await new Promise(x=>setTimeout(x,20));
+ ok(/Image nahi mili/.test(t('(r)=>uiW(r.ui,"1:0","live")')(r)),'image: wrong mime (html) refused');
+ t("UI_IMG.clear()");b64reply=null;t('(r)=>uiW(r.ui,"1:0","live")')(r);await new Promise(x=>setTimeout(x,20));
+ ok(/Image nahi mili/.test(t('(r)=>uiW(r.ui,"1:0","live")')(r)),'image: missing file shows a message, no crash');
+ t("UI_IMG.clear()");b64reply={b64:'A'.repeat(4000001),mime:'image/png'};t('(r)=>uiW(r.ui,"1:0","live")')(r);await new Promise(x=>setTimeout(x,20));
+ ok(/Image nahi mili/.test(t('(r)=>uiW(r.ui,"1:0","live")')(r)),'image: file over ~3 MB refused');
+ b64reply={b64:'AAAA',mime:'image/png'};
+ // ---- 7c. expired (message from an older app run)
+ setH([{role:'user',content:'q'},W('a')],true);
+ ok(st('1:0')==='expired','widget not made in this run = expired');
+ t('render()');ok(/data-live="0"/.test(els['#chat'].innerHTML)&&/uiexp/.test(els['#chat'].innerHTML)&&/dobara khuli/.test(els['#chat'].innerHTML),'expired widget: static, with a hint');
+ setH([{role:'user',content:'q'},{role:'assistant',content:'a\n```ui\n'+F+'\n```'}],true);
+ ok(st('1:0')==='expired','fenced widget from an older run is expired too');
+ t('render()');ok(/uiexp/.test(els['#chat'].innerHTML),'fenced expired widget shows the hint');
+ setH([{role:'user',content:'q'},{role:'assistant',local:1,content:'',aiNote:'w',ui:JSON.parse(JSON.stringify(Q))}],true);t('render()');script=['x'];n=0;const le=getH().length;
+ await tap(fakeW('1:0',false),'opt',2,1);ok(getH().length===le,'expired widget: tap does nothing');
+ setH([{role:'user',content:'q'},W('a',true)],true);ok(st('1:0')==='expired','keep:true does not save an expired widget');
+ // a restored chat plus a new widget: old expired, new live
+ {const HH=t('H');HH.length=0;[{role:'user',content:'q'},W('a'),{role:'user',content:'B'}].forEach(m=>HH.push(m));}
+ script=[[tc('c1','ui_render',{v:1,id:'n',blocks:[{type:'text',md:'naya'}]})],''];n=0;els['#in'].value='aur';await handlers['#f:submit']({preventDefault(){}});
+ ok(st('1:0')==='expired'&&st('4:0')==='live'||st('1:0')==='expired'&&Object.values(t('UI_INFO')).includes('live'),'after restore: old widget expired, newly made widget live');
+ // ---- 7d. Rich UI switch
+ t("S.ui={off:true}");
+ ok(!t('uiTools()').some(x=>x.function.name==='ui_render')&&t('uiTools()').length===t('TOOLS').length-1,'switch off: ui_render is not offered to the AI');
+ ok(!t("ruleAreas('ek quiz lo')").includes('ui'),'switch off: ui rules are not added');
+ setH([{role:'user',content:'q'},W('a')]);t('render()');ok(/invalid|off hai/i.test(els['#chat'].innerHTML)&&!/class="uiw/.test(els['#chat'].innerHTML),'switch off: a stored widget shows as code with a note');
+ script=['plain jawab'];n=0;bodies.length=0;els['#in'].value='quiz lo';await handlers['#f:submit']({preventDefault(){}});
+ ok(!bodies[0].tools.some(x=>x.function.name==='ui_render'),'switch off: the request to the provider has no ui_render tool');
+ t("S.ui={}");ok(t('uiTools()').some(x=>x.function.name==='ui_render'),'switch on again: ui_render is back');
+ {let html='';try{t('sheet()');html=Object.values(els).map(e=>e.innerHTML||'').join('')}catch(e){html='ERR '+e.message}
+  ok(/id="ui_on"/.test(html)&&/Rich UI in chat/.test(html),'Settings has the "Rich UI in chat" switch ('+(html.slice(0,3)==='ERR'?html:'ok')+')');}
  // ---- 8. rules / skill / enum
  ok(t("ruleAreas('ek quiz lo mera')").includes('ui')&&t("ruleAreas('torch on kar')").includes('ui')===false,'rule area "ui" is picked for quiz, not for torch');
  ok(/ui_render/.test(t("rulesTool({area:'ui'},s=>s,{})")),'rules_read ui works');
  ok(t("TOOLS.find(x=>x.function.name==='rules_read').function.parameters.properties.area.enum").includes('ui'),'rules_read enum has ui');
  ok(/ui_render/.test(t('skillText()')),'skill text lists ui_render');
- ok(t("RULES_VER")==='2026-11-21.1','RULES_VER bumped');
+ ok(t("RULES_VER")==='2026-11-21.2','RULES_VER bumped');
  ok(/```ui/.test(t("RULES.ui"))&&/HE says/.test(t("RULES.ui")),'rules tell the AI about the fence fallback and that a button value is Najeef\'s words');
  // ---- 9. switch off
  t("S.ui={off:true}");o=t('fmt')('```ui\n'+F+'\n```');ok(/<pre>/.test(o)&&/off hai/.test(o),'Rich UI off: fence stays code');
