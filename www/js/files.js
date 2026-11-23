@@ -231,7 +231,8 @@ function drawViewer(){
   }
   if(v.mode==='preview'&&k==='md'){b.innerHTML='<div class="vmd">'+fmt(v.text)+'</div>'+note;return}
   if(v.mode==='preview'&&k==='svg'){b.innerHTML='<div class="vimgw"><img alt="" src="data:image/svg+xml;charset=utf-8,'+encodeURIComponent(v.text)+'"></div>'+note;return}
-  b.innerHTML='<div class="vcodew"><div class="code"><div class="cbar"><span class="lang">'+esc(fExt(v.a.path)||'text')+' - '+v.lines+' lines</span></div><pre><code>'+esc(v.text)+'</code></pre></div>'+note+'</div>';
+  const ext=fExt(v.a.path)||'text',hh=typeof hlCode==='function'?hlCode(v.text,ext):'';
+  b.innerHTML='<div class="vcodew"><div class="code"><div class="cbar"><span class="lang">'+esc(ext)+' - '+v.lines+' lines</span></div><pre class="hln">'+(typeof hlGutter==='function'?'<span class="gut" aria-hidden="true">'+hlGutter(v.text)+'</span>':'')+'<code>'+(hh||esc(v.text))+'</code></pre></div>'+note+'</div>';
 }
 $('#chat').addEventListener('click',e=>{
   const b=e.target.closest('.afile');if(!b)return;

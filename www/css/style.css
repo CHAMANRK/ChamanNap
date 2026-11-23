@@ -480,3 +480,25 @@ svg.tcs.fail{stroke:var(--danger)}
 .dfsb{display:none;border-top:1px solid var(--border)}
 .dfw.open .dfsb{display:block}
 @media(prefers-reduced-motion:reduce){.dfsh .tck{transition:none}}
+/* U4 (1.45000.0): syntax rang + line numbers + risk dock */
+.hk{color:var(--syk)}.hs{color:var(--sys)}.hf{color:var(--syf)}.hn{color:var(--syn)}.hc{color:var(--syc);font-style:italic}
+.code pre.hln{display:block;padding-left:0}
+.hln .gut{display:inline-block;vertical-align:top;position:sticky;left:0;z-index:1;min-width:2.4em;margin-right:12px;padding:0 8px 0 10px;box-sizing:border-box;text-align:right;color:var(--syc);background:var(--code);border-right:1px solid var(--border);font:13px/1.6 var(--mono);-webkit-user-select:none;user-select:none}
+.hln code{display:inline-block;vertical-align:top}
+#rdock{flex:none;display:flex;flex-direction:column;gap:6px;margin:0 10px 8px;padding:10px 12px;max-height:42vh;overflow:auto;border:1px solid var(--warn);border-radius:14px;background:color-mix(in srgb,var(--warn) 11%,var(--surface))}
+#rdock[hidden]{display:none}
+#rdock.hi{border-color:var(--danger);background:color-mix(in srgb,var(--danger) 9%,var(--surface))}
+.rdh{display:flex;align-items:center;gap:8px;font-size:14px}
+.rdh svg{width:20px;height:20px;flex:none;stroke:var(--warn);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#rdock.hi .rdh svg{stroke:var(--danger)}
+.rdr{font-size:13px;line-height:1.45;color:var(--text)}
+.rdb{margin:0;padding:6px 8px;max-height:7.5em;overflow:auto;white-space:pre-wrap;word-break:break-word;font:12.5px/1.5 var(--mono);background:var(--code);border:1px solid var(--border);border-radius:8px}
+.rda{display:flex;flex-wrap:wrap;gap:8px}
+.rdn,.rdy{min-height:44px;border-radius:10px;padding:0 16px;font-weight:600;font-size:14px}
+.rdn{border:1px solid var(--border);background:none;color:var(--text)}
+.rdy{flex:1 1 auto;background:var(--accent);color:var(--on-accent)}
+.rdy.w{flex-basis:100%}
+#rdock.hi .rdy{background:var(--danger)}
+.acts.rdoff{display:block;margin-top:6px}
+.acts.rdoff .abtn{display:none}
+.acts.rdoff::before{content:"Allow / Cancel neeche dock me";font-size:12px;color:var(--muted)}

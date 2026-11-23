@@ -312,7 +312,7 @@ function uiB(b,key,live){
     case'keyvalue':return'<div class="uikv">'+b.rows.map(r=>'<div class="uik">'+esc(r.k)+'</div><div class="uiv">'+esc(r.v)+'</div>').join('')+'</div>';
     case'alert':return'<div class="uia '+b.style+'" role="note">'+(b.title?'<b>'+esc(b.title)+'</b>':'')+(b.md?'<div>'+mdBlocks(b.md)+'</div>':'')+'</div>';
     case'progress':{const pc=(b.value/b.max*100).toFixed(1);return'<div class="uipr">'+(b.label?'<div class="uipl">'+esc(b.label)+'</div>':'')+'<div class="uipb" role="progressbar" aria-valuemin="0" aria-valuemax="'+b.max+'" aria-valuenow="'+b.value+'"><i style="width:'+pc+'%"></i></div></div>'}
-    case'code':return'<div class="code"><div class="cbar">'+(b.lang?'<span class="lang">'+esc(b.lang)+'</span>':'')+'<button type="button" class="cp" aria-label="Copy code">'+ICO_COPY+'</button></div><pre><code>'+esc(b.code)+'</code></pre></div>';
+    case'code':return'<div class="code"><div class="cbar">'+(b.lang?'<span class="lang">'+esc(b.lang)+'</span>':'')+'<button type="button" class="cp" aria-label="Copy code">'+ICO_COPY+'</button></div><pre><code>'+(typeof hlOr==='function'?hlOr(b.code,b.lang):esc(b.code))+'</code></pre></div>';
     case'html':return'<div class="uig"><div class="uigi"><b>'+esc(b.title||(b.html?'Demo':uiGName(b.src)))+'</b><small>'+esc(b.html?'inline html':b.src.replace(WS_ROOT+'/',''))+'</small></div><button type="button" class="uib p" data-ua="play" data-b="'+id+'">'+esc(b.label)+'</button></div>';
     case'diagram':return uiDiagramH(b,key,id);
     case'stat':return uiStatH(b);

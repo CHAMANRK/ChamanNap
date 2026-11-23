@@ -75,7 +75,7 @@ function fmt(t){
     o+=mdBlocks(t.slice(last,m.index));last=re.lastIndex;
     let ux=null;
     if(m[1].toLowerCase()==='ui'&&typeof uiFence==='function'){ux=uiFence(m[2],m[0].lastIndexOf('```')>0);if(ux.h){o+=ux.h;if(last>=t.length)break;continue}}
-    o+='<div class="code"><div class="cbar">'+(m[1]?'<span class="lang">'+esc(m[1])+'</span>':'')+'<button type="button" class="cp" aria-label="Copy code">'+ICO_COPY+'</button></div><pre><code>'+esc(m[2].replace(/\n$/,''))+'</code></pre></div>'+(ux&&ux.err?'<div class="uierr">'+esc(ux.err)+'</div>':'');
+    o+='<div class="code"><div class="cbar">'+(m[1]?'<span class="lang">'+esc(m[1])+'</span>':'')+'<button type="button" class="cp" aria-label="Copy code">'+ICO_COPY+'</button></div><pre><code>'+(typeof hlOr==='function'?hlOr(m[2].replace(/\n$/,''),m[1]):esc(m[2].replace(/\n$/,'')))+'</code></pre></div>'+(ux&&ux.err?'<div class="uierr">'+esc(ux.err)+'</div>':'');
     if(last>=t.length)break;
   }
   return o+mdBlocks(t.slice(last));
@@ -92,4 +92,5 @@ function render(){
   c.scrollTop=c.scrollHeight;
   if(typeof lnDraw==='function')lnDraw();
   if(typeof bubSync==='function')bubSync();
+  if(typeof rdSync==='function')rdSync();
 }
