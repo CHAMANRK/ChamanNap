@@ -111,7 +111,10 @@ async function fileTool(name,a,note,fl){
       if(fMem(p)&&!(await memGate(p,'likhna',content)))return bad('Najeef ne file likhna cancel kiya.')+' Dobara mat likho, pucho kya karna hai.';
       else if(!fMem(p)&&old.exists&&old.size>=400&&content.length<old.size*0.5&&!(await tconfirm('File likhne se pehle confirm',fRel(p)+' ('+old.size+' bytes -> '+content.length+' chars)\n\n'+cut(content,300),['file ka size aadhe se kam ho raha hai'],'Likho')))
         return bad('Najeef ne file likhna cancel kiya.')+' Dobara mat likho, pucho kya karna hai.';
+      let prevT=null;   // U3: old text, only to show a diff (skipped for big files and memory/)
+      if(old.exists&&old.size>0&&old.size<=100000&&!fMem(p)&&typeof dfFile==='function'){try{const rr=await NF('read',{path:p,start:1,max:100000,maxBytes:120000});if(!rr.truncated)prevT=String(rr.text==null?'':rr.text)}catch(e){}}
       const r=await NF('write',{path:p,content});
+      if(typeof tcDiff==='function'&&!fMem(p)){try{tcDiff('file_write',r.created||!old.exists?dfNew(fRel(r.path),content):prevT!=null?dfFile(fRel(r.path),'write',prevT,content):{p:fRel(r.path),k:'write',a:0,d:0,h:[],om:0,na:1})}catch(e){}}
       if(r.created)(FILE_TURN.c=FILE_TURN.c||{})[p]=1;
       fTouched(p);
       fSay('Likha: `'+fRel(r.path)+'`\n'+r.lines+' lines, '+kb(r.newBytes)+(r.created?' (nayi file)':r.backed?' (purani copy backup/ me)':''),'file_write '+fRel(r.path)+' ('+r.lines+' lines)');
@@ -131,6 +134,7 @@ async function fileTool(name,a,note,fl){
       else if(!fMem(p)&&old.size>=400&&net>old.size*0.5&&!(await tconfirm('File badalne se pehle confirm',fRel(p)+' ('+old.size+' bytes me se ~'+net+' hat rahe)\n\n'+cut(ed[0].old,300),['file ka aadhe se zyada hissa hat raha hai'],'Badlo')))
         return bad('Najeef ne edit cancel kiya.')+' Dobara mat karo, pucho kya karna hai.';
       const r=await NF('edit',{path:p,edits:ed,replaceAll:!!a.replace_all});
+      if(typeof tcDiff==='function'&&!fMem(p)){try{tcDiff('edit_file',dfEdit(fRel(r.path),ed,r))}catch(e){}}
       fTouched(p);
       fSay(fDiff(p,ed,r),'edit_file '+fRel(r.path)+' ('+r.changes+' change)');
       return note('File edit: '+fRel(r.path)+' ('+r.changes+' change)')+'\nOK | '+r.changes+' change | lines '+(r.lines||[]).join(', ')+' | '+r.oldBytes+' -> '+r.newBytes+' bytes | '+r.totalLines+' lines | purani copy backup/ me\nAFTER (line| text):\n'+r.snippet;

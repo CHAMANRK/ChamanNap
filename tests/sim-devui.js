@@ -45,4 +45,42 @@ ok(ev("lgLvl({k:'tool FAIL',x:'x'})")==='err'&&ev("lgLvl({k:'termux',x:'$ ls (ex
 const P=ev("lgParse('# Session log s1\\n\\n- 2026-11-22 10:11:12 [tool] file_write a (1 chars)\\n- 2026-11-22 10:11:13 [termux] $ ls (exit 2)\\n```\\nboom\\nbang\\n```\\n- 10:11:14 [chaman] (Groq) hi')");
 ok(P.length===3&&P[1].k==='termux'&&P[1].c==='boom\nbang'&&P[0].x==='file_write a (1 chars)'&&P[2].k==='chaman','log file parse: entries + code block + no-date lines');
 ok(P[0].t<P[1].t&&P[1].t<P[2].t||true,'log parse times');
+
+// ---- U3 diff
+const D1=ev("dfText('a\\nb\\nc\\nd\\ne\\nf\\ng\\nh\\ni\\nj','a\\nb\\nc\\nd\\nE\\nf\\ng\\nh\\ni\\nj',3)");
+ok(D1.a===1&&D1.d===1&&D1.h.length===1,'diff: one changed line = +1 -1, one hunk');
+ok(D1.h[0].h==='@@ -2,7 +2,7 @@'&&D1.h[0].l.length===8,'diff: hunk header + 3 lines context each side ('+D1.h[0].h+', '+D1.h[0].l.length+' lines)');
+ok(JSON.stringify(D1.h[0].l.filter(e=>e[0]!==' '))==='[["-",5,"e"],["+",5,"E"]]','diff: removed and added line carry their line numbers');
+ok(ev("dfText('same\\ntext','same\\ntext',3)").a===0&&ev("dfText('same','same',3)").h.length===0,'diff: identical text = no hunks');
+const D2=ev("dfText('1\\n2\\n3\\n4\\n5\\n6\\n7\\n8\\n9\\n10\\n11\\n12\\n13\\n14\\n15','X\\n2\\n3\\n4\\n5\\n6\\n7\\n8\\n9\\n10\\n11\\n12\\n13\\n14\\nY',2)");
+ok(D2.h.length===2&&D2.a===2&&D2.d===2,'diff: two far-apart changes = two hunks');
+const D3=ev("dfText('a\\nb\\nc','a\\nb\\nc\\nd\\ne',3)");
+ok(D3.a===2&&D3.d===0&&D3.h[0].l.filter(e=>e[0]==='+').map(e=>e[1]).join()==='4,5','diff: appended lines are numbered 4,5');
+const D4=ev("dfText('a\\nb\\nc\\nd','a\\nc\\nd',3)");
+ok(D4.d===1&&D4.a===0&&D4.h[0].l.find(e=>e[0]==='-')[2]==='b','diff: a deleted line is found (LCS, not a block replace)');
+const big1=Array.from({length:700},(_, i)=>'o'+i).join('\\n'),big2=Array.from({length:700},(_, i)=>'n'+i).join('\\n');
+const D5=ev("dfText(\""+big1+"\",\""+big2+"\",3)");
+ok(D5.a===700&&D5.d===700,'diff: huge unrelated blocks fall back to replace (no hang)');
+const F1=ev("dfFile('work/a.js','write',Array.from({length:200},(_, i)=>'line'+i).join('\\n'),Array.from({length:200},(_, i)=>'LINE'+i).join('\\n'))");
+ok(F1.a===200&&F1.d===200&&F1.h.reduce((n,h)=>n+h.l.length,0)<=60&&F1.om>0,'cap: max 60 stored lines per file, rest counted in om ('+F1.om+')');
+ok(F1.a===200,'cap: real +/- counts stay true');
+const N1=ev("dfNew('work/n.txt',Array.from({length:100},(_, i)=>'r'+i).join('\\n'))");
+ok(N1.k==='new'&&N1.a===100&&N1.h[0].l.length===30&&N1.om===70,'new file: first 30 lines, rest in om');
+const E1=ev("dfEdit('work/a.html',[{old:'<h1>Hi</h1>\\nkeep',new:'<h1>Hello</h1>\\nkeep'}],{lines:[7]})");
+ok(E1.a===1&&E1.d===1&&E1.h[0].l.find(e=>e[0]==='-')[1]===7&&E1.h[0].l.some(e=>e[2]==='keep')===false,'edit: common lines trimmed, line number from native result');
+const E2=ev("dfEdit('x',[{old:'a',new:'b'}],{lines:[]})");
+ok(E2.h[0].h===''&&E2.h[0].l[0][1]===0,'edit: unknown line numbers are hidden (0), no fake numbers');
+// attach to the running tool only
+ev("var st3=[];var c3=tcBegin(st3,'edit_file',{path:'x'});tcDiff('file_write',{p:'x',a:1,d:0,h:[],om:0});");
+ok(!ev("c3.df"),'tcDiff ignores a diff from a different tool');
+ev("tcDiff('edit_file',{p:'x',a:1,d:0,h:[],om:0});tcEnd(c3,st3,'edit_file',{},false,'r','')");
+ok(ev("c3.df.length")===1&&ev("c3.x")===1,'tcDiff attaches to the running card and opens it');
+ev("tcDiff('edit_file',{p:'y',a:1,d:0,h:[],om:0})");
+ok(ev("c3.df.length")===1,'tcDiff after the tool ended does nothing');
+// html
+const dh=ev("dfHtml({p:'a<b>.js',k:'edit',a:1,d:1,h:[{h:'@@ -1,1 +1,1 @@',l:[['-',1,'<img src=x onerror=1>'],['+',1,'ok']]}],om:0})");
+ok(!/<img/.test(dh)&&/a&lt;b&gt;\.js/.test(dh)&&/class="dfl d"/.test(dh)&&/class="dfl a"/.test(dh)&&/<b class="a">\+1</.test(dh),'diff html: escaped, add/del rows, +/- counts');
+ok(/\+3/.test(ev("dfReviewH({cards:[{df:[{p:'a',a:2,d:0,h:[],om:0},{p:'b',a:1,d:1,h:[],om:0}]}]},4)"))&&/2 files badli/.test(ev("dfReviewH({cards:[{df:[{p:'a',a:2,d:0,h:[],om:0},{p:'b',a:1,d:1,h:[],om:0}]}]},4)"))&&/data-hi="4"/.test(ev("dfReviewH({cards:[{df:[{p:'a',a:2,d:0,h:[],om:0}]}]},4)")),'review bar: file count, total +/-, message index');
+ok(ev("dfReviewH({cards:[{n:'x'}]},1)")==='','review bar: none when no diff');
+ok(ev("dfUnified([{p:'a.js',k:'edit',a:1,d:1,h:[{h:'@@ -1,1 +1,1 @@',l:[['-',1,'old'],['+',1,'new']]}],om:0}])")==='--- a.js\n@@ -1,1 +1,1 @@\n-old\n+new\n','unified copy text');
 console.log(fail?'FAILED '+fail:'ALL PASS '+pass);process.exit(fail?1:0);

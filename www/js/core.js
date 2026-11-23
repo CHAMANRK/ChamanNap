@@ -83,12 +83,12 @@ function fmt(t){
 
 const kb=n=>n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':(n/1048576).toFixed(1)+' MB';
 const att=m=>{let h='';const hi=m.imgs&&m.imgs.length;if(hi)h+='<div class="chips">'+m.imgs.map(u=>'<img src="'+u+'" alt="">').join('')+'</div>';const fs=(m.files||[]).filter(a=>!(a.kind==='img'&&hi));if(fs.length)h+='<div class="chips">'+fs.map(a=>'<span class="chip">'+esc(a.name)+' - '+kb(a.size)+'</span>').join('')+'</div>';return h};
-const stepsH=m=>m.cards&&m.cards.length&&typeof cardsH==='function'?cardsH(m):m.steps&&m.steps.length?'<div class="steps">'+m.steps.map(esc).join('<br>')+'</div>':'';
+const stepsH=(m,hi)=>m.cards&&m.cards.length&&typeof cardsH==='function'?cardsH(m,hi):m.steps&&m.steps.length?'<div class="steps">'+m.steps.map(esc).join('<br>')+'</div>':'';
 function render(){
   const c=$('#chat');
   if(!H.length){c.innerHTML='<div class="empty"><b>Chaman</b></div>';return}
   if(typeof uiScan==='function')uiScan();
-  c.innerHTML=H.map((m,hi)=>(typeof uiHide==='function'&&uiHide(m,hi))?'':m.role==='user'?(m.chip?'<div class="msg me uichip">'+esc(m.chip)+'</div>':'<div class="msg me">'+esc(m.content||'')+att(m)+'</div>'):'<div class="msg ai'+(m.err?' err':'')+'">'+(typeof uiCtx==='function'?uiCtx(hi):'')+stepsH(m)+(m.term&&typeof termH==='function'?termH(m.term,hi):fmt(m.content))+(typeof uiH==='function'?uiH(m,hi):'')+acts(m,hi)+(typeof artH==='function'?artH(m,hi):'')+(typeof imgH==='function'?imgH(m,hi):'')+(typeof noteH==='function'?noteH(m,hi):'')+(m.by?'<span class="by">'+esc(m.by)+'</span>':'')+'</div>').join('');
+  c.innerHTML=H.map((m,hi)=>(typeof uiHide==='function'&&uiHide(m,hi))?'':m.role==='user'?(m.chip?'<div class="msg me uichip">'+esc(m.chip)+'</div>':'<div class="msg me">'+esc(m.content||'')+att(m)+'</div>'):'<div class="msg ai'+(m.err?' err':'')+'">'+(typeof uiCtx==='function'?uiCtx(hi):'')+stepsH(m,hi)+(m.term&&typeof termH==='function'?termH(m.term,hi):fmt(m.content))+(typeof uiH==='function'?uiH(m,hi):'')+acts(m,hi)+(typeof artH==='function'?artH(m,hi):'')+(typeof imgH==='function'?imgH(m,hi):'')+(typeof noteH==='function'?noteH(m,hi):'')+(m.by?'<span class="by">'+esc(m.by)+'</span>':'')+'</div>').join('');
   c.scrollTop=c.scrollHeight;
   if(typeof lnDraw==='function')lnDraw();
   if(typeof bubSync==='function')bubSync();

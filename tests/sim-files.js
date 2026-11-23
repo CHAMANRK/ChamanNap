@@ -43,7 +43,7 @@ ctx.window=ctx;
 ctx.Capacitor={nativePromise:async(pl,m,o)=>{if(pl==='Files')return files(m,o);if(pl==='Termux')return{stdout:'',exitCode:0};return{}}};
 vm.createContext(ctx);
 process.chdir(__dirname+'/../www');
-for(const f of ['prompts','core','status','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','notes','slash','fast','intents','termuxapi','runner','rules','log','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
+for(const f of ['prompts','core','status','providers','chat','settings','attach','keys','helpers','phone','tools','termux','workspace','files','notes','slash','fast','intents','termuxapi','runner','rules','log','devui','main'])vm.runInContext(fs.readFileSync('js/'+f+'.js','utf8'),ctx,{filename:f+'.js'});
 const getH=()=>vm.runInContext('H',ctx);
 const clickWhenPending=async(o)=>{for(let i=0;i<300;i++){await new Promise(r=>setTimeout(r,5));const H=getH();const idx=H.findIndex(m=>m.confirm&&m.confirm.state==='pending');if(idx>=0){const head=H[idx].content.split('\n')[0],lab=H[idx].confirm.lab;await handlers['#chat:click']({target:{closest:q=>q==='.abtn'?{dataset:{m:String(idx),o}}:null}});return head+' | label: '+lab}}return'NO CARD'};
 (async()=>{
@@ -96,6 +96,13 @@ const clickWhenPending=async(o)=>{for(let i=0;i<300;i++){await new Promise(r=>se
  const L=getH().slice(-1)[0];console.log('NO_ACCESS step:',L.steps.join(' / ').slice(0,160));
  console.log('requestAccess called:',nlog.some(x=>x.startsWith('F.requestAccess')));
  // log redaction
+ // U3 diff capture: new file -> df k=new; edit_file -> df k=edit with +/- counts; memory/ and big files untouched
+ {const cards=getH().filter(m=>m.cards).reduce((r,m)=>r.concat(m.cards),[]);
+  const df=cards.reduce((r,c)=>c.df?r.concat(c.df.map(f=>c.n+':'+f.k+':+'+f.a+'-'+f.d)):r,[]);
+  console.log('U3 diffs recorded:',df.join(' | '));
+  console.log('U3 new-file diff  :',df.some(x=>/^file_write:new:\+2-0$/.test(x)));
+  console.log('U3 edit diff      :',df.some(x=>/^edit_file:edit:\+1-1$/.test(x)));
+  console.log('U3 shrink-cancel has no diff:',!df.some(x=>/^file_write:write/.test(x)));}
  console.log('log redaction :',vm.runInContext("logTool('file_write',{path:'work/a',content:'SECRET'})",ctx),'|',vm.runInContext("logTool('edit_file',{path:'work/a',old:'S',new:'T'})",ctx));
  console.log('skill mentions files:',vm.runInContext("skillText()",ctx).includes('edit_file('),'| rules files area:',vm.runInContext("ruleAreas('file edit karo')",ctx).join(','));
  console.log('prompt migration:',vm.runInContext("S.system===DEF_SYS && DEF_SYS.includes('file_present')",ctx));

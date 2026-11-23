@@ -39,19 +39,23 @@ function tcTarget(name,a){
   if(typeof logClean==='function')t=logClean(t);
   return tcCut(t,70);
 }
+let TC_CUR=null;   // card of the tool running right now (execTool runs tools one by one)
 function tcBegin(steps,name,a){
+  TC_CUR=null;
   try{
     if(!steps)return null;
     if(!steps.cards)steps.cards=[];
     if(steps.cards.length>=TC_MAX)return null;
     const c={n:name,k:tcKind(name),l:(typeof lnLabel==='function'?lnLabel(name,a):String(name)),g:tcTarget(name,a),s:'run',t0:Date.now(),t:0,r:'',nt:[],i:steps.length,j:steps.length};
     steps.cards.push(c);
+    TC_CUR=c;
     return c;
   }catch(e){return null}
 }
 function tcEnd(c,steps,name,a,bad,res,note){
   try{
     if(!c)return;
+    if(TC_CUR===c)TC_CUR=null;
     c.s=bad?'fail':'ok';c.t=Math.max(0,Date.now()-c.t0);c.t0=0;
     c.r=typeof lnResult==='function'?lnResult(name,a,bad,res,note):'';
     c.j=steps.length;
@@ -78,6 +82,8 @@ function tcRow(c,ci){
   const st=c.s||'ok',run=st==='run',open=!!c.x||(ci!=null&&run);
   const tm=run?tcFmt(Date.now()-(c.t0||Date.now())):tcFmt(c.t);
   let body='';
+  const dsum=c.df&&c.df.length?dfStat(c.df.reduce((x,f)=>x+f.a,0),c.df.reduce((x,f)=>x+f.d,0)):'';
+  if(c.df&&c.df.length)body+='<div class="dfs-list">'+c.df.map(dfHtml).join('')+'</div>';
   if(c.r&&!run)body+='<div class="tcr">'+esc(c.r)+'</div>';
   (c.nt||[]).forEach(x=>{body+='<div class="tcn">'+esc(x)+'</div>'});
   if(run)body+='<div class="tcr">Chal raha hai...</div>';
@@ -86,14 +92,14 @@ function tcRow(c,ci){
     +'<button type="button" class="tch" aria-expanded="'+(open?'true':'false')+'">'
     +tcSvg(TC_ICO[c.k]||TC_ICO.gear)
     +'<span class="tcm"><span class="tcl">'+esc(c.l||c.n)+'</span>'+(c.g?'<span class="tcg">'+esc(c.g)+'</span>':'')+'</span>'
-    +tcStat(st)+'<span class="tce'+(run?' tcel':'')+'"'+(run?' data-t0="'+(c.t0||0)+'"':'')+'>'+esc(tm)+'</span>'+TC_CHEV+'</button>'
+    +dsum+tcStat(st)+'<span class="tce'+(run?' tcel':'')+'"'+(run?' data-t0="'+(c.t0||0)+'"':'')+'>'+esc(tm)+'</span>'+TC_CHEV+'</button>'
     +'<div class="tcb">'+body+'</div></div>';
 }
 // finished message: the cards, then any step lines no card owns (rare app notes)
-function cardsH(m){
+function cardsH(m,hi){
   // a card still 'run' in history = the app stopped before it ended: show it as failed, not as running forever
-  const cs=(m.cards||[]).map(c=>c.s==='run'?Object.assign({},c,{s:'fail',t:-1,r:'ruk gaya, result nahi aaya'}):c);
-  let h='<div class="tcs-list" role="list">'+cs.map(c=>tcRow(c,null)).join('')+'</div>';
+  const cs=(m.cards||[]).map(c=>c.s==='run'?Object.assign({},c,{s:'fail',t:-1,x:0,r:'ruk gaya, result nahi aaya'}):Object.assign({},c,{x:0}));
+  let h='<div class="tcs-list" role="list">'+cs.map(c=>tcRow(c,null)).join('')+'</div>'+dfReviewH(m,hi);
   const own={};cs.forEach(c=>{for(let i=c.i;i<(c.j==null?c.i:c.j);i++)own[i]=1});
   const ex=(m.steps||[]).filter((s,i)=>!own[i]).slice(-6);
   if(ex.length)h+='<div class="steps">'+ex.map(esc).join('<br>')+'</div>';
@@ -173,6 +179,8 @@ if(typeof document.addEventListener==='function'&&$('#chat')&&$('#chat').addEven
       if(ci!==null&&ci!==''){const L=tcLive()[+ci];if(L)L.x=o?1:0}
       return;
     }
+    const rv=T.closest('.rvb');
+    if(rv){const m=H[+rv.getAttribute('data-hi')];if(m)dfvOpen(m);return}
     const cp=T.closest('.trc');
     if(cp){
       const m=H[+cp.getAttribute('data-hi')];
@@ -288,5 +296,132 @@ function lgParse(txt){
   $('#lgl').addEventListener('scroll',()=>{
     const b=$('#lgl'),near=b.scrollHeight-b.scrollTop-b.clientHeight<40;
     if(LGV.follow&&!near){LGV.follow=false;const fb=$('#lgvf');if(fb)fb.setAttribute('aria-pressed','false')}
+  });
+})();
+
+// ---------- U3 (1.44000.0): diff viewer + review bar ----------
+// A diff is recorded by files.js (file_write / edit_file) on the card of that tool: card.df=[{p,k,a,d,h,om}]
+//   p=path, k=edit|write|new, a/d=real counts of added/removed lines, h=hunks [{h:'@@..@@',l:[[+|-|' ',lineNo,text]]}], om=changed lines not stored
+// Stored small (max 60 lines per file, 8 files per message). It shows what chat already showed as text (fDiff), nothing new.
+const DF_MAXL=60,DF_LINE=140,DF_FILES=8;
+const dfCut=(s,n)=>s.length>n?s.slice(0,n-3)+'...':s;
+const dfSplit=t=>String(t==null?'':t).replace(/\r\n/g,'\n').split('\n');
+// line diff old -> new. base: number of the first line (default 1; 0 = line numbers unknown, hide them)
+function dfText(oldT,newT,ctx,base){
+  ctx=ctx==null?3:ctx;const B0=base===undefined?1:base;
+  const A=dfSplit(oldT),B=dfSplit(newT);
+  let s=0;while(s<A.length&&s<B.length&&A[s]===B[s])s++;
+  let ea=A.length,eb=B.length;while(ea>s&&eb>s&&A[ea-1]===B[eb-1]){ea--;eb--}
+  const a=A.slice(s,ea),b=B.slice(s,eb),mid=[];
+  if(a.length*b.length<=160000){
+    const n=a.length,m=b.length,w=m+1,T=new Uint16Array((n+1)*w);
+    for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--)T[i*w+j]=a[i]===b[j]?T[(i+1)*w+j+1]+1:Math.max(T[(i+1)*w+j],T[i*w+j+1]);
+    let i=0,j=0;
+    while(i<n||j<m){
+      if(i<n&&j<m&&a[i]===b[j]){mid.push([' ',a[i],s+i,s+j]);i++;j++}
+      else if(i<n&&(j>=m||T[(i+1)*w+j]>=T[i*w+j+1])){mid.push(['-',a[i],s+i,null]);i++}   // on a tie the removal comes first, like a normal diff
+      else{mid.push(['+',b[j],null,s+j]);j++}
+    }
+  }else{a.forEach((x,i)=>mid.push(['-',x,s+i,null]));b.forEach((x,j)=>mid.push(['+',x,null,s+j]))}
+  let ad=0,dl=0;mid.forEach(e=>{if(e[0]==='+')ad++;else if(e[0]==='-')dl++});
+  if(!ad&&!dl)return{a:0,d:0,h:[]};
+  const seq=[];
+  for(let i=Math.max(0,s-ctx);i<s;i++)seq.push([' ',A[i],i,i]);
+  mid.forEach(e=>seq.push(e));
+  for(let k=0;k<ctx&&ea+k<A.length;k++)seq.push([' ',A[ea+k],ea+k,eb+k]);
+  const keep=new Array(seq.length).fill(false);
+  seq.forEach((e,i)=>{if(e[0]!==' ')for(let k=Math.max(0,i-ctx);k<=Math.min(seq.length-1,i+ctx);k++)keep[k]=true});
+  const no=i=>B0?B0+i:0,hunks=[];
+  for(let i=0;i<seq.length;){
+    if(!keep[i]){i++;continue}
+    let j=i;while(j<seq.length&&keep[j])j++;
+    const part=seq.slice(i,j);
+    const o1=part.find(e=>e[2]!=null),n1=part.find(e=>e[3]!=null);
+    const oc=part.filter(e=>e[0]!=='+').length,nc=part.filter(e=>e[0]!=='-').length;
+    hunks.push({h:B0?'@@ -'+(o1?no(o1[2]):0)+','+oc+' +'+(n1?no(n1[3]):0)+','+nc+' @@':'',l:part.map(e=>[e[0],e[0]==='-'?(e[2]==null?0:no(e[2])):(e[3]==null?0:no(e[3])),dfCut(e[1],DF_LINE)])});
+    i=j;
+  }
+  return{a:ad,d:dl,h:hunks};
+}
+// keep at most DF_MAXL lines per file; om = changed lines left out
+function dfCap(p,k,r){
+  let room=DF_MAXL,om=0;const h=[];
+  r.h.forEach(hk=>{
+    if(room<=0){om+=hk.l.filter(e=>e[0]!==' ').length;return}
+    if(hk.l.length<=room){h.push(hk);room-=hk.l.length;return}
+    const part=hk.l.slice(0,room);om+=hk.l.slice(room).filter(e=>e[0]!==' ').length;h.push({h:hk.h,l:part});room=0;
+  });
+  return{p:p,k:k,a:r.a,d:r.d,h:h,om:om};
+}
+function dfFile(rel,kind,oldT,newT){return dfCap(rel,kind,dfText(oldT,newT,3))}
+function dfNew(rel,text){
+  const L=dfSplit(text),n=Math.min(L.length,30);
+  return{p:rel,k:'new',a:L.length,d:0,h:[{h:'',l:L.slice(0,n).map((x,i)=>['+',i+1,dfCut(x,DF_LINE)])}],om:Math.max(0,L.length-n)};
+}
+function dfEdit(rel,ed,res){
+  let a=0,d=0;const h=[];
+  (ed||[]).slice(0,8).forEach((e,k)=>{
+    const ln=res&&Array.isArray(res.lines)&&res.lines.length===ed.length?(+res.lines[k]||0):0;
+    const r=dfText(e.old,e.new,0,ln);a+=r.a;d+=r.d;r.h.forEach(x=>h.push(x));
+  });
+  return dfCap(rel,'edit',{a:a,d:d,h:h});
+}
+function tcDiff(name,obj){
+  try{
+    if(!obj||!TC_CUR||TC_CUR.n!==name)return;
+    const c=TC_CUR;c.df=c.df||[];
+    if(c.df.length<DF_FILES){c.df.push(obj);c.x=1}
+  }catch(e){}
+}
+const dfStat=(a,d)=>'<span class="dfsum"><b class="a">+'+a+'</b><b class="d">-'+d+'</b></span>';
+function dfHead(f){
+  const kind=f.k==='new'?'nayi file':f.na?'overwrite':'';
+  return'<span class="dfp">'+esc(f.p)+'</span>'+(kind?'<span class="dfb">'+kind+'</span>':'')+(f.na?'':dfStat(f.a,f.d));
+}
+function dfBody(f){
+  let h='';
+  if(!f.h.length&&!f.om)h+='<div class="dfm">'+(f.na?'Poori file badli, purana content padha nahi ja saka.':'Koi line change nahi.')+'</div>';
+  f.h.forEach(k=>{
+    if(k.h)h+='<div class="dfk">'+esc(k.h)+'</div>';
+    h+='<div class="dfr">'+k.l.map(e=>'<div class="dfl '+(e[0]==='+'?'a':e[0]==='-'?'d':'c')+'"><span class="dfn">'+(e[1]||'')+'</span><span class="dfg">'+(e[0]===' '?'':e[0])+'</span><span class="dft">'+esc(e[2])+'</span></div>').join('')+'</div>';
+  });
+  if(f.om)h+='<div class="dfm">+'+f.om+' badli hui lines aur, yahan nahi dikhayi.</div>';
+  return h;
+}
+const dfHtml=f=>'<div class="dff"><div class="dfh">'+dfHead(f)+'</div>'+dfBody(f)+'</div>';
+const dfAll=m=>(m&&m.cards?m.cards:[]).reduce((r,c)=>c.df?r.concat(c.df):r,[]);
+function dfUnified(files){
+  return files.map(f=>{
+    let t='--- '+f.p+(f.k==='new'?' (nayi file)':'')+'\n';
+    f.h.forEach(k=>{if(k.h)t+=k.h+'\n';k.l.forEach(e=>{t+=(e[0]===' '?' ':e[0])+e[2]+'\n'})});
+    if(f.om)t+='... +'+f.om+' lines aur\n';
+    return t;
+  }).join('\n');
+}
+const DF_ICO='<svg class="rvi" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3v12M8 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM16 21V9M16 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg>';
+function dfReviewH(m,hi){
+  const fs=dfAll(m);if(!fs.length)return'';
+  const n=new Set(fs.map(f=>f.p)).size;
+  return'<button type="button" class="rvb" data-hi="'+(hi==null?'':hi)+'">'+DF_ICO+'<span class="rvt">'+n+' file'+(n>1?'s':'')+' badli</span>'+dfStat(fs.reduce((x,f)=>x+f.a,0),fs.reduce((x,f)=>x+f.d,0))+TC_CHEV+'</button>';
+}
+var DFV={files:[]};
+function dfvDraw(){
+  const fs=DFV.files,box=$('#dfl');if(!box)return;
+  box.innerHTML=fs.map((f,i)=>'<div class="dfw'+(fs.length<=3||i===0?' open':'')+'"><button type="button" class="dfsh" aria-expanded="'+(fs.length<=3||i===0?'true':'false')+'">'+TC_CHEV+dfHead(f)+'</button><div class="dfsb">'+dfBody(f)+'</div></div>').join('')||'<div class="lgn">Koi badlav nahi.</div>';
+  const c=$('#dfcnt');if(c)c.textContent=fs.length+(fs.length===1?' diff':' diffs');
+}
+function dfvOpen(m){
+  const v=$('#dfv');if(!v)return;
+  DFV.files=dfAll(m);dfvDraw();v.classList.add('open');
+  const b=$('#dfl');if(b)b.scrollTop=0;
+}
+function dfvClose(){const v=$('#dfv');if(v)v.classList.remove('open')}
+(function dfvInit(){
+  if(!$('#dfv')||typeof document.addEventListener!=='function')return;
+  $('#dfvx').onclick=dfvClose;
+  $('#dfvc').onclick=()=>{copyTxt(dfUnified(DFV.files)||'(khaali)').then(()=>{const b=$('#dfvc'),o=b.innerHTML;b.innerHTML=typeof ICO_OK!=='undefined'?ICO_OK:'ok';setTimeout(()=>{b.innerHTML=o},1200)})};
+  $('#dfl').addEventListener('click',e=>{
+    const h=e.target&&e.target.closest?e.target.closest('.dfsh'):null;if(!h)return;
+    const w=h.parentNode,o=w.classList.toggle('open');h.setAttribute('aria-expanded',o?'true':'false');
   });
 })();
