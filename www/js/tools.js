@@ -227,13 +227,14 @@ async function execTool(name,a,steps){
   const fl={bad:false},own=name==='ask_user'||name==='wait_for_user';
   if(name==='open_app'||name.indexOf('screen_')===0||own||/^(open_url|open_intent|set_switch|tap_when_visible|run_flow)$/.test(name))LEFT_APP=true;
   if(own)LN.hold=true;
-  const it=lnStep(name,a),n0=steps.length;
+  const it=lnStep(name,a),n0=steps.length,cd=typeof tcBegin==='function'?tcBegin(steps,name,a):null;
   if(own){LN.state='wait';lnDraw()}
   const res=await execTool0(name,a,steps,fl);
   if(!fl.bad&&typeof sesChange==='function')sesChange(name,a);
   logAdd(fl.bad?'tool FAIL':'tool',logTool(name,a)+((name.indexOf('termux_')===0||name==='device_api'||name==='api_check'||name==='run_code'||name==='schedule_list'||name==='rule_list'||name.indexOf('file_')===0||name.indexOf('note_')===0||name==='edit_file'||name==='screen_read')?'':' -> '+cut(String(res).replace(/\s+/g,' '),140)));
   if(own)LN.hold=false;
   lnStepEnd(it,name,a,fl.bad,res,steps.length>n0?steps[steps.length-1]:'');
+  if(cd)tcEnd(cd,steps,name,a,fl.bad,res,steps.length>n0?steps[steps.length-1]:'');
   await sleep(fl.bad?1500:200);
   return res;
 }

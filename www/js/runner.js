@@ -259,7 +259,7 @@ async function rnSqlIn(a) {
 
 // ---------- the tool ----------
 function rnSay(lang, code, shown, ok) {
-  H.push({ role: 'assistant', by: 'Code', local: 1, content: '```' + lang + '\n' + noFence(cut(code, 1200)) + '\n```\n```\n' + noFence(cut(shown, 1200) || '(no output)') + '\n```', aiNote: 'run_code ' + lang + ' (' + code.length + ' chars): ' + (ok ? 'ok' : 'fail') + '. Code aur output Najeef ko chat me dikha diya.' });
+  H.push({ role: 'assistant', by: 'Code', local: 1, term: { lang: lang, code: cut(code, 1200), out: cut(shown, 1200) || '(no output)', state: ok ? 'ok' : 'fail' }, content: '```' + lang + '\n' + noFence(cut(code, 1200)) + '\n```\n```\n' + noFence(cut(shown, 1200) || '(no output)') + '\n```', aiNote: 'run_code ' + lang + ' (' + code.length + ' chars): ' + (ok ? 'ok' : 'fail') + '. Code aur output Najeef ko chat me dikha diya.' });
   liveRender();
 }
 async function codeTool(name, a, note, fl) {

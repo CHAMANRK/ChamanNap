@@ -902,7 +902,7 @@ async function uiTool(a,note,fl){
 function uiMerge(r){
   for(let k=H.length-1;k>=0;k--){
     const m=H[k];if(m.role==='user')break;
-    if(m.ui){m.steps=r.steps;m.by=r.by;return}
+    if(m.ui){m.steps=r.steps;m.cards=(r.steps&&r.steps.cards&&r.steps.cards.length?r.steps.cards:undefined);m.by=r.by;return}
   }
-  H.push({role:'assistant',content:'(widget)',by:r.by,steps:r.steps});uiFresh(H[H.length-1]);
+  H.push({role:'assistant',content:'(widget)',by:r.by,steps:r.steps,cards:(r.steps&&r.steps.cards&&r.steps.cards.length?r.steps.cards:undefined)});uiFresh(H[H.length-1]);
 }

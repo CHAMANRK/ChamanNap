@@ -51,24 +51,24 @@ function termuxMsg(code){
   return null;
 }
 async function termuxExec(method,o,shown,note,fl){
-  const tm={role:'assistant',by:'Termux',local:1,content:'```\n$ '+noFence(cut(shown,600))+'\n(chal raha hai...)\n```'};
+  const tm={role:'assistant',by:'Termux',local:1,content:'```\n$ '+noFence(cut(shown,600))+'\n(chal raha hai...)\n```',term:{cmd:cut(shown,600),state:'run',t0:Date.now()}};
   H.push(tm);liveRender();
   let r;
   try{r=await NT(method,o)}
   catch(e){
     const msg=termuxMsg(e&&e.code)||errMsg(e);
-    tm.content='```\n$ '+noFence(cut(shown,600))+'\n'+noFence(msg)+'\n```';tm.aiNote='$ '+cut(shown,200)+' -> fail: '+msg;
+    tm.content='```\n$ '+noFence(cut(shown,600))+'\n'+noFence(msg)+'\n```';tm.aiNote='$ '+cut(shown,200)+' -> fail: '+msg;tm.term={cmd:cut(shown,600),err:msg,state:'fail'};
     fl.bad=true;logAdd('termux','$ '+shown+' -> fail: '+msg);liveRender();return note('Termux fail: '+msg);
   }
   if(r.timeout){
     const msg='Termux ne time par jawab nahi diya. Command abhi chal rahi ho sakti hai, ya Termux me allow-external-apps=true nahi hai.';
-    tm.content='```\n$ '+noFence(cut(shown,600))+'\n'+msg+'\n```';tm.aiNote='$ '+cut(shown,200)+' -> timeout';
+    tm.content='```\n$ '+noFence(cut(shown,600))+'\n'+msg+'\n```';tm.aiNote='$ '+cut(shown,200)+' -> timeout';tm.term={cmd:cut(shown,600),err:msg,state:'fail'};
     fl.bad=true;logAdd('termux','$ '+shown+' -> timeout');liveRender();return note('Termux timeout')+' '+msg;
   }
   const code=r.exitCode,out=String(r.stdout||''),err=String(r.stderr||'');
   const body=out+(err?(out?'\n':'')+'[stderr]\n'+err:'')+(r.errmsg?'\n[termux] '+r.errmsg:'');
   tm.content='```\n$ '+noFence(cut(shown,600))+'\n'+noFence(cut(body.trim()||'(koi output nahi)',6000))+'\n[exit '+code+']\n```';
-  tm.aiNote='$ '+cut(shown,200)+' (exit '+code+')\n'+cut(body.trim(),400);
+  tm.aiNote='$ '+cut(shown,200)+' (exit '+code+')\n'+cut(body.trim(),400);tm.term={cmd:cut(shown,600),out:cut(body.trim(),6000),code:code,state:code===0?'ok':'fail'};
   logAdd('termux','$ '+shown+' (exit '+code+')',cut(body.trim(),1500));
   if(code!==0)fl.bad=true;
   liveRender();

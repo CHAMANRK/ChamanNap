@@ -1,6 +1,7 @@
 // Log saving: everything the app does is queued and appended through Termux to the running session's log (/sdcard/Chaman/sessions/<id>/logs/log.md);
 // lines made before any session exists go to /sdcard/Chaman/logs/YYYY-MM-DD.md (kept 30 days).
 const LOG_ROOT=WS_ROOT+'/logs';
+var LOGV=[];   // U2: in-memory copy for the log viewer (devui.js), newest last, max 500
 const LOGQ=[];let LOG_BUSY=false,LOG_BACKOFF=0,LOG_PRUNED=false,LOG_ERR='';
 const lpad=n=>String(n).padStart(2,'0');
 const logClean=s=>String(s==null?'':s).replace(/\b(gsk_|sk-|nvapi-|hf_|csk-)[A-Za-z0-9_-]{16,}/g,'[key]');
@@ -43,6 +44,8 @@ function logAdd(kind,text,code){
   const sid=(typeof SES!=='undefined'&&SES&&SES.id)||'';
   let s='- '+(sid?day+' ':'')+tm+' ['+kind+'] '+cut(logClean(text).replace(/\s*\n\s*/g,' | '),600);
   if(code)s+='\n```\n'+noFence(cut(logClean(code),1500))+'\n```';
+  LOGV.push({t:d.getTime(),k:String(kind),x:cut(logClean(text).replace(/\s*\n\s*/g,' | '),600),c:code?cut(logClean(code),1500):''});
+  while(LOGV.length>500)LOGV.shift();
   LOGQ.push({day,sid,text:s});
   while(LOGQ.length>300)LOGQ.shift();
   if(LOGQ.length>=15)logFlush();

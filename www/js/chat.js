@@ -127,7 +127,7 @@ function turnWait(t,p){
   t.p=Promise.resolve(p).then(()=>{t.settled=true},()=>{t.settled=true});
   return Promise.race([p,new Promise(res=>{t.wake=()=>res(STOPPED)})]);
 }
-function stopNote(t){return{role:'assistant',content:'Stop dabaya gaya.'+(t.tool?'\n('+t.tool+' us waqt chal raha tha, wo background me poora ho sakta hai.)':''),by:'App',info:1,steps:(t.steps||[]).slice()}}
+function stopNote(t){return{role:'assistant',content:'Stop dabaya gaya.'+(t.tool?'\n('+t.tool+' us waqt chal raha tha, wo background me poora ho sakta hai.)':''),by:'App',info:1,steps:(t.steps||[]).slice(),cards:(t.steps&&t.steps.cards&&t.steps.cards.length?t.steps.cards.slice():undefined)}}
 function stopTurn(){
   const t=TURN;if(!busy||!t||t.stop)return;
   t.stop=true;LAST_STOP=t;
@@ -166,7 +166,7 @@ $('#f').addEventListener('submit',async e=>{
     }
 const r=await turnWait(tn,ask());
     if(r===STOPPED||tn.stop)H.push(stopNote(tn));
-    else{if(r.uiOnly&&!r.content&&typeof uiMerge==='function')uiMerge(r);else{H.push({role:'assistant',content:r.content,by:r.by,steps:r.steps});if(typeof uiFresh==='function')uiFresh(H[H.length-1])}logAdd('chaman','('+(r.by||'?')+') '+r.content)}}
+    else{if(r.uiOnly&&!r.content&&typeof uiMerge==='function')uiMerge(r);else{H.push({role:'assistant',content:r.content,by:r.by,steps:r.steps,cards:(r.steps&&r.steps.cards&&r.steps.cards.length?r.steps.cards:undefined)});if(typeof uiFresh==='function')uiFresh(H[H.length-1])}logAdd('chaman','('+(r.by||'?')+') '+r.content)}}
   catch(err){if(tn.stop)H.push(stopNote(tn));else{H.push({role:'assistant',content:err.message,err:1});logAdd('error',err.message)}}
   const lnWas=LN.on;lnEnd();if(lnWas)NS('finish',finOpt({open:false})).catch(()=>{});
   H=H.slice(-100);persist();TURN=null;setBusy(false);render();logFlush();

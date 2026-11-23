@@ -53,6 +53,7 @@ function lnSend(){
 function lnTick(){
   if(!LN.on)return;
   if(LN.state==='wait'&&LN.tw&&Date.now()-LN.tw>=8000)lnSend();
+  if(typeof tcTick==='function')tcTick();
   const t=setTimeout(lnTick,1000);if(t&&t.unref)t.unref();LN.timer=t;
 }
 function lnBegin(text,state){
@@ -99,9 +100,10 @@ function lnEnd(){
 }
 const LN_ARR='<svg class="lna" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
 function lnHtml(roll){
-  const n=LN.items.length,open=LN.open&&n>0;
-  let h=(typeof cwOk==='function'&&cwOk()?'<div class="cwx" aria-hidden="true"></div>':'')+'<div class="lnl"><span class="lnd '+LN.state+'"></span><span class="lnt'+(roll?' rl':'')+'">'+esc(lnShow())+'</span>'+(n?'<span class="lnk'+(open?' o':'')+'">'+LN_ARR+'</span>':'')+'</div>'+(LN.th?'<div class="lnth">'+esc(LN.th)+'</div>':'');
-  if(open){
+  const n=LN.items.length,cl=typeof tcLiveH==='function'?tcLiveH():'',open=LN.open&&n>0&&!cl;
+  let h=(typeof cwOk==='function'&&cwOk()?'<div class="cwx" aria-hidden="true"></div>':'')+'<div class="lnl"><span class="lnd '+LN.state+'"></span><span class="lnt'+(roll?' rl':'')+'">'+esc(lnShow())+'</span>'+(n&&!cl?'<span class="lnk'+(open?' o':'')+'">'+LN_ARR+'</span>':'')+'</div>'+(LN.th?'<div class="lnth">'+esc(LN.th)+'</div>':'');
+  if(cl)h+=cl;
+  else if(open){
     h+='<div class="lnx">'+LN.items.slice(-8).map(x=>'<div class="lni"><span class="lnd s '+x[1]+'"></span>'+esc(x[0])+'</div>'+(x[2]?'<div class="lnr">'+esc(x[2])+'</div>':'')).join('')+'</div>';
   }
   return h;
