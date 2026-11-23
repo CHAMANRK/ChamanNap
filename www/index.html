@@ -7,13 +7,9 @@
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<header>
-  <h1>Chaman</h1>
-  <select id="prov" aria-label="Provider"></select>
-  <button class="ib" id="sesb" aria-label="Sessions"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/></svg></button>
-  <button class="ib" id="newb" aria-label="New chat"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
-  <button class="ib" id="setb" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
-</header>
+<button class="fab" id="sesb" aria-label="Menu" aria-haspopup="dialog"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+<button class="fab r" id="newb" aria-label="New chat"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+<select id="prov" hidden aria-hidden="true" tabindex="-1"></select>
 <div id="flwin" hidden></div>
 <div id="chat"></div>
 <div id="pend"></div>
@@ -22,15 +18,26 @@
 <div id="modal"><div id="mcard"></div></div>
 <div id="slash"></div>
 <form id="f">
-  <button type="button" class="ib" id="att" aria-label="Attach file"><svg viewBox="0 0 24 24"><path d="M21 12.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l9-9a3.7 3.7 0 0 1 5.2 5.2l-9 9a1.8 1.8 0 0 1-2.6-2.6l8.4-8.4"/></svg></button>
-  <textarea id="in" rows="1" placeholder="Message likho"></textarea>
-  <button id="send" type="submit" aria-label="Send"><svg class="ib" style="width:22px;height:22px" viewBox="0 0 24 24"><path d="M5 12l14-7-5 14-2-6z" stroke="currentColor" fill="none" stroke-width="1.8" stroke-linejoin="round"/></svg></button>
+  <div class="comp">
+    <textarea id="in" rows="1" placeholder="Message likho"></textarea>
+    <div class="crow">
+      <button type="button" class="ib" id="att" aria-label="Attach file"><svg viewBox="0 0 24 24"><path d="M21 12.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l9-9a3.7 3.7 0 0 1 5.2 5.2l-9 9a1.8 1.8 0 0 1-2.6-2.6l8.4-8.4"/></svg></button>
+      <button type="button" class="pchip" id="provb" aria-haspopup="listbox" aria-expanded="false" aria-label="Provider badlo"><span id="provt">auto</span><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg></button>
+      <button id="send" type="submit" aria-label="Send"><svg class="ib" style="width:22px;height:22px" viewBox="0 0 24 24"><path d="M5 12l14-7-5 14-2-6z" stroke="currentColor" fill="none" stroke-width="1.8" stroke-linejoin="round"/></svg></button>
+    </div>
+  </div>
+  <div id="provpop" role="listbox" aria-label="Provider" hidden></div>
 </form>
 <div id="sheet">
   <header><h1>Settings</h1><button class="ib" id="closeb" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
   <div id="sbody"></div>
 </div>
-<div id="sesw"><header><h1>Sessions</h1><button class="ib" id="sesx" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header><div id="sesl"></div></div>
+<aside id="sesw" aria-label="Menu">
+  <button type="button" class="drset" id="setb"><span class="dri"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></span><span class="drt">Settings</span><svg class="drc" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+  <div class="drh">Sessions</div>
+  <div id="sesl"></div>
+</aside>
+<div id="sesx" aria-hidden="true"></div>
 <div id="viewer"><header><button class="ib" id="vback" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button><h1 id="vtitle"></h1><button type="button" class="vm" id="vmode">Code</button><button class="ib" id="vsave" aria-label="Phone me save karo (Download)"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg></button><button class="ib" id="vcopy" aria-label="Copy file"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg></button></header><div id="viewer-body"></div></div>
 <script src="js/viewport.js"></script>
 <script src="js/version.js"></script>

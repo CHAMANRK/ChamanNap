@@ -47,7 +47,7 @@ def toggle_chk(pg):
     return pg.evaluate("[document.querySelectorAll('.uiw').length,document.querySelectorAll('.uierr').length]")
 e,r=shot("light","off",[{"role":"user","content":"quiz lo"},msg(QUIZ)],toggle_chk); print("OFF",r,e)
 def set_chk(pg):
-    pg.click("#setb") if pg.query_selector("#setb") else None
+    (pg.click("#sesb"), pg.wait_for_timeout(300), pg.click("#setb")) if pg.query_selector("#setb") else None
     pg.wait_for_timeout(300)
     return pg.evaluate("!!document.querySelector('#ui_on')")
 e,r=shot("light","settings",[{"role":"user","content":"x"}],set_chk); print("SETTINGS",r,e)

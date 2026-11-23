@@ -129,8 +129,14 @@ ev("cwDemoEnd("+id+")");ok(ev('CW.demo')===0,'demo ends');
 ok(ev("CW.rdur")>0&&ev("(()=>{CW.demo=0;let m=1e9,M=0;for(let i=0;i<50;i++){const d=cwRoamDur();m=Math.min(m,d);M=Math.max(M,d)}return m>=4.5&&M<=6.5})()"),'real wait: roam still 4.5-6.5 s');
 // animCmd (node: H, busy stubs)
 ctx.setInterval=setInterval;ctx.clearInterval=clearInterval; // real timers for animCmd (the load-time stub only had to keep anim.js quiet)
-ev("var H=[];var busy=true;CW.on=true;CW.dead=false;CW.rm=false");
+ev("var H=[];var busy=true;CW.on=true;CW.dead=false;CW.rm=false;var S={anim:{on:true}}");
+// U1 (1.42000.0): parked by default, Settings > Waiting animation turns it on
+ok(ev("cwUser()")===true&&ev("cwOk()")===true,'S.anim.on=true -> animation allowed');
+ev("S.anim.on=false");ok(ev("cwUser()")===false&&ev("cwOk()")===false,'S.anim off (default) -> parked, cwOk false (status row keeps the plain look)');
+ev("S.anim={}");ok(ev("cwUser()")===false,'S.anim without on -> parked');
+ev("S.anim={on:true}");
 (async()=>{
+  ev("S.anim.on=false");await ev("animCmd('')");ok(/park/.test(ev("H[0].content")),'/anim while parked says it is parked');ev("H.length=0;S.anim.on=true");
   await ev("animCmd('list')");ok(ev("H.length")===1&&/soch, bas, counter, ruk, dimag, chai, net, heart, ring, star, clock, bolt, smile, tick/.test(ev("H[0].content"))&&/ghadi = clock/.test(ev("H[0].content")),'/anim list names the acts and aliases');
   await ev("animCmd('xyz')");ok(/nahi mila/.test(ev("H[1].content")),'/anim unknown name says so');
   ev("CW.rm=true");await ev("animCmd('')");ok(/reduced motion/.test(ev("H[2].content"))&&ev('CW.demo')===0,'reduced motion: no demo, clear message');

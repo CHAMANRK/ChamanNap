@@ -145,6 +145,7 @@ async function animCmd(a){
   if(q==='list'||q==='help'||q==='?'){say('/anim = random demo (40 sec), /anim <naam> = sirf wahi (15 sec). Stop dabane se ruk jata hai.\nNaam: '+animList()+' ('+CW_ACTS.filter(a=>a.al).map(a=>a.al[0]+' = '+a.n).join(', ')+').');return}
   let name='';
   if(q){const m=cwFindAct(q);if(!m){say('Ye animation nahi mila: '+q+'. Naam: '+animList()+'.');return}name=m.n}
+  if(!cwUser()){say('Waiting animation park hai. Settings > Waiting animation me On karo, phir /anim chalega.');return}
   if(!cwOk()||CW.rm){say('Animation abhi band hai ('+(CW.rm?'reduced motion on hai':'canvas nahi chala')+'), isliye demo nahi dikha sakta.');return}
   const id=cwDemo(name);
   try{if(typeof lnSet==='function')lnSet('Animation demo'+(name?': '+name:''),'wait')}catch(e){}
@@ -238,7 +239,14 @@ function cwWant(busy,empty){
   if(m==='idle'||m==='intro'){if(++CW.miss>=2){CW.miss=0;cwSet('fin')}}
 }
 // ---- DOM side ----
-function cwOk(){return CW.on&&!CW.dead}
+// U1 (1.42000.0): the animation is parked. It only runs when Settings > Waiting animation is On (S.anim.on===true); default off.
+function cwUser(){try{return !!(S&&S.anim&&S.anim.on===true)}catch(e){return false}}
+function cwPark(){
+  if(CW.mode!=='off'){CW.mode='off';CW.P=[]}
+  if(CW.cv)CW.cv.style.display='none';
+  try{document.documentElement.classList.remove('cw')}catch(e){}
+}
+function cwOk(){return CW.on&&!CW.dead&&cwUser()}
 function cwOff(){CW.dead=true;CW.mode='off';CW.P=[];if(CW.cv)CW.cv.style.display='none';try{document.documentElement.classList.remove('cw')}catch(e){}}
 function cwAnchor(){
   const chat=document.querySelector('#chat');if(!chat)return null;
@@ -303,8 +311,10 @@ function cwKick(){
   CW.last=0;CW.raf=requestAnimationFrame(cwLoop);
 }
 function cwCheck(){
+  if(CW.on&&!CW.dead&&!cwUser()){cwPark();return}
   if(!cwOk())return;
   try{
+    document.documentElement.classList.add('cw');
     const busyNow=typeof busy!=='undefined'&&busy&&!!document.querySelector('#ty .cwx');
     const empty=typeof H!=='undefined'&&!H.length&&!!document.querySelector('.empty b');
     const c=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();if(c)CW.col=c;
@@ -323,7 +333,6 @@ function cwCheck(){
     chat.parentNode.insertBefore(cv,chat);
     CW.cv=cv;CW.g=g;CW.on=true;
     CW.rm=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-    document.documentElement.classList.add('cw');
     setInterval(cwCheck,250);
     document.addEventListener('visibilitychange',cwCheck);
     setTimeout(cwCheck,0);
