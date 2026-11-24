@@ -1,4 +1,4 @@
-// 1.38000.0 Rich UI (P1): validator, renderer (escaping), ```ui fences, live/frozen/replace, ui_render tool + loop, taps (send/copy/sort/form), rules. Run: cd www && node ../tests/sim-ui.js
+// 1.46000.0: P5 checks at the end of section 8b. 1.38000.0 Rich UI (P1): validator, renderer (escaping), ```ui fences, live/frozen/replace, ui_render tool + loop, taps (send/copy/sort/form), rules. Run: cd www && node ../tests/sim-ui.js
 const vm=require('vm'),fs=require('fs');
 const els={},handlers={};
 const mk=sel=>{const o={value:'',style:{},dataset:{},options:[],classList:{add(){},remove(){},toggle(){},contains(){return false}},addEventListener(t,f){const k=sel+':'+t,pv=handlers[k];handlers[k]=pv?async e=>{await pv(e);await f(e)}:f},insertAdjacentHTML(){},querySelector(){return mk('x')},closest(){return null},appendChild(){},remove(){},select(){},click(){},focus(){},set onclick(f){handlers[sel+':click']=f},set onchange(f){},scrollHeight:0,scrollTop:0,disabled:false,textContent:'',srcdoc:''};let h='';Object.defineProperty(o,'innerHTML',{get(){return h},set(v){h=v;if(sel==='#prov')o.options=v.split('<option').slice(1)}});return o};
@@ -423,8 +423,146 @@ const lastUser=()=>{const h=getH();for(let k=h.length-1;k>=0;k--)if(h[k].role===
  ok(/ui_render/.test(t("rulesTool({area:'ui'},s=>s,{})")),'rules_read ui works');
  ok(t("TOOLS.find(x=>x.function.name==='rules_read').function.parameters.properties.area.enum").includes('ui'),'rules_read enum has ui');
  ok(/ui_render/.test(t('skillText()')),'skill text lists ui_render');
- ok(t("RULES_VER")==='2026-11-22.2','RULES_VER bumped');
  ok(/```ui/.test(t("RULES.ui"))&&/HE says/.test(t("RULES.ui")),'rules tell the AI about the fence fallback and that a button value is Najeef\'s words');
+
+ // ================= P5 (1.46000.0): layout, inputs, wizard, table select/paging/badge, text variants =================
+ const clean=bl=>JSON.parse(JSON.stringify(bl,(k,v)=>k==='bid'?undefined:v));
+ const rt=b=>{const a=V({v:1,id:'t',blocks:[b]});if(!a.ok)return'INVALID '+a.err;const c=clean(a.ui.blocks),b2=V({v:1,id:'t',blocks:c});return b2.ok&&JSON.stringify(clean(b2.ui.blocks))===JSON.stringify(c)?'same':'DIFF '+JSON.stringify(c).slice(0,200)+' -> '+(b2.ok?JSON.stringify(clean(b2.ui.blocks)).slice(0,200):b2.err)};
+ // 0. a widget made by the tool is stored in its clean form and validated again for every render: every block type must survive that
+ const ALLB=[{type:'text',md:'hello',variant:'quote'},{type:'card',title:'c',body:[{type:'tabs',tabs:[{label:'a',body:[{type:'text',md:'x'}]}]}],footer:[{type:'buttons',items:[{label:'a',action:{type:'send',value:'x'}}]}]},
+  {type:'buttons',items:[{label:'a',style:'primary',action:{type:'copy',value:'x'}}]},{type:'choice',id:'q',mode:'multi',options:[{label:'A',value:'a',desc:'d'},'B'],submit:{label:'Go',action:{type:'send',value:'{value}'}}},
+  {type:'form',id:'f',fields:[{key:'n',label:'N',type:'number',min:1,max:5,required:true,value:3},{key:'s',type:'select',options:['x','y'],value:'y'},{key:'w',type:'switch',value:true},{key:'sl',type:'slider',min:2,max:9,inc:0.5,value:4}]},
+  {type:'form',id:'wz',steps:[{title:'Ek',fields:[{key:'a',label:'A',required:true}]},{title:'Do',fields:[{key:'b',label:'B',type:'select',options:['p','q']}]},{title:'Teen',fields:[{key:'c',type:'switch'}]}],submit:{label:'Done'}},
+  {type:'input',key:'nm',label:'Naam',kind:'textarea',submit:{label:'Bhejo'}},{type:'select',key:'sc',label:'Shehar',options:['A','B']},{type:'slider',key:'bd',label:'Budget',min:0,max:50,value:20},{type:'switch',key:'sw',label:'On?',value:true},
+  {type:'table',columns:[{key:'n',label:'Naam'},{key:'p',label:'P',type:'number'},{key:'r',label:'Rec',type:'badge',colors:{Best:'green',Ok:'blue'}}],rows:[{n:'b',p:'10',r:'Best'},{n:'a',p:'9',r:'Ok'}],sortable:true,selectable:'multi',pageSize:1,submit:{label:'Lo',action:{type:'send',value:'{value}'}}},
+  {type:'tabs',start:1,tabs:[{label:'A',body:[{type:'text',md:'a'}]},{label:'B',body:[{type:'form',fields:[{key:'k'}]}]}]},{type:'collapse',items:[{title:'T',open:true,body:[{type:'keyvalue',rows:[{k:'a',v:'b'}]}]}]},
+  {type:'stepper',current:1,steps:['A',{label:'B',desc:'d'},{label:'C',status:'error'}]},{type:'overlay',label:'Dekho',title:'T',style:'primary',body:[{type:'text',md:'in'},{type:'buttons',items:[{label:'x',action:{type:'send',value:'y'}}]}]},
+  {type:'menu',label:'Menu',title:'M',items:[{label:'a',variant:'danger',action:{type:'send',value:'x'}}]},
+  {type:'keyvalue',rows:[{k:'a',v:'b'}]},{type:'alert',style:'warn',title:'t',md:'m'},{type:'progress',value:3,max:10,label:'l'},{type:'code',lang:'js',code:'x=1'},
+  {type:'chart',kind:'line',title:'t',unit:'u',labels:['a','b'],series:[{name:'s',values:[1,2]}]},{type:'board',rows:['ab','cd'],legend:'l',size:'sm'},
+  {type:'badge',items:[{label:'x',color:'red',action:{type:'send',value:'y'}},{label:'z',color:'green'}]},{type:'stat',items:[{k:'a',v:'1',type:'progress',max:5,color:'blue'}]},
+  {type:'diagram',title:'d',dir:'LR',nodes:[{id:'a',label:'A',shape:'round'},{id:'b',label:'B'}],edges:[{from:'a',to:'b',label:'e',style:'dashed'}]},{type:'diagram',format:'mermaid',code:'graph TD\n A-->B'},
+  {type:'html',html:'<b>x</b>',title:'T',label:'Play',height:300},{type:'divider'},{type:'spacer'}];
+ const rtBad=ALLB.map(b=>({b,r:rt(b)})).filter(x=>x.r!=='same');
+ ok(rtBad.length===0,'every block type survives clean -> validate again ('+ALLB.length+' blocks'+(rtBad.length?'; bad: '+rtBad.map(x=>x.b.type+': '+x.r).join(' || '):'')+')');
+ // the bug that this found: a table made through ui_render lost all its rows when it was validated the second time
+ setH([]);script=[[tc('c1','ui_render',{v:1,id:'tb',blocks:[{type:'table',columns:[{key:'n',label:'Naam'}],rows:[{n:'Ali'},{n:'Bano'}]}]})],''];n=0;bodies.length=0;t('PEND=[]');els['#in'].value='table do';await handlers['#f:submit']({preventDefault(){}});
+ ok(/Ali/.test(els['#chat'].innerHTML)&&/Bano/.test(els['#chat'].innerHTML),'a table made by the ui_render tool still shows its rows after the re-render');
+ // 1. text variants
+ r=V({v:1,blocks:[{type:'text',md:'a',variant:'heading'},{type:'heading',text:'H'},{type:'caption',md:'c'},{type:'quote',md:'q'},{type:'highlight',md:'h'},{type:'text',md:'x',variant:'evil"><script>'}]});
+ ok(r.ok&&r.ui.blocks.map(b=>b.variant).join()==='heading,heading,caption,quote,highlight,','text variants: whitelist, aliases heading/caption/quote/highlight, unknown variant = plain');
+ let hv=t('(r)=>uiW(r.ui,"1:0","live")')(r);ok(/uimd v-heading/.test(hv)&&/uimd v-quote/.test(hv)&&!/evil/.test(hv)&&!/<script/.test(hv),'variant becomes a css class (only from the whitelist)');
+ // 2. tabs
+ const TBS={v:1,id:'tb',blocks:[{type:'tabs',tabs:[{label:'Pehla',body:[{type:'text',md:'PEHLA-BODY'}]},{label:'Doosra',body:[{type:'text',md:'DOOSRA-BODY'},{type:'buttons',items:[{label:'Chuno',action:{type:'send',value:'tab2 chuna'}}]}]}]}]};
+ setH([{role:'user',content:'x'},{role:'assistant',local:1,content:'',aiNote:'w',ui:TBS}]);t('render()');
+ let ch5=els['#chat'].innerHTML;ok(/PEHLA-BODY/.test(ch5)&&!/DOOSRA-BODY/.test(ch5)&&/role="tab"/.test(ch5),'tabs: only the first tab body is drawn');
+ const wt=fakeW('1:0',true);await tap(wt,'tab',1,1);ok(/DOOSRA-BODY/.test(wt.outerHTML)&&!/PEHLA-BODY/.test(wt.outerHTML)&&/aria-selected="true"[^>]*data-ua="tab" data-b="1" data-i="1"/.test(wt.outerHTML),'tabs: tap switches the tab (state kept)');
+ script=['ok'];n=0;const bT=t('uiIndex')(t('uiFind')('1:0').ui);const btnId=Object.keys(bT).find(k=>bT[k].type==='buttons');
+ await tap(fakeW('1:0',true),'btn',btnId,0);ok(lastUser().content==='tab2 chuna','a button nested inside a tab works (index walks tabs)');
+ const wtf=fakeW('1:0',false);await tap(wtf,'tab',1,0);ok(/PEHLA-BODY/.test(wtf.outerHTML),'tabs switch on a frozen widget too (view state only)');
+ r=V({v:1,blocks:[{type:'tabs',start:9,tabs:Array.from({length:12},(_,i)=>({label:'T'+i,body:[{type:'text',md:'x'}]})).concat([{label:'',body:[]},5])}]});
+ ok(r.ok&&r.ui.blocks[0].tabs.length===8&&r.ui.blocks[0].start===7,'tabs: 8 max, start index clamped');
+ ok(!V({v:1,blocks:[{type:'tabs',tabs:[]},{type:'tabs'},{type:'tabs',tabs:[{label:''}]}]}).ok,'tabs with no usable tab are dropped');
+ // 3. collapse
+ const CO={v:1,id:'co',blocks:[{type:'collapse',items:[{title:'Ek',open:true,body:[{type:'text',md:'EK-BODY'}]},{title:'Do',body:[{type:'text',md:'DO-BODY'}]}]},{type:'accordion',items:[{label:'Alias',body:[]}]}]};
+ setH([{role:'user',content:'x'},{role:'assistant',local:1,content:'',aiNote:'w',ui:CO}]);t('render()');
+ ch5=els['#chat'].innerHTML;ok(/EK-BODY/.test(ch5)&&!/DO-BODY/.test(ch5)&&/aria-expanded="true"/.test(ch5)&&/Alias/.test(ch5),'collapse: open item shows its body, closed one does not; accordion alias works');
+ const wc=fakeW('1:0',true);await tap(wc,'col',1,1);ok(/DO-BODY/.test(wc.outerHTML)&&/EK-BODY/.test(wc.outerHTML),'collapse: tap opens a second item (several can be open)');
+ await tap(wc,'col',1,0);ok(!/EK-BODY/.test(wc.outerHTML)&&/DO-BODY/.test(wc.outerHTML),'collapse: tap closes an open item');
+ // 4. stepper
+ r=V({v:1,blocks:[{type:'stepper',current:1,steps:['A','B',{label:'C',status:'error'},{label:'D',desc:'dd'}]}]});
+ ok(r.ok&&r.ui.blocks[0].steps.map(x=>x.status).join()==='done,active,error,todo','stepper: statuses follow current, an explicit status wins');
+ hv=t('(r)=>uiW(r.ui,"1:0","live")')(r);ok((hv.match(/<li /g)||[]).length===4&&/aria-current="step"/.test(hv)&&/<svg/.test(hv)&&/dd/.test(hv),'stepper renders 4 steps, active one is marked, done one has a tick');
+ r=V({v:1,blocks:[{type:'stepper',steps:['A','B']}]});ok(r.ok&&r.ui.blocks[0].steps.every(x=>x.status==='todo'),'stepper without current/status: all todo');
+ // 5. overlay + menu
+ const OV={v:1,id:'ov',blocks:[{type:'overlay',label:'Detail dekho',title:'Detail',body:[{type:'text',md:'SHEET-ONLY'},{type:'overlay',label:'andar',body:[{type:'text',md:'x'}]},{type:'menu',label:'m',items:[{label:'a'}]}]},{type:'menu',label:'Aur',title:'Options',items:[{label:'Copy karo',action:{type:'copy',value:'zz'}},{label:'Bhejo',variant:'primary',action:{type:'send',value:'menu se'}}]}]};
+ r=V(OV);ok(r.ok&&r.ui.blocks[0].body.length===1&&r.ui.skipped===2,'overlay: no overlay or menu inside an overlay (skipped)');
+ setH([{role:'user',content:'x'},{role:'assistant',local:1,content:'',aiNote:'w',ui:OV}]);t('render()');
+ ch5=els['#chat'].innerHTML;ok(/Detail dekho/.test(ch5)&&/Aur/.test(ch5)&&!/SHEET-ONLY/.test(ch5)&&!/Copy karo/.test(ch5),'overlay/menu: the chat shows only the trigger buttons, the body lives in the sheet');
+ ok(!V({v:1,blocks:[{type:'overlay',label:'x',body:[]},{type:'menu',items:[]}]}).ok,'empty overlay and menu are dropped');
+ ok(/overlay "Detail dekho"/.test(t('uiNote')(clean(r.ui)&&r.ui))&&/SHEET-ONLY/.test(t('uiNote')(r.ui)),'aiNote tells the AI about overlay content');
+ // 6. standalone controls
+ r=V({v:1,blocks:[{type:'input',label:'Naam'},{type:'select',key:'c',label:'City',options:['A','B'],value:'B'},{type:'slider',key:'b',min:10,max:20,value:99,inc:5},{type:'switch',key:'s',label:'On',value:true},{type:'select',key:'e',options:[]},{type:'select',key:'btn',options:['x'],submit:{label:'Go'}}]});
+ ok(r.ok&&r.ui.blocks.length===5&&r.ui.skipped===1,'standalone controls: empty select is dropped');
+ const cb=r.ui.blocks;ok(cb[0].fields[0].key==='value'&&cb[0].auto===false&&cb[1].auto===true&&cb[1].fields[0].def==='B'&&cb[2].fields[0].def==='20'&&cb[2].fields[0].inc===5&&cb[3].auto===true&&cb[3].fields[0].def===true&&cb[4].auto===false,'controls: default key, select/switch send on change unless a submit is given, defaults clamped');
+ const CT={v:1,id:'ct',blocks:[{type:'input',key:'naam',label:'Naam',kind:'number',min:1,max:9},{type:'select',key:'city',label:'Shehar',options:[{label:'Delhi',value:'del'},'Pune']},{type:'switch',key:'dark',label:'Dark mode'},{type:'slider',key:'bud',label:'Budget',min:0,max:50}]};
+ setH([{role:'user',content:'x'},{role:'assistant',local:1,content:'',aiNote:'w',ui:CT}]);t('render()');
+ ch5=els['#chat'].innerHTML;ok(/data-auto="1"/.test(ch5)&&(ch5.match(/data-ua="sub"/g)||[]).length===2,'controls render: select/switch have no button (auto), input and slider have one');
+ const cfld=(k,b,v,type,checked)=>({dataset:{uf:'1',b:String(b),k},type:type||'text',value:v,checked:!!checked});
+ script=['ok'];n=0;let wi=fakeW('1:0',true,[cfld('naam',1,'20','number')]);await tap(wi,'sub',1,0);ok(/1 se 9/.test(wi.err.textContent)&&getH().length===2,'input: number range checked, nothing sent');
+ wi=fakeW('1:0',true,[cfld('naam',1,'7','number')]);await tap(wi,'sub',1,0);ok(lastUser().content==='Naam: 7','input: send text defaults to "label: value"');
+ const chg=async(w,k,b,v,type,checked)=>{const el={dataset:{uf:'1',b:String(b),k,auto:'1'},type:type||'text',value:v,checked:!!checked,closest:q=>q==='.uiw'?w:null};await handlers['#chat:change']({target:el});if(sending){const x=sending;sending=null;await x}};
+ setH([{role:'user',content:'x'},{role:'assistant',local:1,content:'',aiNote:'w',ui:CT}]);t('render()');script=['ok'];n=0;
+ await chg(fakeW('1:0',true,[cfld('city',2,'del','select')]),'city',2,'del','select');ok(lastUser().content==='Shehar: del','select: sends the moment it changes');
+ setH([{role:'user',content:'x'},{role:'assistant',local:1,content:'',aiNote:'w',ui:CT}]);t('render()');let l5=getH().length;
+ await chg(fakeW('1:0',true,[cfld('city',2,'','select')]),'city',2,'','select');ok(getH().length===l5,'select: choosing the empty "Chuno" sends nothing');
+ await chg(fakeW('1:0',false,[cfld('city',2,'del','select')]),'city',2,'del','select');ok(getH().length===l5,'select on a frozen widget sends nothing');
+ script=['ok'];n=0;await chg(fakeW('1:0',true,[cfld('dark',3,'on','checkbox',true)]),'dark',3,'on','checkbox',true);ok(lastUser().content==='Dark mode: on','switch: sends "label: on" when toggled');
+ setH([{role:'user',content:'x'},{role:'assistant',local:1,content:'',aiNote:'w',ui:CT}]);t('render()');script=['ok'];n=0;
+ await tap(fakeW('1:0',true,[cfld('bud',4,'35','range')]),'sub',4,0);ok(lastUser().content==='Budget: 35','slider: Bhejo button sends the value');
+ // 7. form wizard
+ const WZ={v:1,id:'wz',blocks:[{type:'form',steps:[{title:'Naam',fields:[{key:'naam',label:'Naam',required:true}]},{title:'Umar',fields:[{key:'umar',label:'Umar',type:'number',min:1,max:120,required:true}]},{title:'Pasand',fields:[{key:'chai',label:'Chai',type:'switch'},{key:'city',label:'City',type:'select',options:['A','B']}]}],submit:{label:'Jama karo'}}]};
+ r=V(WZ);ok(r.ok&&r.ui.blocks[0].steps.length===3&&r.ui.blocks[0].fields.map(f=>f.pg).join()==='0,1,2,2','wizard: 3 steps, fields know their page');
+ setH([{role:'user',content:'x'},{role:'assistant',local:1,content:'',aiNote:'w',ui:WZ}]);t('render()');
+ ch5=els['#chat'].innerHTML;ok(/Step 1\/3 - Naam/.test(ch5)&&/data-k="naam"/.test(ch5)&&!/data-k="umar"/.test(ch5)&&/data-ua="wnext"/.test(ch5)&&!/data-ua="sub"/.test(ch5)&&!/data-ua="wprev"/.test(ch5),'wizard step 1: only its fields, Aage button, no submit');
+ let ww=fakeW('1:0',true,[cfld('naam',1,'  ')]);await tap(ww,'wnext',1,0);ok(/zaroori/.test(ww.err.textContent)&&!/Step 2/.test(ww.outerHTML),'wizard: Aage checks the fields of this page only');
+ ww=fakeW('1:0',true,[cfld('naam',1,'Najeef')]);await tap(ww,'wnext',1,0);ok(/Step 2\/3 - Umar/.test(ww.outerHTML)&&/data-k="umar"/.test(ww.outerHTML)&&!/data-k="naam"/.test(ww.outerHTML)&&/data-ua="wprev"/.test(ww.outerHTML),'wizard: valid Aage goes to step 2 (Peeche appears)');
+ ww=fakeW('1:0',true,[cfld('umar',1,'200','number')]);await tap(ww,'wnext',1,0);ok(/1 se 120/.test(ww.err.textContent),'wizard: number range checked on its own page');
+ ww=fakeW('1:0',true,[cfld('umar',1,'30','number')]);await tap(ww,'wnext',1,0);ok(/Step 3\/3/.test(ww.outerHTML)&&/data-ua="sub"/.test(ww.outerHTML)&&/Jama karo/.test(ww.outerHTML)&&!/data-ua="wnext"/.test(ww.outerHTML),'wizard: last page shows the submit button');
+ script=['ok'];n=0;ww=fakeW('1:0',true,[cfld('chai',1,'on','checkbox',true),cfld('city',1,'B','select')]);await tap(ww,'sub',1,0);
+ ok(lastUser().content==='Naam: Najeef\nUmar: 30\nChai: on\nCity: B','wizard: final submit sends every page (earlier pages come from the saved state)');
+ ww=fakeW('1:0',true);await tap(ww,'wprev',1,0);ok(/Step 2\/3/.test(ww.outerHTML),'wizard: Peeche goes back one page');
+ // final submit with a required field of page 1 empty -> jumps back to that page with the error
+ const WZ2={v:1,id:'wz2',blocks:[{type:'form',steps:[{title:'A',fields:[{key:'p1',label:'Pehla',required:true}]},{title:'B',fields:[{key:'p2',label:'Doosra'}]}]}]};
+ setH([{role:'user',content:'x'},{role:'assistant',local:1,content:'',aiNote:'w',ui:WZ2}]);t('render()');script=['ok'];n=0;const l7=getH().length;
+ let wz2=fakeW('1:0',true,[cfld('p2',1,'x')]);t('uiSt("1:0",1).step=1');await tap(wz2,'sub',1,0);
+ ok(getH().length===l7&&/Step 1\/2/.test(wz2.outerHTML)&&/Pehla" zaroori/.test(wz2.outerHTML),'wizard: a missing required field on another page sends nothing and jumps there with the error');
+ r=V({v:1,blocks:[{type:'form',steps:Array.from({length:9},(_,i)=>({title:'S'+i,fields:[{key:'k'+i,label:'K'+i}]}))}]});
+ ok(r.ok&&r.ui.blocks[0].steps.length===6,'wizard: 6 pages max');
+ r=V({v:1,blocks:[{type:'form',steps:[{title:'only',fields:[{key:'a'}]}]}]});ok(r.ok&&!r.ui.blocks[0].steps,'wizard with a single page = a normal form');
+ r=V({v:1,blocks:[{type:'form',steps:[{fields:Array.from({length:15},(_,i)=>({key:'a'+i}))},{fields:Array.from({length:15},(_,i)=>({key:'b'+i}))}]}]});ok(r.ok&&r.ui.blocks[0].fields.length===20,'wizard: 20 fields in all');
+ // 8. table: badge column, rows as arrays, selectable, pagination
+ const TS={v:1,id:'ts',blocks:[{type:'table',selectable:'multi',pageSize:2,sortable:true,columns:[{key:'skill',label:'Skill'},{key:'lvl',label:'Level',type:'number'},{key:'rec',label:'Rec',type:'badge',colors:JSON.parse('{"Highly recommended":"green","Recommended":"blue","__proto__":"red"}')}],
+   rows:[{skill:'Python',lvl:'9',rec:'Highly recommended'},{skill:'SQL',lvl:'7',rec:'Recommended'},{skill:'Rust',lvl:'3',rec:'Optional'},{skill:'Go',lvl:'5',rec:''},{skill:'C',lvl:'1',rec:'recommended'}],submit:{label:'Chuno'}}]};
+ r=V(TS);ok(r.ok&&r.ui.blocks[0].columns[2].colors.length===3&&r.ui.blocks[0].columns[2].colors.every(p=>Array.isArray(p)),'table: badge colour map stored as pairs (odd keys are harmless)');
+ setH([{role:'user',content:'x'},{role:'assistant',local:1,content:'',aiNote:'w',ui:TS}]);t('render()');
+ ch5=els['#chat'].innerHTML;ok(/uibg green">Highly recommended/.test(ch5)&&/uibg blue">Recommended/.test(ch5)&&!/Optional/.test(ch5),'table badge column: coloured label per cell, page 1 has 2 rows');
+ ok(/data-ua="pg"[^>]*data-i="0" disabled/.test(ch5)&&/1\/3/.test(ch5)&&/data-ua="tsub"[^>]*disabled/.test(ch5),'table: pager 1/3 (Peeche disabled), submit disabled until a row is picked');
+ let wt2=fakeW('1:0',true);await tap(wt2,'pg',1,1);ok(/2\/3/.test(wt2.outerHTML)&&/Optional/.test(wt2.outerHTML)&&/uibg grey">Optional/.test(wt2.outerHTML),'table: Aage shows page 2; unknown value = grey badge');
+ await tap(wt2,'pg',1,1);await tap(wt2,'pg',1,1);ok(/3\/3/.test(wt2.outerHTML)&&/uibg blue">recommended/.test(wt2.outerHTML),'table: page clamps at the end, badge colour match is case-insensitive');
+ await tap(wt2,'trow',1,4);ok(/data-ua="tsub"[^>]*>Chuno \(1\)/.test(wt2.outerHTML)&&/aria-checked="true"/.test(wt2.outerHTML),'table: row tick (page 3), submit shows the count');
+ await tap(wt2,'pg',1,0);await tap(wt2,'pg',1,0);await tap(wt2,'trow',1,0);await tap(wt2,'trow',1,1);
+ script=['ok'];n=0;await tap(wt2,'tsub',1,0);
+ ok(lastUser().content==='Skill: Python, Level: 9, Rec: Highly recommended\nSkill: SQL, Level: 7, Rec: Recommended\nSkill: C, Level: 1, Rec: recommended','table submit: one line per picked row, picked across pages, in table order');
+ const TV=t('uiTableVars')(clean(V(TS).ui.blocks)[0],{rows:[2,0]});
+ ok(TV.vars.value==='Python, Rust'&&TV.vars.count==='2'&&JSON.parse(TV.vars.json).length===2&&JSON.parse(TV.vars.json)[0].lvl===9&&JSON.parse(TV.vars.json)[1].skill==='Rust','table placeholders: {value} first column, {count}, {json} array of rows (numbers stay numbers)');
+ const TSG={v:1,id:'tg',blocks:[{type:'table',selectable:'single',columns:[{key:'n',label:'Naam'}],rows:[{n:'a'},{n:'b'}],submit:{label:'OK',action:{type:'send',value:'{value} chuna'}}}]};
+ setH([{role:'user',content:'x'},{role:'assistant',local:1,content:'',aiNote:'w',ui:TSG}]);t('render()');script=['ok'];n=0;
+ const wsg=fakeW('1:0',true);await tap(wsg,'trow',1,0);await tap(wsg,'trow',1,1);ok((wsg.outerHTML.match(/aria-checked="true"/g)||[]).length===1&&/role="radio"/.test(wsg.outerHTML),'table single select: picking another row replaces the pick (radio)');
+ await tap(wsg,'tsub',1,0);ok(lastUser().content==='b chuna','table single select: {value} placeholder');
+ setH([{role:'user',content:'x'},{role:'assistant',local:1,content:'',aiNote:'w',ui:TSG},{role:'user',content:'y'}]);t('render()');const l8=getH().length;
+ await tap(fakeW('1:0',false),'trow',1,0);await tap(fakeW('1:0',false),'tsub',1,0);ok(getH().length===l8,'table select + submit do nothing on a frozen widget');
+ ok(/disabled/.test(els['#chat'].innerHTML.match(/<button[^>]*data-ua="trow"[^>]*>/)[0]),'frozen table: tick buttons are disabled');
+ r=V({v:1,blocks:[{type:'table',columns:[{key:'a'}],rows:Array.from({length:20},(_,i)=>({a:'r'+i})),pageSize:999,selectable:true}]});ok(r.ok&&r.ui.blocks[0].pageSize===50&&r.ui.blocks[0].selectable==='multi'&&r.ui.blocks[0].submit.action.value==='{values}','table: pageSize max 50, selectable:true = multi, default submit sends {values}');
+ r=V({v:1,blocks:[{type:'table',columns:[{key:'a'}],rows:[{a:'x'}],pageSize:0,selectable:false}]});ok(r.ok&&r.ui.blocks[0].pageSize===0&&r.ui.blocks[0].selectable===''&&r.ui.blocks[0].submit===null,'table: no paging, no selection by default');
+ ch5=t('(r)=>uiW(r.ui,"1:0","live")')(r);ok(!/uipg|uisel/.test(ch5),'plain table renders as before (no pager, no tick column)');
+ // 9. everything new is escaped and uses whitelisted tags/attributes only
+ const XS2='<script>x</script><b onclick=y>"\'';
+ const XB=[{type:'tabs',tabs:[{label:XS2,body:[{type:'text',md:XS2}]}]},{type:'collapse',items:[{title:XS2,open:true,body:[{type:'alert',title:XS2,md:XS2}]}]},{type:'stepper',steps:[{label:XS2,desc:XS2}]},{type:'overlay',label:XS2,title:XS2,body:[{type:'text',md:XS2}]},{type:'menu',label:XS2,items:[{label:XS2}]},
+  {type:'form',steps:[{title:XS2,fields:[{key:'a',label:XS2,placeholder:XS2,value:XS2}]},{title:XS2,fields:[{key:'b',label:XS2}]}]},{type:'select',key:'s',label:XS2,options:[XS2]},{type:'slider',key:'sl',label:XS2},{type:'switch',key:'sw',label:XS2},
+  {type:'table',columns:[{key:'a',label:XS2,type:'badge',colors:{[XS2]:'red'}}],rows:[{a:XS2}],selectable:true,submit:{label:XS2}},{type:'text',md:XS2,variant:XS2}];
+ r=V({v:1,blocks:XB});ok(r.ok,'XSS widget with all P5 blocks validates ('+(r.err||'')+')');
+ hv=t('(r)=>uiW(r.ui,"1:0","live")')(r);
+ const TAGS5=new Set('div span b small button input select option textarea label table thead tbody tr th td hr pre code i br blockquote del svg path rect img figure figcaption line text polyline circle title ol li'.split(' '));
+ let bt5='',nt5=0;for(const m of hv.matchAll(/<\/?([a-zA-Z0-9]+)((?:\s+[a-zA-Z-]+(?:="[^"<>]*")?)*)\s*\/?>/g)){nt5++;if(!TAGS5.has(m[1].toLowerCase()))bt5=m[1];for(const a of m[2].matchAll(/\s+([a-zA-Z-]+)(?:="([^"]*)")?/g)){if(/^on/i.test(a[1])||/^(href|src|srcdoc|action|formaction)$/i.test(a[1]))bt5='attr:'+a[1]}}
+ ok(!bt5&&hv.replace(/<\/?[a-zA-Z0-9]+(?:\s+[a-zA-Z-]+(?:="[^"<>]*")?)*\s*\/?>/g,'').indexOf('<')<0,'P5 html: only well-formed tags, no on* / href / src attributes, injected text has no "<" ('+nt5+' tags'+(bt5?', bad: '+bt5:'')+')');
+ ok(hv.indexOf('&lt;script&gt;')>0&&!/<script|onerror=\s*alert/.test(hv)&&!/v-evil|v-<script/.test(hv),'P5 texts are escaped');
+ // 10. rules + tool text
+ ok(/tabs \{tabs/.test(t('RULES.ui'))&&/collapse \{items/.test(t('RULES.ui'))&&/stepper \{steps/.test(t('RULES.ui'))&&/overlay \{label/.test(t('RULES.ui'))&&/menu \{label/.test(t('RULES.ui'))&&/wizard: steps/.test(t('RULES.ui'))&&/selectable:single\|multi/.test(t('RULES.ui'))&&/type:text\|number\|badge,colors/.test(t('RULES.ui'))&&/variant:heading/.test(t('RULES.ui')),'rules text documents all P5 blocks');
+ ok(t('ruleAreas')('wizard form do').indexOf('ui')>=0&&t('ruleAreas')('tabs me dikhao').indexOf('ui')>=0&&t('ruleAreas')('badge laga ke dikha').indexOf('ui')>=0,'keywords wizard / tabs / badge add the ui rules');
+ ok(/tabs|collapse|stepper|overlay/.test(JSON.stringify(t('TOOLS').find(x=>x.function.name==='ui_render'))),'ui_render tool text lists the P5 blocks');
+ t("S.ui={}");setH([{role:'user',content:'game flowchart diagram wizard form banao'}]);const rb=t('rulesBlock')();ok(rb.indexOf('WIDGETS')>=0,'game + diagram + ui rules together still include the ui area (cap)');
+ ok(t('RULES_VER')==='2026-11-23.1','RULES_VER bumped');
  // ---- 9. switch off
  t("S.ui={off:true}");o=t('fmt')('```ui\n'+F+'\n```');ok(/<pre>/.test(o)&&/off hai/.test(o),'Rich UI off: fence stays code');
  t("S.ui={}");

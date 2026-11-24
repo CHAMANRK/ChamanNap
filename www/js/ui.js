@@ -1,3 +1,4 @@
+// P5 (1.46000.0): tabs, collapse (accordion), stepper, overlay (bottom sheet), menu, standalone input/select/slider/switch, form wizard (steps), table selectable + pagination + badge column, text variants.
 // 1.38000.0 Rich UI, phase P1: the AI shows a safe, declarative widget in the chat (buttons, choice/MCQ, form, table, key-value, alert, progress, code).
 // Two ways in: the ui_render tool, or a ```ui fenced JSON block in the reply (works for chat-only models too). A tap sends a normal user message (a new AI turn).
 // Safety: the JSON is never executed. uiValidate() builds a clean copy with only known types and props (unknown type = skipped), every text goes through esc(),
@@ -6,7 +7,7 @@
 // P3 (1.40000.0): html block = a game file from /sdcard/Chaman/ui/ that runs in a sandboxed iframe in a panel above the chat (no network, no app data, one-way bridge chaman.send).
 // P2 (1.39000.0): chart (bar/line/pie as inline SVG built from numbers), board (monospace grid), image (workspace path or gen:<id>), widgets that came from an older app run
 // are 'expired' (static + hint), Settings switch "Rich UI in chat" (S.ui.off). Later phases (not here): html sandbox + bridge (P3), diagram, mermaid, inline html (P4).
-const UI_MAX={inline:30000,dnodes:40,dedges:80,json:32768,blocks:60,elems:300,depth:5,str:2000,opts:20,fields:20,rows:100,cols:12,items:12,kv:50};
+const UI_MAX={inline:30000,dnodes:40,dedges:80,json:32768,blocks:60,elems:300,depth:5,str:2000,opts:20,fields:20,rows:100,cols:12,items:12,kv:50,tabs:8,acc:12,steps:12,wsteps:6,menu:12,cmap:12,page:50};
 let UI_HI=-1,UI_K=0,UI_CHIP='',UI_INFO={},UI_N=0;
 const UIG={fr:null,el:null,src:'',name:'',title:'',b:null,html:'',n:0,last:0,loads:0,pend:'',pt:0,seq:0};
 const UI_FRESH=new WeakSet(),UI_ST={},UI_CACHE=new WeakMap(),UI_SCACHE=new Map(),UI_IDX=new WeakMap();
@@ -60,6 +61,37 @@ function uiMkHtml(b,cx){
   if(!src){cx.n--;cx.skip++;return null}
   return{type:'html',src,html:inl,title:uiStr(b.title,60),label:uiStr(b.label,30).trim()||'Play',height:Math.max(120,Math.min(700,Math.round(uiNum(b.height,460))))};
 }
+// table badge column: value -> colour. Accepts {value:colour} or [[value,colour]]; stored as pairs (no own-property tricks with odd keys).
+function uiColMap(v){
+  const out=[],add=(k,c)=>{if(k==null||out.length>=UI_MAX.cmap)return;const t=String(k).slice(0,60);if(t)out.push([t,uiColor(c)])};
+  if(Array.isArray(v))v.forEach(p=>{if(Array.isArray(p)&&p.length>=2)add(p[0],p[1])});
+  else if(v&&typeof v==='object')Object.keys(v).forEach(k=>add(k,v[k]));
+  return out;
+}
+// one input field (used by form, wizard steps and the standalone controls). Returns null for an unusable field. forced = the field type of a standalone control.
+const UI_FT=['text','number','select','switch','slider','date','textarea'];
+function uiMkField(f,cx,seen,forced){
+  if(!f||typeof f!=='object'||Array.isArray(f))return null;
+  const key=uiKey(f.key)||(forced?'value':'');if(!key||(seen&&seen[key]))return null;
+  const type=UI_FT.includes(forced||f.type)?(forced||f.type):'text';
+  const options=[];
+  if(type==='select'){
+    for(const q of(Array.isArray(f.options)?f.options.slice(0,UI_MAX.opts):[])){
+      const label=uiStr(q&&typeof q==='object'?q.label:q,200,'option').trim(),value=q&&typeof q==='object'&&q.value!=null?uiStr(q.value,200):label;
+      if(label)options.push({label,value});
+    }
+    if(!options.length)return null;
+  }
+  uiCount(cx);if(seen)seen[key]=1;
+  const min=uiNum(f.min,type==='slider'?0:null),max=uiNum(f.max,type==='slider'?100:null),dv=f.value!=null?f.value:f.def;
+  let def;
+  if(type==='switch')def=dv===true||dv==='on';
+  else if(type==='slider')def=String(Math.max(min,Math.min(max,uiNum(dv,min))));
+  else if(type==='number')def=isFinite(parseFloat(dv))?String(parseFloat(dv)):'';
+  else if(type==='select'){const sv=dv==null?'':uiStr(dv,200);def=options.some(o=>o.value===sv)?sv:''}
+  else def=uiStr(dv,500,'default value');
+  return{key,label:uiStr(f.label,120).trim()||key,type,placeholder:uiStr(f.placeholder,120),required:f.required===true,options,min,max,inc:type==='slider'?Math.max(0.0001,uiNum(f.inc!=null?f.inc:f.step,1)):1,def};
+}
 function uiAction(a,dflt){
   if(!a||typeof a!=='object'||Array.isArray(a))return dflt||{type:'none'};
   if(a.type==='send')return{type:'send',value:uiStr(a.value,1000,'action value'),silent:a.silent===true};
@@ -76,7 +108,10 @@ function uiBlock(b,depth,cx){
   if(depth>UI_MAX.depth)throw new Error('nesting '+UI_MAX.depth+' se zyada');
   const T=b.type;let o=null;
   switch(T){
-    case'text':uiCount(cx);o={type:T,md:uiStr(b.md,UI_MAX.str,'text')};break;
+    case'text':case'heading':case'caption':case'quote':case'highlight':{
+      uiCount(cx);const vr=T==='text'?String(b.variant||'').toLowerCase():T;
+      o={type:'text',md:uiStr(b.md!=null?b.md:b.text,UI_MAX.str,'text'),variant:['heading','subheading','caption','quote','highlight','muted'].includes(vr)?vr:''};break;
+    }
     case'card':uiCount(cx);o={type:T,title:uiStr(b.title,200),subtitle:uiStr(b.subtitle,300),body:null,footer:null};
       o.body=uiBlocks(b.body,depth+1,cx);o.footer=uiBlocks(b.footer,depth+1,cx);break;
     case'button':case'buttons':{
@@ -101,38 +136,55 @@ function uiBlock(b,depth,cx){
       o={type:T,id:uiKey(b.id),mode:b.mode==='multi'?'multi':'single',options:opts,submit:s};break;
     }
     case'form':{
-      uiCount(cx);const fields=[],seen={};
-      for(const f of(Array.isArray(b.fields)?b.fields.slice(0,UI_MAX.fields):[])){
-        if(!f||typeof f!=='object')continue;const key=uiKey(f.key);if(!key||seen[key])continue;
-        const type=['text','number','select','switch','slider','date','textarea'].includes(f.type)?f.type:'text';
-        let options=[];
-        if(type==='select'){
-          for(const q of(Array.isArray(f.options)?f.options.slice(0,UI_MAX.opts):[])){
-            const label=uiStr(q&&typeof q==='object'?q.label:q,200,'option').trim(),value=q&&typeof q==='object'&&q.value!=null?uiStr(q.value,200):label;
-            if(label)options.push({label,value});
-          }
-          if(!options.length)continue;
+      uiCount(cx);const fields=[],seen={};let steps=null;
+      const wz=Array.isArray(b.steps)&&b.steps.some(x=>x&&typeof x==='object'&&Array.isArray(x.fields)); // authoring shape: steps:[{title,fields:[..]}]
+      if(wz){
+        steps=[];
+        for(const st of b.steps.slice(0,UI_MAX.wsteps)){
+          if(!st||typeof st!=='object'||!Array.isArray(st.fields))continue;
+          const n0=fields.length;
+          for(const f of st.fields.slice(0,UI_MAX.fields)){if(fields.length>=UI_MAX.fields)break;const x=uiMkField(f,cx,seen);if(x){x.pg=steps.length;fields.push(x)}}
+          if(fields.length>n0)steps.push({title:uiStr(st.title,80).trim()||('Step '+(steps.length+1))});
         }
-        uiCount(cx);seen[key]=1;
-        const min=uiNum(f.min,type==='slider'?0:null),max=uiNum(f.max,type==='slider'?100:null);
-        fields.push({key,label:uiStr(f.label,120).trim()||key,type,placeholder:uiStr(f.placeholder,120),required:f.required===true,options,min,max});
+        if(steps.length<2){steps=null;fields.forEach(x=>{x.pg=0})}
+      }else{
+        for(const f of(Array.isArray(b.fields)?b.fields.slice(0,UI_MAX.fields):[])){const x=uiMkField(f,cx,seen);if(x){x.pg=Math.max(0,Math.round(uiNum(f.pg,0)));fields.push(x)}}
+        if(Array.isArray(b.steps)&&b.steps.length>1){ // clean shape (what a stored widget looks like): steps:[{title}], fields carry pg
+          steps=b.steps.slice(0,UI_MAX.wsteps).map((x,i)=>({title:uiStr(x&&x.title,80).trim()||('Step '+(i+1))}));
+          fields.forEach(x=>{if(x.pg>=steps.length)x.pg=steps.length-1});
+        }else fields.forEach(x=>{x.pg=0});
       }
       if(!fields.length){cx.n--;cx.skip++;return null}
-      o={type:T,id:uiKey(b.id),fields,submit:{label:b.submit&&typeof b.submit==='object'&&uiStr(b.submit.label,60).trim()||'Bhejo',action:uiAction(b.submit&&b.submit.action,{type:'send',value:'{values}',silent:false})}};break;
+      o={type:T,id:uiKey(b.id),fields,steps,submit:{label:b.submit&&typeof b.submit==='object'&&uiStr(b.submit.label,60).trim()||'Bhejo',action:uiAction(b.submit&&b.submit.action,{type:'send',value:'{values}',silent:false})}};break;
+    }
+    case'input':case'select':case'slider':case'switch':case'ctl':{
+      let src=b,forced=null;
+      if(T==='ctl')src=Array.isArray(b.fields)?b.fields[0]:null;
+      else forced=T==='input'?(['number','textarea','date'].includes(b.kind)?b.kind:'text'):T;
+      const f=uiMkField(src,cx,null,forced);
+      if(!f){cx.skip++;return null}
+      const kind=f.type==='select'||f.type==='switch'||f.type==='slider'?f.type:'input';
+      const hasSub=T==='ctl'?b.auto===false:!!(b.submit&&typeof b.submit==='object');
+      const sb=b.submit&&typeof b.submit==='object'?b.submit:null;
+      o={type:'ctl',kind,id:uiKey(b.id),fields:[f],auto:(kind==='select'||kind==='switch')&&!hasSub,submit:{label:sb&&uiStr(sb.label,60).trim()||'Bhejo',action:uiAction(sb&&sb.action,{type:'send',value:'{values}',silent:false})}};break;
     }
     case'table':{
       uiCount(cx);const cols=[];
       for(const c of(Array.isArray(b.columns)?b.columns.slice(0,UI_MAX.cols):[])){
         if(!c||typeof c!=='object')continue;const key=String(c.key==null?'':c.key);if(!key)continue;
-        uiCount(cx);cols.push({key:key.slice(0,60),label:uiStr(c.label,80).trim()||key.slice(0,60),align:['left','right','center'].includes(c.align)?c.align:(c.type==='number'?'right':'left'),type:c.type==='number'?'number':'text'});
+        const ty=c.type==='number'?'number':c.type==='badge'?'badge':'text';
+        uiCount(cx);cols.push({key:key.slice(0,60),label:uiStr(c.label,80).trim()||key.slice(0,60),align:['left','right','center'].includes(c.align)?c.align:(ty==='number'?'right':'left'),type:ty,colors:ty==='badge'?uiColMap(c.colors):[]});
       }
       if(!cols.length){cx.n--;cx.skip++;return null}
       const rows=[];
       for(const r of(Array.isArray(b.rows)?b.rows.slice(0,UI_MAX.rows):[])){
-        if(!r||typeof r!=='object'||Array.isArray(r))continue;uiCount(cx);
-        rows.push(cols.map(c=>uiHas(r,c.key)?uiStr(r[c.key],UI_MAX.str,'cell'):''));
+        if(!r||typeof r!=='object')continue;uiCount(cx);
+        // a row is an object {columnKey:value} (what you write) or an array of cells in column order (what a stored widget holds)
+        rows.push(cols.map((c,ci)=>Array.isArray(r)?uiStr(r[ci],UI_MAX.str,'cell'):(uiHas(r,c.key)?uiStr(r[c.key],UI_MAX.str,'cell'):'')));
       }
-      o={type:T,columns:cols,rows,sortable:b.sortable===true};break;
+      const sel=b.selectable==='single'?'single':(b.selectable===true||b.selectable==='multi')?'multi':'',ps=Math.round(uiNum(b.pageSize,0)),sb=b.submit&&typeof b.submit==='object'?b.submit:null;
+      o={type:T,columns:cols,rows,sortable:b.sortable===true,selectable:sel,pageSize:ps>0?Math.min(UI_MAX.page,ps):0,
+        submit:sel?{label:sb&&uiStr(sb.label,60).trim()||'Bhejo',action:uiAction(sb&&sb.action,{type:'send',value:'{values}',silent:false})}:null};break;
     }
     case'keyvalue':{
       uiCount(cx);const rows=[];
@@ -192,6 +244,50 @@ function uiBlock(b,depth,cx){
       if(!d.nodes.length){cx.n--;cx.skip++;return null}
       o={type:T,title:uiStr(b.title,120),dir,nodes:d.nodes,edges:d.edges};break;
     }
+    case'tabs':{
+      uiCount(cx);const tabs=[];
+      for(const t of(Array.isArray(b.tabs)?b.tabs.slice(0,UI_MAX.tabs):[])){
+        if(!t||typeof t!=='object')continue;const label=uiStr(t.label,40,'tab label').trim();if(!label)continue;
+        uiCount(cx);tabs.push({label,body:uiBlocks(t.body,depth+1,cx)});
+      }
+      if(!tabs.length){cx.n--;cx.skip++;return null}
+      o={type:T,tabs,start:Math.max(0,Math.min(tabs.length-1,Math.round(uiNum(b.start,0))))};break;
+    }
+    case'collapse':case'accordion':{
+      uiCount(cx);const items=[];
+      for(const t of(Array.isArray(b.items)?b.items.slice(0,UI_MAX.acc):[])){
+        if(!t||typeof t!=='object')continue;const title=uiStr(t.title!=null?t.title:t.label,120,'collapse title').trim();if(!title)continue;
+        uiCount(cx);items.push({title,body:uiBlocks(t.body,depth+1,cx),open:t.open===true});
+      }
+      if(!items.length){cx.n--;cx.skip++;return null}
+      o={type:'collapse',items};break;
+    }
+    case'stepper':{
+      uiCount(cx);const steps=[],cur=uiNum(b.current,null);
+      for(const t of(Array.isArray(b.steps)?b.steps.slice(0,UI_MAX.steps):[])){
+        const q=t&&typeof t==='object'?t:{label:t},label=uiStr(q.label,80,'step label').trim();if(!label)continue;
+        uiCount(cx);steps.push({label,desc:uiStr(q.desc,200),status:['done','active','todo','error'].includes(q.status)?q.status:''});
+      }
+      if(!steps.length){cx.n--;cx.skip++;return null}
+      steps.forEach((x,i)=>{if(!x.status)x.status=cur==null?'todo':(i<cur?'done':i===cur?'active':'todo')});
+      o={type:T,steps};break;
+    }
+    case'overlay':case'modal':{
+      if(cx.ov){cx.skip++;return null} // no sheet inside a sheet
+      uiCount(cx);cx.ov=true;let body;try{body=uiBlocks(b.body,depth+1,cx)}finally{cx.ov=false}
+      if(!body.length){cx.n--;cx.skip++;return null}
+      o={type:'overlay',label:uiStr(b.label,40).trim()||'Dekho',title:uiStr(b.title,120),body,style:b.style==='primary'?'primary':'secondary'};break;
+    }
+    case'menu':{
+      if(cx.ov){cx.skip++;return null}
+      uiCount(cx);const items=[];
+      for(const it of(Array.isArray(b.items)?b.items.slice(0,UI_MAX.menu):[])){
+        if(!it||typeof it!=='object')continue;const label=uiStr(it.label,80,'menu label').trim();if(!label)continue;
+        uiCount(cx);const st0=it.style||it.variant;items.push({label,style:['primary','secondary','danger'].includes(st0)?st0:'secondary',action:uiAction(it.action)});
+      }
+      if(!items.length){cx.n--;cx.skip++;return null}
+      o={type:T,label:uiStr(b.label,40).trim()||'Menu',title:uiStr(b.title,120),items};break;
+    }
     case'divider':case'spacer':uiCount(cx);o={type:T};break;
     default:cx.skip++;return null; // unknown (or a later-phase type like chart/html/diagram): silently skipped
   }
@@ -219,7 +315,7 @@ function uiValidate(raw){
 function uiIndex(ui){ // bid -> block (ids are assigned here, in walk order, so the DOM only needs a number)
   let ix=UI_IDX.get(ui);if(ix)return ix;
   ix={};let n=0;
-  const walk=L=>(L||[]).forEach(b=>{b.bid=++n;ix[n]=b;if(b.type==='card'){walk(b.body);walk(b.footer)}});
+  const walk=L=>(L||[]).forEach(b=>{b.bid=++n;ix[n]=b;if(b.type==='card'){walk(b.body);walk(b.footer)}else if(b.type==='tabs')b.tabs.forEach(t=>walk(t.body));else if(b.type==='collapse')b.items.forEach(t=>walk(t.body));else if(b.type==='overlay')walk(b.body)});
   walk(ui.blocks);UI_IDX.set(ui,ix);return ix;
 }
 function uiVal(m){ // widget stored by the tool in a message
@@ -255,6 +351,7 @@ function uiScan(){
     H.forEach(m=>uiExtract(m).forEach(w=>{const ix=uiIndex(w.ui);for(const k in ix)if(ix[k].type==='html'&&ix[k].src===UIG.src)has=true}));
     if(!has||!uiOn())uiGClose();
   }
+  if(UI_SH.key){const f=uiFind(UI_SH.key);if(!f||!uiOn())uiShClose();else if((uiStat(UI_SH.key)==='live')!==UI_SH.live)uiShRender()}
 }
 // a widget message made in this app run is fresh; anything loaded from storage or an old session is not (it shows as expired)
 function uiFresh(m){if(m&&typeof m==='object')UI_FRESH.add(m)}
@@ -269,10 +366,29 @@ function uiW(ui,key,st){
   uiIndex(ui);const live=st==='live';
   return'<div class="uiw'+(live?'':' frz')+'" data-ui="'+ea(key)+'" data-live="'+(live?1:0)+'">'+(ui.title?'<div class="uit">'+esc(ui.title)+'</div>':'')+ui.blocks.map(b=>uiB(b,key,live)).join('')+(st==='expired'?'<div class="uiexp">Ye widget purana hai (app dobara khuli), ab tap nahi hota. Naya maang lo.</div>':'')+'</div>';
 }
+// one input field -> html. auto = a standalone select/switch that sends as soon as it changes.
+function uiFieldH(f,s,id,live,auto){
+  const v=uiHas(s.v,f.key)?s.v[f.key]:(f.def!==undefined?f.def:(f.type==='slider'?String(f.min):'')),dis=live?'':' disabled',at=' data-uf="1" data-b="'+id+'" data-k="'+ea(f.key)+'"'+(auto?' data-auto="1"':'')+dis;
+  let inp;
+  if(f.type==='textarea')inp='<textarea rows="3" maxlength="1000" placeholder="'+ea(f.placeholder)+'"'+at+'>'+esc(v)+'</textarea>';
+  else if(f.type==='select')inp='<select'+at+'><option value="">Chuno</option>'+f.options.map(o=>'<option value="'+ea(o.value)+'"'+(String(v)===o.value?' selected':'')+'>'+esc(o.label)+'</option>').join('')+'</select>';
+  else if(f.type==='switch')inp='<input type="checkbox" class="uisw"'+(v===true||v==='on'?' checked':'')+at+'>';
+  else if(f.type==='slider')inp='<div class="uisl"><input type="range" min="'+f.min+'" max="'+f.max+'" step="'+(f.inc||1)+'" value="'+ea(v)+'"'+at+'><span class="uisv">'+esc(v)+'</span></div>';
+  else if(f.type==='number')inp='<input type="number" inputmode="decimal"'+(f.min!=null?' min="'+f.min+'"':'')+(f.max!=null?' max="'+f.max+'"':'')+' placeholder="'+ea(f.placeholder)+'" value="'+ea(v)+'"'+at+'>';
+  else if(f.type==='date')inp='<input type="date" value="'+ea(v)+'"'+at+'>';
+  else inp='<input type="text" maxlength="500" placeholder="'+ea(f.placeholder)+'" value="'+ea(v)+'"'+at+'>';
+  return'<label class="uifl'+(f.type==='switch'?' row':'')+'"><span>'+esc(f.label)+(f.required?' *':'')+'</span>'+inp+'</label>';
+}
+const UI_CHEV='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+function uiBadgeCell(c,v){
+  if(v==='')return'';
+  const m=c.colors.find(p=>p[0]===v)||c.colors.find(p=>p[0].toLowerCase()===v.toLowerCase());
+  return'<span class="uibg '+(m?m[1]:'grey')+'">'+esc(v)+'</span>';
+}
 function uiB(b,key,live){
   const id=b.bid;
   switch(b.type){
-    case'text':return'<div class="uimd">'+mdBlocks(b.md)+'</div>';
+    case'text':return'<div class="uimd'+(b.variant?' v-'+b.variant:'')+'">'+mdBlocks(b.md)+'</div>';
     case'card':return'<div class="uic">'+(b.title||b.subtitle?'<div class="uich-h">'+(b.title?'<b>'+esc(b.title)+'</b>':'')+(b.subtitle?'<small>'+esc(b.subtitle)+'</small>':'')+'</div>':'')+b.body.map(x=>uiB(x,key,live)).join('')+(b.footer.length?'<div class="uicf">'+b.footer.map(x=>uiB(x,key,live)).join('')+'</div>':'')+'</div>';
     case'buttons':return'<div class="uibtns">'+b.items.map((it,i)=>'<button type="button" class="uib '+(it.style==='primary'?'p':it.style==='danger'?'d':'s')+'" data-ua="btn" data-b="'+id+'" data-i="'+i+'"'+(live||it.action.type==='copy'?'':' disabled')+'>'+esc(it.label)+'</button>').join('')+'</div>';
     case'choice':{
@@ -283,22 +399,21 @@ function uiB(b,key,live){
       }).join('')+(b.submit?'<button type="button" class="uib p" data-ua="sub" data-b="'+id+'"'+(live&&s.sel.length?'':' disabled')+'>'+esc(b.submit.label)+'</button>':'')+'</div>';
     }
     case'form':{
+      const s=uiSt(key,id),wz=!!(b.steps&&b.steps.length>1),cur=wz?Math.max(0,Math.min(b.steps.length-1,s.step||0)):0,last=!wz||cur===b.steps.length-1;
+      return'<div class="uif">'+(wz?'<div class="uiws"><span>Step '+(cur+1)+'/'+b.steps.length+(b.steps[cur].title?' - '+esc(b.steps[cur].title):'')+'</span><div class="uiwd">'+b.steps.map((x,i)=>'<i class="'+(i<cur?'dn':i===cur?'on':'')+'"></i>').join('')+'</div></div>':'')
+        +b.fields.filter(f=>!wz||(f.pg||0)===cur).map(f=>uiFieldH(f,s,id,live,false)).join('')
+        +'<div class="uierr" data-e="'+id+'" role="alert">'+esc(s.err||'')+'</div>'
+        +'<div class="uiwb">'+(wz&&cur>0?'<button type="button" class="uib s" data-ua="wprev" data-b="'+id+'"'+dis0(live)+'>Peeche</button>':'')
+        +'<button type="button" class="uib p" data-ua="'+(last?'sub':'wnext')+'" data-b="'+id+'"'+dis0(live)+'>'+esc(last?b.submit.label:'Aage')+'</button></div></div>';
+    }
+    case'ctl':{
       const s=uiSt(key,id);
-      return'<div class="uif">'+b.fields.map(f=>{
-        const v=uiHas(s.v,f.key)?s.v[f.key]:(f.type==='slider'?String(f.min):''),dis=live?'':' disabled',at=' data-uf="1" data-b="'+id+'" data-k="'+ea(f.key)+'"'+dis;
-        let inp;
-        if(f.type==='textarea')inp='<textarea rows="3" maxlength="1000" placeholder="'+ea(f.placeholder)+'"'+at+'>'+esc(v)+'</textarea>';
-        else if(f.type==='select')inp='<select'+at+'><option value="">Chuno</option>'+f.options.map(o=>'<option value="'+ea(o.value)+'"'+(String(v)===o.value?' selected':'')+'>'+esc(o.label)+'</option>').join('')+'</select>';
-        else if(f.type==='switch')inp='<input type="checkbox" class="uisw"'+(v===true||v==='on'?' checked':'')+at+'>';
-        else if(f.type==='slider')inp='<div class="uisl"><input type="range" min="'+f.min+'" max="'+f.max+'" value="'+ea(v)+'"'+at+'><span class="uisv">'+esc(v)+'</span></div>';
-        else if(f.type==='number')inp='<input type="number" inputmode="decimal"'+(f.min!=null?' min="'+f.min+'"':'')+(f.max!=null?' max="'+f.max+'"':'')+' placeholder="'+ea(f.placeholder)+'" value="'+ea(v)+'"'+at+'>';
-        else if(f.type==='date')inp='<input type="date" value="'+ea(v)+'"'+at+'>';
-        else inp='<input type="text" maxlength="500" placeholder="'+ea(f.placeholder)+'" value="'+ea(v)+'"'+at+'>';
-        return'<label class="uifl'+(f.type==='switch'?' row':'')+'"><span>'+esc(f.label)+(f.required?' *':'')+'</span>'+inp+'</label>';
-      }).join('')+'<div class="uierr" data-e="'+id+'" role="alert"></div><button type="button" class="uib p" data-ua="sub" data-b="'+id+'"'+dis0(live)+'>'+esc(b.submit.label)+'</button></div>';
+      return'<div class="uif uictl">'+uiFieldH(b.fields[0],s,id,live,b.auto)+'<div class="uierr" data-e="'+id+'" role="alert">'+esc(s.err||'')+'</div>'
+        +(b.auto?'':'<button type="button" class="uib p" data-ua="sub" data-b="'+id+'"'+dis0(live)+'>'+esc(b.submit.label)+'</button>')+'</div>';
     }
     case'table':{
-      const s=uiSt(key,id),rows=b.rows.map((r,i)=>({r,i}));
+      const s=uiSt(key,id),sel=b.selectable,multi=sel==='multi',ps=b.pageSize||0,picked=s.rows||[];
+      let rows=b.rows.map((r,i)=>({r,i}));
       if(b.sortable&&s.sort){
         const c=s.sort.c,num=b.columns[c]&&b.columns[c].type==='number',d=s.sort.d;
         rows.sort((a,z)=>{
@@ -307,7 +422,17 @@ function uiB(b,key,live){
           return d*String(x).localeCompare(String(y))||a.i-z.i;
         });
       }
-      return'<div class="tw"><table><thead><tr>'+b.columns.map((c,i)=>'<th class="'+(b.sortable?'srt':'')+'" style="text-align:'+c.align+'"'+(b.sortable?' data-ua="sort" data-b="'+id+'" data-i="'+i+'" role="button" tabindex="0"'+(s.sort&&s.sort.c===i?' data-d="'+(s.sort.d>0?'a':'z')+'"':''):'')+'>'+esc(c.label)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(x=>'<tr>'+b.columns.map((c,i)=>'<td style="text-align:'+c.align+'">'+esc(x.r[i])+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';
+      let pg=0,np=1;
+      if(ps&&rows.length>ps){np=Math.ceil(rows.length/ps);pg=Math.max(0,Math.min(np-1,s.page||0));rows=rows.slice(pg*ps,pg*ps+ps)}
+      const th=b.columns.map((c,i)=>'<th class="'+(b.sortable?'srt':'')+'" style="text-align:'+c.align+'"'+(b.sortable?' data-ua="sort" data-b="'+id+'" data-i="'+i+'" role="button" tabindex="0"'+(s.sort&&s.sort.c===i?' data-d="'+(s.sort.d>0?'a':'z')+'"':''):'')+'>'+esc(c.label)+'</th>').join('');
+      const tb=rows.map(x=>{
+        const on=picked.indexOf(x.i)>=0;
+        return'<tr'+(on?' class="on"':'')+'>'+(sel?'<td class="uisel"><button type="button" class="uirc'+(multi?' mu':'')+(on?' on':'')+'" role="'+(multi?'checkbox':'radio')+'" aria-checked="'+(on?'true':'false')+'" aria-label="Row chuno" data-ua="trow" data-b="'+id+'" data-i="'+x.i+'"'+(live?'':' disabled')+'><span class="uim"></span></button></td>':'')
+          +b.columns.map((c,i)=>'<td style="text-align:'+c.align+'">'+(c.type==='badge'?uiBadgeCell(c,x.r[i]):esc(x.r[i]))+'</td>').join('')+'</tr>';
+      }).join('');
+      const extra=(np>1?'<div class="uipg"><button type="button" class="uib s" data-ua="pg" data-b="'+id+'" data-i="0"'+(pg<1?' disabled':'')+'>Peeche</button><span>'+(pg+1)+'/'+np+'</span><button type="button" class="uib s" data-ua="pg" data-b="'+id+'" data-i="1"'+(pg>=np-1?' disabled':'')+'>Aage</button></div>':'')
+        +(sel&&b.submit?'<button type="button" class="uib p" data-ua="tsub" data-b="'+id+'"'+(live&&picked.length?'':' disabled')+'>'+esc(b.submit.label)+(picked.length?' ('+picked.length+')':'')+'</button>':'');
+      return'<div class="tw'+(sel||b.columns.some(c=>c.type==='badge')?' uitx2':'')+'"><table><thead><tr>'+(sel?'<th class="uisel0"></th>':'')+th+'</tr></thead><tbody>'+tb+'</tbody></table></div>'+(extra?'<div class="uitx">'+extra+'</div>':'');
     }
     case'keyvalue':return'<div class="uikv">'+b.rows.map(r=>'<div class="uik">'+esc(r.k)+'</div><div class="uiv">'+esc(r.v)+'</div>').join('')+'</div>';
     case'alert':return'<div class="uia '+b.style+'" role="note">'+(b.title?'<b>'+esc(b.title)+'</b>':'')+(b.md?'<div>'+mdBlocks(b.md)+'</div>':'')+'</div>';
@@ -325,6 +450,20 @@ function uiB(b,key,live){
       if(!u)return'<div class="uiimg ph" data-isrc="'+ea(b.src)+'" style="height:'+b.height+'px"><span>Image load ho rahi hai</span></div>';
       return'<figure class="uiimg"><img src="'+ea(u)+'" alt="'+ea(b.alt)+'" style="max-height:'+b.height+'px">'+(b.caption?'<figcaption>'+esc(b.caption)+'</figcaption>':'')+'</figure>';
     }
+    case'tabs':{
+      const s=uiSt(key,id),cur=Math.max(0,Math.min(b.tabs.length-1,s.tab==null?b.start:s.tab));
+      return'<div class="uitabs"><div class="uitl" role="tablist">'+b.tabs.map((t,i)=>'<button type="button" class="uitb'+(i===cur?' on':'')+'" role="tab" aria-selected="'+(i===cur?'true':'false')+'" data-ua="tab" data-b="'+id+'" data-i="'+i+'">'+esc(t.label)+'</button>').join('')+'</div><div class="uitp" role="tabpanel">'+b.tabs[cur].body.map(x=>uiB(x,key,live)).join('')+'</div></div>';
+    }
+    case'collapse':{
+      const s=uiSt(key,id);
+      return'<div class="uiacc">'+b.items.map((t,i)=>{
+        const op=s.open&&uiHas(s.open,i)?s.open[i]:t.open;
+        return'<div class="uiai'+(op?' on':'')+'"><button type="button" class="uicoh" aria-expanded="'+(op?'true':'false')+'" data-ua="col" data-b="'+id+'" data-i="'+i+'"><span>'+esc(t.title)+'</span>'+UI_CHEV+'</button>'+(op?'<div class="uiab">'+t.body.map(x=>uiB(x,key,live)).join('')+'</div>':'')+'</div>';
+      }).join('')+'</div>';
+    }
+    case'stepper':return'<ol class="uistp">'+b.steps.map((t,i)=>'<li class="'+t.status+'"'+(t.status==='active'?' aria-current="step"':'')+'><span class="uisn" aria-hidden="true">'+(t.status==='done'?'<svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>':t.status==='error'?'!':(i+1))+'</span><div class="uist2"><b>'+esc(t.label)+'</b>'+(t.desc?'<small>'+esc(t.desc)+'</small>':'')+'</div></li>').join('')+'</ol>';
+    case'overlay':return'<button type="button" class="uib '+(b.style==='primary'?'p':'s')+' uiov" aria-haspopup="dialog" data-ua="ov" data-b="'+id+'">'+esc(b.label)+'</button>';
+    case'menu':return'<button type="button" class="uib s uiov" aria-haspopup="menu" data-ua="ov" data-b="'+id+'"><span>'+esc(b.label)+'</span>'+UI_CHEV+'</button>';
     case'divider':return'<hr>';
     case'spacer':return'<div class="uisp"></div>';
   }
@@ -655,6 +794,7 @@ function uiRun(act,label,el,vars){
   if(act.type!=='send')return;
   const t=uiFill(act.value,vars||{}).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'').trim().slice(0,1000);
   if(!t)return;
+  if(UI_SH.key)uiShClose();
   uiSendText(t,act.silent?String(label||'').slice(0,40):'');
 }
 function uiSave(w){ // keep typed values before this widget is redrawn
@@ -666,20 +806,38 @@ function uiSave(w){ // keep typed values before this widget is redrawn
 }
 function uiRefresh(w){
   const key=w.dataset.ui,f=uiFind(key);if(!f)return;
-  uiSave(w);w.outerHTML=uiW(f.ui,key,uiStat(key));
+  uiSave(w);
+  if(w.dataset.sheet){uiShRender();return}
+  w.outerHTML=uiW(f.ui,key,uiStat(key));
 }
-function uiFormVars(w,b,f,st){
-  const vars={},lines=[],js={};let err='';
+function uiFormVars(w,b,f,st,only){
+  const vars={},lines=[],js={};let err='',bad=null;st.err='';
   for(const fd of f.fields){
-    const e=w.querySelector('[data-uf][data-b="'+b+'"][data-k="'+fd.key+'"]');if(!e)continue;
-    let v=fd.type==='switch'?(e.checked?'on':'off'):String(e.value).trim();
-    if(fd.required&&fd.type!=='switch'&&!v){err='"'+fd.label+'" zaroori hai';break}
-    if(fd.type==='number'&&v){const n=parseFloat(v);if(isNaN(n)){err='"'+fd.label+'": number likho';break}if(fd.min!=null&&n<fd.min||fd.max!=null&&n>fd.max){err='"'+fd.label+'": '+(fd.min!=null?fd.min:'')+' se '+(fd.max!=null?fd.max:'')+' ke beech';break}}
-    vars[fd.key]=v;lines.push(fd.label+': '+(v===''?'-':v));js[fd.key]=fd.type==='switch'?e.checked:(fd.type==='number'&&v!==''&&!isNaN(parseFloat(v))?parseFloat(v):v);
-    st.v[fd.key]=fd.type==='switch'?e.checked:e.value;
+    if(only&&only.indexOf(fd)<0)continue;
+    const e=w.querySelector('[data-uf][data-b="'+b+'"][data-k="'+fd.key+'"]');
+    let v;
+    if(e)v=fd.type==='switch'?(e.checked?'on':'off'):String(e.value).trim();
+    else{ // a field on another wizard page: its value is in the state
+      const sv=uiHas(st.v,fd.key)?st.v[fd.key]:(fd.def!==undefined?fd.def:(fd.type==='slider'?String(fd.min):''));
+      v=fd.type==='switch'?(sv===true||sv==='on'?'on':'off'):String(sv).trim();
+    }
+    if(fd.required&&fd.type!=='switch'&&!v){err='"'+fd.label+'" zaroori hai';bad=fd;break}
+    if(fd.type==='number'&&v){const n=parseFloat(v);if(isNaN(n)){err='"'+fd.label+'": number likho';bad=fd;break}if(fd.min!=null&&n<fd.min||fd.max!=null&&n>fd.max){err='"'+fd.label+'": '+(fd.min!=null?fd.min:'')+' se '+(fd.max!=null?fd.max:'')+' ke beech';bad=fd;break}}
+    vars[fd.key]=v;lines.push(fd.label+': '+(v===''?'-':v));js[fd.key]=fd.type==='switch'?v==='on':(fd.type==='number'&&v!==''&&!isNaN(parseFloat(v))?parseFloat(v):v);
+    if(e)st.v[fd.key]=fd.type==='switch'?e.checked:e.value;
   }
-  vars.values=lines.join('\n');vars.json=JSON.stringify(js);
-  return{vars,err};
+  vars.values=lines.join('\n');vars.json=JSON.stringify(js);vars.value=f.fields.length&&vars[f.fields[0].key]!=null?vars[f.fields[0].key]:'';
+  return{vars,err,bad};
+}
+// selected rows of a table -> placeholders: {values} one line per row ("Label: v, Label: v"), {value} first column joined, {json} array of row objects, {count}
+function uiTableVars(b,s){
+  const idx=(s.rows||[]).slice().sort((a,z)=>a-z).filter(i=>b.rows[i]),rows=idx.map(i=>b.rows[i]);
+  const num=(c,v)=>{const n=parseFloat(String(v).replace(/,/g,''));return c.type==='number'&&v!==''&&!isNaN(n)?n:v};
+  return{idx,vars:{
+    values:rows.map(r=>b.columns.map((c,j)=>c.label+': '+(r[j]===''?'-':r[j])).join(', ')).join('\n'),
+    value:rows.map(r=>r[0]).join(', '),
+    json:'['+rows.map(r=>'{'+b.columns.map((c,j)=>JSON.stringify(c.key)+':'+JSON.stringify(num(c,r[j]))).join(',')+'}').join(',')+']',
+    count:String(rows.length)}};
 }
 const uiParseVb=t=>{const a=String(t).trim().split(/\s+/).map(Number);return{x:a[0]||0,y:a[1]||0,w:a[2]||1,h:a[3]||1}};
 function uiApplyView(key,bid,c,svg,nv,base){
@@ -692,8 +850,32 @@ function uiGestureStart(){
   const g=UI_G,pts=[...g.ptr.values()];g.vb0=uiParseVb(g.svg.getAttribute('viewBox'));g.ppos=pts[0]?{x:pts[0].x,y:pts[0].y}:null;
   if(pts.length>=2){g.d0=Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y)||1;g.mid0={x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2}}
 }
-{const ch=$('#chat');if(ch&&ch.addEventListener){
-  ch.addEventListener('click',e=>{
+// ---------- P5: overlay / menu = bottom sheet (outside #chat like the game panel, so a chat re-render does not close it) ----------
+const UI_SH={key:'',bid:0,el:null,live:false};
+function uiShEl(){
+  if(UI_SH.el&&UI_SH.el.isConnected)return UI_SH.el;
+  const p=document.createElement('div');p.id='uish';p.hidden=true;
+  p.innerHTML='<div class="uisx" data-sh="x"></div><div class="uish" role="dialog" aria-modal="true"><div class="uishh"><b class="uisht"></b><button type="button" class="ib" data-sh="x" aria-label="Band karo"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div><div class="uishb"></div></div>';
+  const pend=$('#pend');pend.parentNode.insertBefore(p,pend);
+  p.addEventListener('click',e=>{const x=e.target.closest&&e.target.closest('[data-sh]');if(x){uiShClose();return}uiClick(e)});
+  p.addEventListener('input',uiInput);p.addEventListener('change',uiChange);
+  UI_SH.el=p;return p;
+}
+function uiShRender(){
+  const p=UI_SH.el;if(!UI_SH.key||!p)return;
+  const f=uiFind(UI_SH.key),b=f&&f.ix[UI_SH.bid];
+  if(!b||(b.type!=='overlay'&&b.type!=='menu')){uiShClose();return}
+  const key=UI_SH.key,live=uiStat(key)==='live';UI_SH.live=live;
+  p.querySelector('.uisht').textContent=b.title||b.label;
+  p.querySelector('.uishb').innerHTML='<div class="uiw uisb'+(live?'':' frz')+'" data-ui="'+ea(key)+'" data-live="'+(live?1:0)+'" data-sheet="'+b.bid+'">'
+    +(b.type==='menu'?'<div class="uimn">'+b.items.map((it,i)=>'<button type="button" class="uib '+(it.style==='primary'?'p':it.style==='danger'?'d':'s')+'" data-ua="mnu" data-b="'+b.bid+'" data-i="'+i+'"'+(live||it.action.type==='copy'?'':' disabled')+'>'+esc(it.label)+'</button>').join('')+'</div>':b.body.map(x=>uiB(x,key,live)).join(''))+'</div>';
+}
+function uiShOpen(key,bid){const p=uiShEl();UI_SH.key=key;UI_SH.bid=bid;uiShRender();p.hidden=!UI_SH.key}
+function uiShClose(){
+  UI_SH.key='';UI_SH.bid=0;UI_SH.live=false;
+  if(UI_SH.el){UI_SH.el.hidden=true;const b=UI_SH.el.querySelector('.uishb');if(b)b.textContent=''}
+}
+function uiClick(e){
     const t=e.target.closest&&e.target.closest('[data-ua]');if(!t||t.disabled)return;
     const w=t.closest('.uiw');if(!w)return;
     const key=w.dataset.ui,live=w.dataset.live==='1',f=uiFind(key);if(!f)return;
@@ -709,7 +891,24 @@ function uiGestureStart(){
     if(ua==='bdg'&&b.type==='badge'){const it=b.items[i];if(!it||!it.action||(!live&&it.action.type!=='copy'))return;uiRun(it.action,it.label,t);return}
     if(ua==='btn'&&b.type==='buttons'){const it=b.items[i];if(!it||(!live&&it.action.type!=='copy'))return;uiRun(it.action,it.label,t);return}
     if(ua==='play'&&b.type==='html'){uiGOpen(b);return}
+    if(ua==='tab'&&b.type==='tabs'){uiSt(key,b.bid).tab=i;uiRefresh(w);return}
+    if(ua==='col'&&b.type==='collapse'){const s=uiSt(key,b.bid),it=b.items[i];if(!it)return;s.open=s.open||{};s.open[i]=!(uiHas(s.open,i)?s.open[i]:it.open);uiRefresh(w);return}
+    if(ua==='pg'&&b.type==='table'&&b.pageSize){const s=uiSt(key,b.bid),np=Math.ceil(b.rows.length/b.pageSize);s.page=Math.max(0,Math.min(np-1,(s.page||0)+(i?1:-1)));uiRefresh(w);return}
+    if(ua==='ov'&&(b.type==='overlay'||b.type==='menu')){uiShOpen(key,b.bid);return}
+    if(ua==='mnu'&&b.type==='menu'){const it=b.items[i];if(!it||(!live&&it.action.type!=='copy'))return;uiRun(it.action,it.label,t);return}
     if(!live)return;
+    if(ua==='trow'&&b.type==='table'&&b.selectable){
+      const s=uiSt(key,b.bid),k=(s.rows=s.rows||[]).indexOf(i);
+      if(b.selectable==='multi'){if(k>=0)s.rows.splice(k,1);else if(b.rows[i])s.rows.push(i)}else s.rows=k>=0||!b.rows[i]?[]:[i];
+      uiRefresh(w);return;
+    }
+    if(ua==='tsub'&&b.type==='table'&&b.submit){const r=uiTableVars(b,uiSt(key,b.bid));if(!r.idx.length)return;uiRun(b.submit.action,b.submit.label,t,r.vars);return}
+    if(ua==='wprev'&&b.type==='form'){const s=uiSt(key,b.bid);uiSave(w);s.err='';s.step=Math.max(0,(s.step||0)-1);uiRefresh(w);return}
+    if(ua==='wnext'&&b.type==='form'){
+      const s=uiSt(key,b.bid),cur=s.step||0,r=uiFormVars(w,b.bid,b,s,b.fields.filter(x=>(x.pg||0)===cur)),er=w.querySelector('[data-e="'+b.bid+'"]');
+      if(er)er.textContent=r.err;if(r.err)return;
+      s.step=Math.min((b.steps?b.steps.length:1)-1,cur+1);uiRefresh(w);return;
+    }
     if(ua==='opt'&&b.type==='choice'){
       const s=uiSt(key,b.bid),o=b.options[i];if(!o)return;
       if(b.mode==='multi'){const k=s.sel.indexOf(i);if(k>=0)s.sel.splice(k,1);else s.sel.push(i)}else s.sel=[i];
@@ -720,18 +919,34 @@ function uiGestureStart(){
       const s=uiSt(key,b.bid),os=s.sel.map(k=>b.options[k]).filter(Boolean);if(!os.length)return;
       uiRun(b.submit.action,b.submit.label,t,{value:os.map(o=>o.value).join(', '),label:os.map(o=>o.label).join(', '),values:os.map(o=>o.value).join(', '),labels:os.map(o=>o.label).join(', '),json:JSON.stringify(os.map(o=>o.value))});return;
     }
-    if(ua==='sub'&&b.type==='form'){
+    if(ua==='sub'&&(b.type==='form'||b.type==='ctl')){
       const s=uiSt(key,b.bid),r=uiFormVars(w,b.bid,b,s),er=w.querySelector('[data-e="'+b.bid+'"]');
+      if(r.err&&r.bad&&b.steps&&(r.bad.pg||0)!==(s.step||0)){s.step=r.bad.pg||0;s.err=r.err;uiRefresh(w);return} // the missing field is on another page: go there
       if(er)er.textContent=r.err;if(r.err)return;
       uiRun(b.submit.action,b.submit.label,t,r.vars);
     }
-  });
-  ch.addEventListener('input',e=>{
+}
+function uiInput(e){
     const t=e.target;if(!t||!t.dataset||!t.dataset.uf)return;
     const w=t.closest('.uiw');if(!w)return;
     if(t.type==='range'){const sp=t.parentNode&&t.parentNode.querySelector('.uisv');if(sp)sp.textContent=t.value}
     uiSt(w.dataset.ui,t.dataset.b).v[t.dataset.k]=t.type==='checkbox'?t.checked:t.value;
-  });
+}
+// a standalone select / switch with no button sends as soon as it changes
+function uiChange(e){
+  const t=e.target;if(!t||!t.dataset||t.dataset.auto!=='1')return;
+  const w=t.closest&&t.closest('.uiw');if(!w||w.dataset.live!=='1')return;
+  const key=w.dataset.ui,f=uiFind(key);if(!f)return;
+  const b=f.ix[+t.dataset.b];if(!b||b.type!=='ctl'||!b.auto)return;
+  const s=uiSt(key,b.bid),r=uiFormVars(w,b.bid,b,s),er=w.querySelector('[data-e="'+b.bid+'"]');
+  if(er)er.textContent=r.err;if(r.err)return;
+  if(b.fields[0].type==='select'&&!r.vars[b.fields[0].key])return;
+  uiRun(b.submit.action,b.submit.label,t,r.vars);
+}
+{const ch=$('#chat');if(ch&&ch.addEventListener){
+  ch.addEventListener('click',uiClick);
+  ch.addEventListener('input',uiInput);
+  ch.addEventListener('change',uiChange);
   // diagram pan/zoom: drag (mouse always; touch only once zoomed, so the chat still scrolls), pinch with two fingers, ctrl+wheel, and the +/-/Fit buttons
   ch.addEventListener('pointerdown',e=>{
     const c=e.target.closest&&e.target.closest('.udg');if(!c||e.target.closest('[data-ua]'))return;
@@ -863,12 +1078,12 @@ function uiGSend(t){
 if(typeof window!=='undefined'&&typeof window.addEventListener==='function')window.addEventListener('message',uiBridge);
 
 // ---------- ui_render tool ----------
-TOOLS.push(fn('ui_render','Show an interactive widget in the chat: buttons, choice (MCQ / options), form, table, keyvalue, alert, progress, code, card, text. A tap sends its value back as Najeef\'s next message (a new turn for you). Use it only when tapping beats typing (quiz, options, a form with several fields, a small table); a short answer stays plain text. Widget JSON: {v:1, id, title?, keep?, blocks:[...]}. Call rules_read ui for every block type and the action format, rules_read game for chat games (type html), rules_read diagram for flowcharts (type diagram, nodes+edges or mermaid).',{
+TOOLS.push(fn('ui_render','Show an interactive widget in the chat: buttons, choice (MCQ / options), form (also a multi-step wizard), table (sortable, selectable, paged, badge column), tabs, collapse, stepper, overlay (bottom sheet), menu, input/select/slider/switch, badge, stat, chart, keyvalue, alert, progress, code, card, text (variants). A tap sends its value back as Najeef\'s next message (a new turn for you). Use it only when tapping beats typing (quiz, options, a form with several fields, a small table); a short answer stays plain text. Widget JSON: {v:1, id, title?, keep?, blocks:[...]}. Call rules_read ui for every block type and the action format, rules_read game for chat games (type html), rules_read diagram for flowcharts (type diagram, nodes+edges or mermaid).',{
   v:{type:'integer',description:'always 1'},
   id:{type:'string',description:'a-z 0-9 and dash, max 32. The same id again replaces the older widget.'},
   title:{type:'string'},
   keep:{type:'boolean',description:'true = the older widget stays tappable when a new one comes. Default false.'},
-  blocks:{type:'array',items:{type:'object'},description:'blocks, each has a type: text, card, buttons, choice, form, table, keyvalue, alert, progress, code, divider, spacer'}
+  blocks:{type:'array',items:{type:'object'},description:'blocks, each has a type: text, card, buttons, choice, form, table, tabs, collapse, stepper, overlay, menu, input, select, slider, switch, badge, stat, chart, keyvalue, alert, progress, code, divider, spacer (rules_read ui for every field)'}
 },['blocks']));
 function uiNote(ui){
   const bits=[];
@@ -877,13 +1092,19 @@ function uiNote(ui){
     if(b.type==='text')bits.push(b.md.replace(/\s+/g,' ').slice(0,160));
     else if(b.type==='choice')bits.push('choice['+b.options.map(o=>(o.value!==o.label?o.value+'=':'')+o.label).join(' | ').slice(0,160)+']');
     else if(b.type==='buttons')bits.push('buttons['+b.items.map(i=>i.label).join(' | ').slice(0,120)+']');
-    else if(b.type==='form')bits.push('form['+b.fields.map(f=>f.key).join(', ')+']');
-    else if(b.type==='table')bits.push('table '+b.rows.length+' rows');
+    else if(b.type==='form')bits.push('form'+(b.steps?' wizard '+b.steps.length+' steps':'')+'['+b.fields.map(f=>f.key).join(', ')+']');
+    else if(b.type==='table')bits.push('table '+b.rows.length+' rows'+(b.selectable?' (select '+b.selectable+')':''));
     else if(b.type==='html')bits.push('game '+(b.html?'inline':uiGName(b.src))+' (panel me khulta hai)');
     else if(b.type==='diagram')bits.push('diagram '+b.nodes.length+' nodes: '+b.nodes.slice(0,6).map(n=>n.label).join(', ').slice(0,90));
     else if(b.type==='badge')bits.push('badges['+b.items.map(i=>i.label).join(' | ').slice(0,100)+']');
     else if(b.type==='stat')bits.push('stat '+b.items.length+' items');
     else if(b.type==='card'){walk(b.body);walk(b.footer)}
+    else if(b.type==='tabs'){bits.push('tabs['+b.tabs.map(t=>t.label).join(' | ').slice(0,100)+']');b.tabs.forEach(t=>walk(t.body))}
+    else if(b.type==='collapse'){bits.push('collapse['+b.items.map(t=>t.title).join(' | ').slice(0,100)+']');b.items.forEach(t=>walk(t.body))}
+    else if(b.type==='stepper')bits.push('stepper['+b.steps.map(t=>t.label+':'+t.status).join(' | ').slice(0,120)+']');
+    else if(b.type==='overlay'){bits.push('overlay "'+b.label+'" (sheet)');walk(b.body)}
+    else if(b.type==='menu')bits.push('menu['+b.items.map(t=>t.label).join(' | ').slice(0,100)+']');
+    else if(b.type==='ctl')bits.push(b.kind+'['+b.fields[0].key+(b.auto?', sends on change':'')+']');
     else bits.push(b.type);
   });
   walk(ui.blocks);
