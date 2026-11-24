@@ -1,6 +1,6 @@
 // Step10: rules per area (AI reads the app copy only), auto-injection by keywords, rules_read tool, skill (auto from TOOLS),
 // folder copy for Najeef in /sdcard/Chaman/memory/rules (read-only for him, AI never reads it), guard against fake tool output.
-const RULES_VER='2026-11-24.1';
+const RULES_VER='2026-11-24.2';
 const RULES={
 files:`FILES (workspace /sdcard/Chaman; the file_* tools need no Termux, only the All files access permission for Chaman)
 - Layout: work/<project>/ your files, memory/ notes, backup/ (the app copies the old file there before every overwrite or edit), .trash/ (deleted items), logs/ (the app writes it, you never do). Paths: /sdcard/Chaman/... or relative to it. The file tools cannot go outside this folder.
@@ -111,7 +111,7 @@ const RULE_KW={
   game:/\bgames?\b|\bgame\s*(banao|khel)|snake|tetris|2048|ludo|\bkhel(na|o|ao)?\b|puzzle|tic.?tac|flappy|pong|breakout|reaction (test|game)|arcade|\bplay\b.{0,15}\bchat/i,
   ui:/\bquiz\b|\bmcq\b|\bwidget\b|\bbuttons?\b|\bchoices?\b|\bform\b|\bpoll\b|survey|checklist|\btable\b|\bprogress\b|\bscore\b|interactive|options? (do|dikha|de)\b|\bui\b|sawaal.{0,12}(pucho|do)|test (lo|le|karo)|tap (kar|se)|\btabs?\b|stepper|wizard|accordion|collaps|dropdown|\bslider\b|\bbadges?\b|compar|\bvs\b|versus|roadmap|\bfaq\b|dashboard|\bstats?\b|rating|recommend|suggest|\bsteps?\b|\bcharts?\b|\bgraph\b|\blist\b|\bkpi\b|overview|\bdetails?\b/i,
   intents:/\balarm|\btimer\b|\bclock\b|ghadi|calendar|\bevent\b|meeting|remind|\bsettings?\b|wi-?fi|bluetooth|airplane|battery|location|\bnfc\b|camera|\bphoto|\bvideo|gallery|music|\bgana\b|\bsong|calculator|browser|\bmaps?\b|navigat|\bshare\s+(kar|kr)(o|do|dena)?\b|contact|e-?mail|play ?store|app info|notification|storage|hotspot|\bvpn\b|developer|\bintent|sound|display|brightness mode|dark mode/i,
-  code:/calculat|\bcalc\b|hisa+b|\bmath\b|\bsum\b|total|average|percent|convert|conversion|\bregex\b|\bjson\b|\bcsv\b|\bsql(ite)?\b|\bjs\b|javascript|python|\bpy\b|run_code|\bscript\b|\b(date|tarikh|time)\b|days? (left|between)|din (bache|baaki)|kitne (din|ghante|minute|paise)|\bcompute\b|\bexact\b/i,
+  code:/calculat|\bcalc\b|hisa+b|\bmath\b|\bsum\b|total|average|percent|convert|conversion|\bregex\b|\bjson\b|\bcsv\b|\bsql(ite)?\b|\bjs\b|javascript|python|\bpy\b|run_code|\bscript\b|\b(date|tarikh|time)\b|days? (left|between)|din (bache|baaki)|kitne (din|ghante|minute|paise)|\bcompute\b|\bexact\b|\bfetch\b|js_site_check/i,
   api:/battery|charge|clipboard|\bgps\b|location|torch|flash ?light|vibrat|volume|brightness|\btts\b|speak|\bbol\b.{0,12}\bsun|toast|notif|selfie|photo|\bpic(ture)?\b|record|\bmic\b|termux.?api|device_api|api_check|wifi info/i,
   notes:/\bnotes?\b|\bsave\b|yaad rakh|\bcommands?\b.{0,24}\b(de|do|dena|dikha|bata|batao)\b|\b(de|do|dena|dikha|dikhao|bata)\b.{0,24}\bcommands?\b|jab (main|me|mai) bol|bola tha|mene diya|maine diya|\bsnippet\b/i,
   skill:/kya\s*(kya\s*)?kar\s*sakt|tu kya|tum kya|capabilit|\bskills?\b|\btools?\b|kya aata|what can you/i,

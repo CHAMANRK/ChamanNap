@@ -15,6 +15,10 @@ TOOLS.push(fn('run_code', 'Run a small piece of code inside the app, no Termux n
   max_rows: { type: 'integer', minimum: 1, maximum: 200, description: 'sql: rows shown per result, default 50' }
 }, ['lang', 'code']));
 
+TOOLS.push(fn('js_site_check', 'Check which internet sites run_code js fetch may use. Without host it lists the allowed sites (the default ones plus the ones Najeef added in Settings > Code runner). With host (a site name or a https URL) it says allowed or not allowed, with the same check fetch uses. It makes no network call. Use it before a js fetch when you are not sure the site is allowed. If a site you need is not allowed, tell Najeef to add it in Settings > Code runner; never try to get around the list.', {
+  host: { type: 'string', description: 'optional: site name or URL to check' }
+}));
+
 const rnOn = () => !(S.rn && S.rn.on === false);
 function rnClip(s) {
   s = String(s == null ? '' : s);
@@ -163,6 +167,34 @@ async function rnNet(d) {
     const text = String(await r.text()).slice(0, 300000);
     reply({ status: r.status, text });
   } catch (e) { reply({ err: errMsg(e) }); }
+}
+
+// js_site_check: tells the AI which sites js fetch may reach (no network call, same rnHostOk check as rnNet)
+function rnSiteList() { return Array.from(new Set(((S.rn && S.rn.net) || []).map(rnClean).filter(Boolean))); }
+function siteCheckTool(a, note, fl) {
+  const bad = s => { fl.bad = true; return note(s); };
+  if (!rnOn()) return bad('Code runner band hai') + ' Najeef ne Settings > Code runner me off kiya hai, js fetch nahi chalega.';
+  const list = rnSiteList();
+  const raw = String((a && a.host) == null ? '' : a.host).trim();
+  const rule = 'Rules: https only; a listed site also allows its subdomains; IP, localhost and .local are never allowed; a redirect to a site that is not listed is blocked.';
+  if (!raw) {
+    note('js_site_check: ' + list.length + ' allowed');
+    return list.length
+      ? 'ALLOWED for js fetch (' + list.length + '):\n' + list.join('\n') + '\n' + rule + '\nAnything not in this list is NOT added. To check one site, call js_site_check with host. If you need one that is missing, ask Najeef to add it in Settings > Code runner.'
+      : 'No site is allowed right now, so js fetch cannot reach any site. ' + rule + ' Ask Najeef to add the site he wants in Settings > Code runner.';
+  }
+  let u;
+  try { u = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : 'https://' + raw); } catch (e) { return bad('host sahi nahi hai: ' + raw.slice(0, 60)); }
+  const host = u.hostname.toLowerCase();
+  if (u.protocol !== 'https:') { note('js_site_check: ' + host + ' no (not https)'); return host + ': NOT usable. js fetch accepts https only (this was ' + u.protocol.replace(':', '') + ').'; }
+  if (rnHostOk(host, list)) {
+    const via = list.map(rnClean).find(e => host === e || host.endsWith('.' + e));
+    note('js_site_check: ' + host + ' yes');
+    return host + ': ALLOWED' + (via && via !== host ? ' (through ' + via + ')' : '') + '. If the site redirects to another site that is not listed, the answer is blocked.';
+  }
+  const never = !host || host.indexOf('.') < 0 || /^[\d.]+$/.test(host) || host.indexOf(':') >= 0 || host === 'localhost' || /\.(local|internal|lan)$/.test(host);
+  note('js_site_check: ' + host + ' no');
+  return host + ': NOT added' + (never ? ' (IP, localhost and .local names can never be added)' : '') + '. js fetch to it will fail.' + (never ? '' : ' Tell Najeef the exact site name; he can add it in Settings > Code runner.');
 }
 
 // ---------- sql inputs (CSV files and db files from the workspace) ----------
@@ -320,7 +352,7 @@ function codeRules() {
   return 'CODE RUNNER (run_code {lang, code})\n'
     + '- Three languages run inside the app, no Termux: js (JavaScript, async/await ok), sql (SQLite), py (MicroPython).\n'
     + '- Use it instead of guessing: exact math, percentages, unit or currency maths with the rate he gave, dates and times (js: new Date() is the phone clock), days between dates, counts, sorting, regex tests, JSON and text work, queries on a CSV. Not for plain chat answers.\n'
-    + '- js: show results with console.log, or end with a value / return it. Example: Math.ceil((new Date(2026,11,25)-new Date())/864e5). Top-level await works. fetch works only for sites Najeef allowed in Settings (Code runner); other sites fail.\n'
+    + '- js: show results with console.log, or end with a value / return it. Example: Math.ceil((new Date(2026,11,25)-new Date())/864e5). Top-level await works. fetch works only for sites Najeef allowed in Settings (Code runner); other sites fail. Not sure a site is allowed? Call js_site_check first (no host = the allowed list, host = check one site).\n'
     + '- sql: csv:[paths] loads workspace CSV files as tables (the result lists table and column names; types are guessed), db:path opens a SQLite file in memory. Changes are not saved. Quote column names that are SQL words.\n'
     + '- py: MicroPython, not CPython. Has json, math, re, random, time, datetime, collections, itertools, functools, heapq, struct, hashlib, base64, zlib. No numpy, pandas, requests, pip, statistics, decimal, csv, textwrap. Print results (the value of the last line is not shown). For heavy Python use Termux.\n'
     + '- Limits: 10 s (timeout_s up to 30), output 4000 chars, no files, no phone, no screen, no keys. A runner error is not the task result: report it as it is and fix the code once.\n'

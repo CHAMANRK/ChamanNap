@@ -88,6 +88,28 @@ t('rnRun=async(lang,code,o)=>{globalThis.__sent={lang,code,o};return typeof glob
   ok(!hk('github.com',L)&&!hk('evilapi.github.com.evil.com',L)&&!hk('notwikipedia.org',L),'allowlist: parent/lookalike hosts refused');
   ok(!hk('192.168.1.1',['192.168.1.1'])&&!hk('localhost',['localhost'])&&!hk('router.local',['router.local']),'allowlist: IPs, localhost, .local never allowed');
 
+  // js_site_check (1.49000.0): tells the AI which sites js fetch may use, no network call
+  t('S.rn={on:true,warm:true,net:["api.github.com","Wikipedia.org"]}');
+  let sc=await run('js_site_check',{});
+  ok(/ALLOWED for js fetch \(2\)/.test(sc.res)&&/api\.github\.com/.test(sc.res)&&/wikipedia\.org/.test(sc.res)&&/not in this list is NOT added/i.test(sc.res),'js_site_check no host: lists the allowed sites and says the rest are not added');
+  sc=await run('js_site_check',{host:'https://api.github.com/repos/x'});ok(/ALLOWED/.test(sc.res)&&!/NOT/.test(sc.res),'js_site_check: URL of a listed site -> allowed');
+  sc=await run('js_site_check',{host:'en.wikipedia.org'});ok(/ALLOWED \(through wikipedia\.org\)/.test(sc.res),'js_site_check: subdomain allowed through its parent');
+  sc=await run('js_site_check',{host:'example.com'});ok(/NOT added/.test(sc.res)&&/Settings > Code runner/.test(sc.res),'js_site_check: unlisted site -> not added + how to add');
+  sc=await run('js_site_check',{host:'api.github.com.evil.com'});ok(/NOT added/.test(sc.res),'js_site_check: lookalike host -> not added');
+  sc=await run('js_site_check',{host:'http://api.github.com'});ok(/NOT usable/.test(sc.res)&&/https only/.test(sc.res),'js_site_check: http is refused even for a listed site');
+  sc=await run('js_site_check',{host:'192.168.1.1'});ok(/NOT added/.test(sc.res)&&/can never be added/.test(sc.res)&&!/tell Najeef the exact/i.test(sc.res),'js_site_check: IP can never be added');
+  sc=await run('js_site_check',{host:'router.local'});ok(/can never be added/.test(sc.res),'js_site_check: .local can never be added');
+  sc=await run('js_site_check',{host:'https://a b'});ok(/sahi nahi/.test(sc.res),'js_site_check: garbage host -> clear error');
+  t('S.rn={on:true,warm:true,net:[]}');
+  sc=await run('js_site_check',{});ok(/No site is allowed/.test(sc.res),'js_site_check: empty list says so');
+  t('S.rn={on:false}');
+  sc=await run('js_site_check',{});ok(/band hai/.test(sc.res),'js_site_check: runner off -> refused');
+  t('S.rn={on:true,warm:true,net:["api.github.com"]}');
+  ok(t('TOOLS').some(x=>x.function.name==='js_site_check')&&/- js_site_check\(host\)/.test(t('skillText')()),'js_site_check is a tool and shows in the skill list (auto)');
+  ok(/js_site_check/.test(t('ruleText')('code')),'code rules tell the AI to call js_site_check before fetch');
+  ok(t('ruleAreas')('fetch karke api se data lao').indexOf('code')>=0,'code rules join on the word fetch');
+  ok(t('logTool')('js_site_check',{host:'example.com'})==='js_site_check example.com'&&t('logTool')('js_site_check',{})==='js_site_check','log line: host only, no output stored');
+
   // logging: no code, no output
   const lg=t('logTool')('run_code',{lang:'js',code:'secret=123456789',csv:['a.csv']});
   ok(/run_code js \(16 chars, csv\)/.test(lg)&&lg.indexOf('secret')<0,'log line has length only -> '+lg);

@@ -24,6 +24,7 @@ function lnLabel(name,a){
   switch(name){
     case'open_app':return'Khol raha hu: '+lnCut(a.name,22);
     case'open_intent':return'Khol raha hu: '+lnCut(String(a.name||'').replace(/_/g,' '),22);
+    case'js_site_check':return'Allowed sites dekh raha hu';
     case'run_code':return({js:'JavaScript',sql:'SQL',py:'Python'}[a.lang]||'Code')+' chala raha hu';
     case'device_api':return'Phone se: '+lnCut(String(a.name||'').replace(/_/g,' '),20);
     case'set_switch':return'Switch: '+lnCut(a.text,16)+' '+lnCut(a.state,4);

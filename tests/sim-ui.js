@@ -562,7 +562,7 @@ const lastUser=()=>{const h=getH();for(let k=h.length-1;k>=0;k--)if(h[k].role===
  ok(t('ruleAreas')('wizard form do').indexOf('ui')>=0&&t('ruleAreas')('tabs me dikhao').indexOf('ui')>=0&&t('ruleAreas')('badge laga ke dikha').indexOf('ui')>=0,'keywords wizard / tabs / badge add the ui rules');
  ok(/tabs|collapse|stepper|overlay/.test(JSON.stringify(t('TOOLS').find(x=>x.function.name==='ui_render'))),'ui_render tool text lists the P5 blocks');
  t("S.ui={}");setH([{role:'user',content:'game flowchart diagram wizard form banao'}]);const rb=t('rulesBlock')();ok(rb.indexOf('WIDGETS')>=0,'game + diagram + ui rules together still include the ui area (cap)');
- ok(t('RULES_VER')==='2026-11-24.1','RULES_VER bumped');
+ ok(t('RULES_VER')==='2026-11-24.2','RULES_VER bumped');
  // ---- 1.47000.0 use-case system
  t("S.ui={}");
  const UH=t('uiHint')();

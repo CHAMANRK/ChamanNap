@@ -54,6 +54,7 @@ function pillText(name,a){
     case'file_delete':return'Deleting file';
     case'file_present':return'Showing file';
     case'generate_image':return'Making image';
+    case'js_site_check':return'Checking allowed sites';
     case'run_code':return'Running '+({js:'JavaScript',sql:'SQL',py:'Python'}[a.lang]||'code');
     case'api_check':return'Checking Termux:API';
     case'notify_now':return'Sending notification';
@@ -174,6 +175,7 @@ async function execTool0(name,a,steps,fl){
     if(name.indexOf('note_')===0)return await noteTool(name,a,note,fl);
     if(name==='ui_render')return await uiTool(a,note,fl);
     if(name==='run_code')return await codeTool(name,a,note,fl);
+    if(name==='js_site_check')return siteCheckTool(a,note,fl);
     if(name==='generate_image')return await imageTool(a,note,fl);
     if(name==='api_check'||name==='device_api')return await apiTool(name,a,note,fl);
     if(name==='notify_now'||name.indexOf('schedule_')===0)return await schTool(name,a,note,fl);
