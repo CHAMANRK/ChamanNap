@@ -18,6 +18,7 @@ async function runLoop(p){
   const stopped=()=>({content:'Stop dabaya gaya.',by,steps});
   const mem=await wsLoadMem();if(mem)msgs[0].content+=mem;
   const rb=rulesBlock();if(rb)msgs[0].content+=rb;
+  const uh=typeof uiHint==='function'?uiHint():'';if(uh)msgs[0].content+=uh;
   const cb=typeof crBlock==='function'?crBlock():'';if(cb)msgs[0].content+=cb;
   const guard={n:0};
   let tools=typeof uiTools==='function'?uiTools():TOOLS;

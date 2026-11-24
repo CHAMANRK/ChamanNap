@@ -562,7 +562,22 @@ const lastUser=()=>{const h=getH();for(let k=h.length-1;k>=0;k--)if(h[k].role===
  ok(t('ruleAreas')('wizard form do').indexOf('ui')>=0&&t('ruleAreas')('tabs me dikhao').indexOf('ui')>=0&&t('ruleAreas')('badge laga ke dikha').indexOf('ui')>=0,'keywords wizard / tabs / badge add the ui rules');
  ok(/tabs|collapse|stepper|overlay/.test(JSON.stringify(t('TOOLS').find(x=>x.function.name==='ui_render'))),'ui_render tool text lists the P5 blocks');
  t("S.ui={}");setH([{role:'user',content:'game flowchart diagram wizard form banao'}]);const rb=t('rulesBlock')();ok(rb.indexOf('WIDGETS')>=0,'game + diagram + ui rules together still include the ui area (cap)');
- ok(t('RULES_VER')==='2026-11-23.1','RULES_VER bumped');
+ ok(t('RULES_VER')==='2026-11-24.1','RULES_VER bumped');
+ // ---- 1.47000.0 use-case system
+ t("S.ui={}");
+ const UH=t('uiHint')();
+ ok(/WIDGETS IN CHAT/.test(UH)&&UH.length<1100&&/plain text/.test(UH)&&/One widget per reply/.test(UH)&&/rules_read ui/.test(UH)&&/sirf text me batao/.test(UH),'use-case hint: present, short ('+UH.length+' chars), says chit-chat stays text, one widget, his words win');
+ t("S.ui={off:true}");ok(t('uiHint')()==='','use-case hint: empty when Rich UI is off');t("S.ui={}");
+ const RU=t('RULES.ui');
+ const UC=['button','choice','form','select','table','badge','keyvalue','selectable','stat','progress','card','alert','chart line','chart bar','chart pie','board','image','diagram','stepper','tabs','collapse','overlay','menu','text variant','html','wizard'];
+ const miss=UC.filter(w=>RU.indexOf(w)<0);ok(RU.indexOf('WHEN TO USE WHAT')>=0&&!miss.length,'use-case map in RULES.ui covers every P1-P5 component'+(miss.length?' (missing: '+miss.join(', ')+')':''));
+ ok(/NOT a widget/.test(RU)&&!/Use a widget only when tapping is better than typing/.test(RU),'use-case map: has a "not a widget" rule and the old text-only bullet is gone');
+ for(const q of['phones ka comparison do','python seekhne ka roadmap','5 FAQ do','server ka dashboard dikhao','skills suggest kar badge ke saath','is mahine ka kharcha chart me'])ok(t('ruleAreas')(q).indexOf('ui')>=0,'keyword adds ui rules: '+q);
+ ok(t('ruleAreas')('hi kaisa hai').indexOf('ui')<0,'chit-chat does not add ui rules');
+ // injected into the system message of a tool turn, and only when Rich UI is on
+ const CJ2=require('fs').readFileSync('js/chat.js','utf8');ok(/uiHint\(\)/.test(CJ2)&&CJ2.indexOf('uiHint')>CJ2.indexOf('rulesBlock()'),'chat.js adds the hint right after the rules block');
+ ok(/answer has the shape/.test(JSON.stringify(t('TOOLS').find(x=>x.function.name==='ui_render')))&&!/only when tapping beats typing/.test(JSON.stringify(t('TOOLS').find(x=>x.function.name==='ui_render'))),'ui_render tool text follows the use-case idea');
+ const sz=t('RULES.ui').length+t('RULES.game').length+t('RULES.diagram').length;ok(sz<11000,'ui + game + diagram rules together fit the 11000 cap ('+sz+')');
  // ---- 9. switch off
  t("S.ui={off:true}");o=t('fmt')('```ui\n'+F+'\n```');ok(/<pre>/.test(o)&&/off hai/.test(o),'Rich UI off: fence stays code');
  t("S.ui={}");
