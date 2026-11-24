@@ -8,7 +8,7 @@ NEW = OLD.replace("line 05 of the old", "line 05 CHANGED of the new").replace("l
 LONGL = "const veryLongLine = '" + "x"*160 + "';"
 H = [
  {"role":"user","content":"index.js badlo aur nayi file banao"},
- {"role":"assistant","by":"Groq","content":"Ho gaya.","steps":["File edit: a","File likhi: b","File likhi: c"],
+ {"role":"assistant","by":"Groq","gx":1,"content":"Ho gaya.","steps":["File edit: a","File likhi: b","File likhi: c"],
   "cards":[
    {"n":"edit_file","k":"file","l":"File edit kar raha hu","g":"work/app/a.js","s":"ok","t":120,"r":"ho gaya","nt":["File edit: work/app/a.js (1 change)"],"i":0,"j":1,
     "df":[{"p":"work/app/a.js","k":"edit","a":1,"d":1,"om":0,"h":[{"h":"@@ -7,1 +7,1 @@","l":[["-",7,"<img src=x onerror=\"window.__x=1\">"],["+",7,"const ok = 1;"]]}]}]},

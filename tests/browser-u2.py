@@ -8,7 +8,7 @@ ERRT = "ls: cannot access '/sdcard/x': No such file or directory\n[stderr]\nwarn
 XSS = "<img src=x onerror=\"window.__x=1\"><script>window.__y=1</script>"
 H = [
  {"role":"user","content":"files dekho aur code chalao"},
- {"role":"assistant","by":"Groq","content":"Ho gaya.","steps":["Termux: exit 0","File padh li: a.txt","Edit fail: nahi mila","Status line nahi dikhi: x"],
+ {"role":"assistant","by":"Groq","gx":1,"content":"Ho gaya.","steps":["Termux: exit 0","File padh li: a.txt","Edit fail: nahi mila","Status line nahi dikhi: x"],
   "cards":[
    {"n":"termux_run","k":"term","l":"Command chala raha hu","g":"ls -la /sdcard/Chaman","s":"ok","t":420,"r":"ho gaya","nt":["Termux: exit 0"],"i":0,"j":1},
    {"n":"file_read","k":"file","l":"File padh raha hu","g":"/sdcard/Chaman/a.txt","s":"ok","t":35,"r":"ho gaya","nt":["File padh li: a.txt"],"i":1,"j":2},
@@ -43,7 +43,7 @@ def run(theme):
         ok(pg.evaluate("(()=>{const c=document.querySelector('#chat .tc');return c.classList.contains('open')&&getComputedStyle(c.querySelector('.tcb')).display==='block'&&c.querySelector('.tch').getAttribute('aria-expanded')==='true'&&c.querySelector('.tcb').textContent.indexOf('Termux: exit 0')>=0})()"), t+': tap opens card, shows result + note')
         pg.click("#chat .tc:nth-child(1) .tch"); pg.wait_for_timeout(80)
         ok(pg.evaluate("!document.querySelector('#chat .tc').classList.contains('open')"), t+': tap again closes')
-        ok(pg.evaluate("document.querySelector('#chat .tcs-list+.steps').textContent.indexOf('Status line nahi dikhi')>=0"), t+': step line without a card still shown')
+        ok(pg.evaluate("document.querySelector('#chat .tcgrp+.steps').textContent.indexOf('Status line nahi dikhi')>=0"), t+': step line without a card still shown')
         ok(pg.evaluate("document.querySelectorAll('#chat .steps').length==2"), t+': old message (no cards) keeps old steps block')
         # ---- terminal
         ok(pg.evaluate("document.querySelectorAll('#chat .trm').length==4"), t+': 4 terminal/code views')

@@ -57,7 +57,7 @@ function lnTick(){
   const t=setTimeout(lnTick,1000);if(t&&t.unref)t.unref();LN.timer=t;
 }
 function lnBegin(text,state){
-  LN.on=true;LN.items=[];LN.open=false;LN.last='';LN.hold=false;LN.th='';
+  LN.on=true;LN.items=[];LN.open=false;LN.gx=false;LN.last='';LN.hold=false;LN.th='';
   LN.text=text||'Message bhej raha hu';LN.state=state||'wait';LN.tw=LN.state==='wait'?Date.now():0;
   if(LN.timer)clearTimeout(LN.timer);
   const t=setTimeout(lnTick,1000);if(t&&t.unref)t.unref();LN.timer=t;
@@ -115,8 +115,9 @@ function lnDraw(){
   if(!ty){c.insertAdjacentHTML('beforeend','<div class="msg ai ln" id="ty"></div>');ty=$('#ty')}
   if(!ty)return;
   const roll=LN.last!==LN.text;LN.last=LN.text;
+  const st0=c.scrollTop;
   ty.innerHTML=lnHtml(roll);
-  c.scrollTop=1e9;
+  chFollow(st0);
 }
 $('#chat').addEventListener('click',e=>{
   if(!e.target.closest||!e.target.closest('.lnl'))return;

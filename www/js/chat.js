@@ -22,6 +22,7 @@ async function runLoop(p){
   const cb=typeof crBlock==='function'?crBlock():'';if(cb)msgs[0].content+=cb;
   const guard={n:0};
   let tools=typeof uiTools==='function'?uiTools():TOOLS;
+  if(typeof tcWhyTools==='function')tools=tcWhyTools(tools);
   FILE_TURN={w:'',p:{}};SCR_STOP=false;LEFT_APP=false;PILL_ERR='';NS('reset').catch(()=>{});
   const fin=async c=>{if(used.ui&&c==='(khaali jawab)')c='';if(tools){await autoMem(p,msgs,used,c,steps);if(typeof autoPresent==='function')await autoPresent()}return{content:c,by,steps,uiOnly:!c&&used.ui}};
   const finChk=async c=>{
@@ -116,7 +117,8 @@ const SEND_SVG=($('#send')||{}).innerHTML||'';
 const STOP_SVG='<svg class="ib" style="width:20px;height:20px" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor"/></svg>';
 const STOPPED={stopped:1};
 function setBusy(on){
-  busy=on;const b=$('#send');if(!b)return;
+  busy=on;if(on&&typeof chJump==='function')chJump();   // sending a message always goes to the bottom once
+  const b=$('#send');if(!b)return;
   b.disabled=false;
   if(b.classList&&b.classList.toggle)b.classList.toggle('stop',!!on);
   if(b.setAttribute)b.setAttribute('aria-label',on?'Stop':'Send');

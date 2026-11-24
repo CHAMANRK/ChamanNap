@@ -224,10 +224,12 @@ async function execTool0(name,a,steps,fl){
 // Pill dot: orange while a step runs, green when it worked, red when it failed. (ask/wait tools draw their own overlay.)
 async function execTool(name,a,steps){
   a=a||{};
+  const why='why' in a?String(a.why==null?'':a.why):'';
+  if('why' in a){a=Object.assign({},a);delete a.why}
   const fl={bad:false},own=name==='ask_user'||name==='wait_for_user';
   if(name==='open_app'||name.indexOf('screen_')===0||own||/^(open_url|open_intent|set_switch|tap_when_visible|run_flow)$/.test(name))LEFT_APP=true;
   if(own)LN.hold=true;
-  const it=lnStep(name,a),n0=steps.length,cd=typeof tcBegin==='function'?tcBegin(steps,name,a):null;
+  const it=lnStep(name,a),n0=steps.length,cd=typeof tcBegin==='function'?tcBegin(steps,name,a,why):null;
   if(own){LN.state='wait';lnDraw()}
   const res=await execTool0(name,a,steps,fl);
   if(!fl.bad&&typeof sesChange==='function')sesChange(name,a);

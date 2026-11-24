@@ -68,7 +68,7 @@ function sesClear(){H=[];sv('nap_h',H);SES=null;sv('nap_ses',null);try{sessionSt
 async function sesNew(){
   if(busy)return;
   if(!H.length)return;
-  await sesFinish();sesClear();render();
+  await sesFinish();sesClear();chJump();render();
 }
 async function sesOpen(id){
   if(busy)return;
@@ -83,7 +83,7 @@ async function sesOpen(id){
   h.forEach(m=>{if(m.confirm&&m.confirm.state==='pending')m.confirm.state='expired'});
   H=h;SES={id,t0:e?e.t0:Date.now(),title:e?e.title:sesTitle(h)};sv('nap_ses',SES);
   try{sessionStorage.setItem('nap_sid',id)}catch(x){}
-  persist();render();logAdd('session','Session continue: '+id);
+  persist();chJump();render();logAdd('session','Session continue: '+id);
   return '';
 }
 // Folder change list for the running session: which file the AI wrote, edited or moved (old copies are in backup/).

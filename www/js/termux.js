@@ -23,7 +23,6 @@ const TCONF={};
 const noFence=s=>String(s==null?'':s).replace(/```/g,"'''");
 function liveRender(){
   render();
-  $('#chat').scrollTop=1e9;
 }
 // Shows a confirm card in the chat and waits for the tap. Brings Chaman to the front if it is in the background.
 function tconfirm(head,body,why,lab,by){

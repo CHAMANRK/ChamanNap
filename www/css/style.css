@@ -564,3 +564,22 @@ svg.tcs.fail{stroke:var(--danger)}
 tr.on td{background:var(--user)}
 .tw.uitx2 td{vertical-align:middle}
 .tw td .uibg{white-space:normal;text-align:left}
+
+/* 1.48000.0: "Naya" jump-to-bottom button (shows only when scrolled up and new content came) */
+#chdn{position:absolute;z-index:4;right:14px;bottom:96px;display:flex;align-items:center;gap:6px;height:36px;padding:0 14px 0 10px;border-radius:18px;background:var(--surface);color:var(--text);border:1px solid var(--border);font-size:13px;font-weight:500;box-shadow:0 2px 8px rgba(0,0,0,.18);-webkit-tap-highlight-color:transparent}
+#chdn[hidden]{display:none}
+#chdn svg{width:16px;height:16px;stroke:var(--accent);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#chdn:active{background:var(--acs)}
+
+/* 1.48000.0: card title (AI line) + full command, collapsed group row */
+.tcc{margin:8px 0 0;padding:8px 10px;border-radius:8px;background:var(--bg);border:1px solid var(--border);font:12.5px/1.45 var(--mono);color:var(--text);white-space:pre-wrap;overflow-wrap:anywhere;max-height:240px;overflow:auto}
+.tcgrp{display:flex;flex-direction:column;gap:6px;margin:2px 0 10px}
+.tcgrp>.tcs-list{margin:0}
+.tcgrp:not(.open)>.tcfull{display:none}
+.tcgrp.open>.tcpeek{display:none}
+.tcsum{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:6px 12px;text-align:left;color:var(--text);border:1px solid var(--border);border-radius:12px;background:var(--surface);-webkit-tap-highlight-color:transparent}
+.tcsum:active{background:var(--acs)}
+.tcsum.fail{border-color:color-mix(in srgb,var(--danger) 55%,var(--border))}
+.tcsum.run{border-color:color-mix(in srgb,var(--accent) 55%,var(--border))}
+.tcsl{flex:1;min-width:0;font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tcgrp.open>.tcsum .tck{transform:rotate(90deg)}

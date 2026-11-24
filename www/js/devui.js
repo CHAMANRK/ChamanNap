@@ -29,24 +29,51 @@ function tcTarget(name,a){
   let t='';
   try{
     switch(name){
-      case'termux_run':t=String(a.command||'').split('\n')[0];break;
+      case'termux_run':t=String(a.command||'').split('\n').map(x=>x.trim()).filter(Boolean).map(x=>x.replace(/^cd\s+\S+\s*(&&|;)\s*/,'')).filter(Boolean)[0]||'';break;
       case'file_write':case'file_read':case'edit_file':case'file_delete':case'file_mkdir':case'file_list':case'file_present':case'file_search':case'file_move':case'termux_write_file':case'termux_read_file':t=a.path||a.from||'';break;
       case'open_url':t=String(a.uri||'').replace(/^https?:\/\//,'').split(/[?#]/)[0];break;
-      case'run_code':t=a.lang||'';break;
+      case'run_code':{const l=String(a.code||'').split('\n').map(x=>x.trim()).filter(x=>x&&!/^(\/\/|#|--)\s*$/.test(x))[0]||'';t=(a.lang?a.lang+': ':'')+l;break}
       case'open_app':case'open_intent':case'device_api':t=String(a.name||'').replace(/_/g,' ');break;
     }
   }catch(e){t=''}
   if(typeof logClean==='function')t=logClean(t);
   return tcCut(t,70);
 }
+// AI writes one short line per tool call (card title). Added to a COPY of the tool list at send time; execTool strips it before the tool runs.
+const TC_WHY={type:'string',description:'Max 10 words, Hinglish: abhi kya kar rahe ho (jaise "gsm folder me git status dekh raha hu"). Koi secret, password ya OTP mat likho.'};
+function tcWhyTools(t){
+  try{
+    return t.map(x=>{
+      const f=x&&x.function;if(!f||!f.parameters||!f.parameters.properties||f.parameters.properties.why)return x;
+      const ps=Object.assign({},f.parameters.properties,{why:TC_WHY});
+      const rq=(f.parameters.required||[]).concat('why');
+      return Object.assign({},x,{function:Object.assign({},f,{parameters:Object.assign({},f.parameters,{properties:ps,required:rq})})});
+    });
+  }catch(e){return t}
+}
 let TC_CUR=null;   // card of the tool running right now (execTool runs tools one by one)
-function tcBegin(steps,name,a){
+// full command / code for the card body (tap). Same text the terminal block already shows in chat. Capped, total per turn capped too.
+const TC_FC=1200,TC_FCT=8000;
+function tcFull(steps,name,a){
+  let t='';
+  if(name==='termux_run')t=String(a&&a.command||'');
+  else if(name==='run_code')t=(a&&a.lang?'['+a.lang+']\n':'')+String(a&&a.code||'');
+  if(!t)return'';
+  if(typeof logClean==='function')t=logClean(t);
+  steps.fcb=steps.fcb||0;
+  const room=Math.min(TC_FC,TC_FCT-steps.fcb);
+  if(room<=0)return'';
+  const o=t.length>room?t.slice(0,room)+'\n... ('+(t.length-room)+' char aur)':t;
+  steps.fcb+=o.length;
+  return o;
+}
+function tcBegin(steps,name,a,why){
   TC_CUR=null;
   try{
     if(!steps)return null;
     if(!steps.cards)steps.cards=[];
     if(steps.cards.length>=TC_MAX)return null;
-    const c={n:name,k:tcKind(name),l:(typeof lnLabel==='function'?lnLabel(name,a):String(name)),g:tcTarget(name,a),s:'run',t0:Date.now(),t:0,r:'',nt:[],i:steps.length,j:steps.length};
+    const c={n:name,k:tcKind(name),l:(typeof lnLabel==='function'?lnLabel(name,a):String(name)),w:tcCut(why,70),g:tcTarget(name,a),fc:tcFull(steps,name,a),s:'run',t0:Date.now(),t:0,r:'',nt:[],i:steps.length,j:steps.length};
     steps.cards.push(c);
     TC_CUR=c;
     return c;
@@ -84,6 +111,7 @@ function tcRow(c,ci){
   let body='';
   const dsum=c.df&&c.df.length?dfStat(c.df.reduce((x,f)=>x+f.a,0),c.df.reduce((x,f)=>x+f.d,0)):'';
   if(c.df&&c.df.length)body+='<div class="dfs-list">'+c.df.map(dfHtml).join('')+'</div>';
+  if(c.fc)body+='<pre class="tcc">'+esc(c.fc)+'</pre>';
   if(c.r&&!run)body+='<div class="tcr">'+esc(c.r)+'</div>';
   (c.nt||[]).forEach(x=>{body+='<div class="tcn">'+esc(x)+'</div>'});
   if(run)body+='<div class="tcr">Chal raha hai...</div>';
@@ -91,15 +119,28 @@ function tcRow(c,ci){
   return'<div class="tc '+st+(open?' open':'')+'" role="listitem"'+(ci!=null?' data-ci="'+ci+'"':'')+'>'
     +'<button type="button" class="tch" aria-expanded="'+(open?'true':'false')+'">'
     +tcSvg(TC_ICO[c.k]||TC_ICO.gear)
-    +'<span class="tcm"><span class="tcl">'+esc(c.l||c.n)+'</span>'+(c.g?'<span class="tcg">'+esc(c.g)+'</span>':'')+'</span>'
+    +'<span class="tcm"><span class="tcl">'+esc(c.w||c.l||c.n)+'</span>'+(c.g?'<span class="tcg">'+esc(c.g)+'</span>':'')+'</span>'
     +dsum+tcStat(st)+'<span class="tce'+(run?' tcel':'')+'"'+(run?' data-t0="'+(c.t0||0)+'"':'')+'>'+esc(tm)+'</span>'+TC_CHEV+'</button>'
     +'<div class="tcb">'+body+'</div></div>';
+}
+// 3+ cards of one turn collapse into one summary row (tap = open). Live: the running card (or the last one) stays visible under it.
+const TC_GROUP=3;
+function tcSumRow(cs,open,live){
+  let ok=0,fail=0,run=0;
+  cs.forEach(c=>{if(c.s==='run')run++;else if(c.s==='fail')fail++;else ok++});
+  const p=[cs.length+' kaam'];
+  if(live){if(ok)p.push(ok+' ho gaye');if(run)p.push(run+' chal raha')}else if(ok)p.push(ok+' ok');
+  if(fail)p.push(fail+' fail');
+  const st=fail?'fail':run?'run':'ok';
+  return'<button type="button" class="tcsum '+st+'" aria-expanded="'+(open?'true':'false')+'">'
+    +tcSvg('<path d="M4 7h16M4 12h16M4 17h16"/>')+'<span class="tcsl">'+esc(p.join(' · '))+'</span>'+tcStat(st)+TC_CHEV+'</button>';
 }
 // finished message: the cards, then any step lines no card owns (rare app notes)
 function cardsH(m,hi){
   // a card still 'run' in history = the app stopped before it ended: show it as failed, not as running forever
   const cs=(m.cards||[]).map(c=>c.s==='run'?Object.assign({},c,{s:'fail',t:-1,x:0,r:'ruk gaya, result nahi aaya'}):Object.assign({},c,{x:0}));
-  let h='<div class="tcs-list" role="list">'+cs.map(c=>tcRow(c,null)).join('')+'</div>'+dfReviewH(m,hi);
+  const rows='<div class="tcs-list tcfull" role="list">'+cs.map(c=>tcRow(c,null)).join('')+'</div>';
+  let h=(cs.length>=TC_GROUP?'<div class="tcgrp'+(m.gx?' open':'')+'" data-hi="'+hi+'">'+tcSumRow(cs,!!m.gx,false)+rows+'</div>':rows)+dfReviewH(m,hi);
   const own={};cs.forEach(c=>{for(let i=c.i;i<(c.j==null?c.i:c.j);i++)own[i]=1});
   const ex=(m.steps||[]).filter((s,i)=>!own[i]).slice(-6);
   if(ex.length)h+='<div class="steps">'+ex.map(esc).join('<br>')+'</div>';
@@ -112,11 +153,15 @@ function tcLive(){
 function tcLiveH(){
   const cs=tcLive();
   if(!cs.length)return'';
-  const from=Math.max(0,cs.length-8);
-  let h='<div class="tcs-list live" role="list">';
+  const from=Math.max(0,cs.length-8),grp=cs.length>=TC_GROUP,open=!grp||!!LN.gx;
+  let h='<div class="tcs-list live tcfull" role="list">';
   if(from>0)h+='<div class="tcmore">+'+from+' pehle ke kaam ho chuke</div>';
   for(let i=from;i<cs.length;i++)h+=tcRow(cs[i],i);
-  return h+'</div>';
+  h+='</div>';
+  if(!grp)return h;
+  let pk=cs.length-1;
+  for(let i=cs.length-1;i>=0;i--)if(cs[i].s==='run'){pk=i;break}
+  return'<div class="tcgrp'+(open?' open':'')+'" data-live="1">'+tcSumRow(cs,open,true)+h+'<div class="tcs-list live tcpeek" role="list">'+tcRow(cs[pk],pk)+'</div></div>';
 }
 function tcTick(){
   try{
@@ -172,6 +217,13 @@ function termH(t,hi){
 if(typeof document.addEventListener==='function'&&$('#chat')&&$('#chat').addEventListener){
   $('#chat').addEventListener('click',e=>{
     const T=e.target&&e.target.closest?e.target:null;if(!T)return;
+    const sm=T.closest('.tcsum');
+    if(sm){
+      const g=sm.parentNode,o=g.classList.toggle('open');sm.setAttribute('aria-expanded',o?'true':'false');
+      if(g.hasAttribute('data-live'))LN.gx=o;
+      else{const m=H[+g.getAttribute('data-hi')];if(m)m.gx=o?1:0}
+      return;
+    }
     const h=T.closest('.tch');
     if(h){
       const c=h.parentNode,o=c.classList.toggle('open');h.setAttribute('aria-expanded',o?'true':'false');

@@ -75,7 +75,7 @@ def run(theme):
         pg.evaluate("document.getElementById('vback').click()")
         # ---- risk dock
         ok(pg.evaluate("getComputedStyle(document.getElementById('rdock')).display")=='none', t+': no pending confirm -> dock hidden')
-        pg.evaluate("""()=>{TCONF['t1']=v=>{window.__r=v};H.push({role:'assistant',by:'Termux',local:1,content:'Termux command chalani hai:\\n```\\nrm -rf ~/old <b>x</b>\\n```\\nWajah: files delete',confirm:{type:'termux',id:'t1',opts:[{name:''}],state:'pending',lab:''}});render()}""")
+        pg.evaluate("""()=>{chJump();TCONF['t1']=v=>{window.__r=v};H.push({role:'assistant',by:'Termux',local:1,content:'Termux command chalani hai:\\n```\\nrm -rf ~/old <b>x</b>\\n```\\nWajah: files delete',confirm:{type:'termux',id:'t1',opts:[{name:''}],state:'pending',lab:''}});render()}""")
         pg.wait_for_timeout(150)
         ok(pg.evaluate("(()=>{const d=document.getElementById('rdock'),f=document.getElementById('f');return !d.hidden && d.getBoundingClientRect().bottom<=f.getBoundingClientRect().top+1 && d.getBoundingClientRect().height>60})()"), t+': dock visible, sits above the composer')
         ok(pg.evaluate("document.querySelector('#rdock').classList.contains('hi') && /files delete/.test(document.querySelector('#rdock .rdr').textContent) && /Risk:/.test(document.querySelector('#rdock .rdr').textContent)"), t+': files delete -> high risk (red) with a clear risk line')
