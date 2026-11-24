@@ -6,7 +6,9 @@ const P=[
  {id:'openrouter',name:'OpenRouter',url:'https://openrouter.ai/api/v1/chat/completions',model:'openrouter/free'},
  {id:'nvidia',name:'NVIDIA',url:'https://integrate.api.nvidia.com/v1/chat/completions',model:'nvidia/nemotron-3.5-super-vl-120b-a12b'},
  {id:'mistral',name:'Mistral (optional)',url:'https://api.mistral.ai/v1/chat/completions',model:'mistral-small-latest'}];
-const RN_NET_DEF=['en.wikipedia.org','wikipedia.org','api.open-meteo.com','geocoding-api.open-meteo.com','restcountries.com','api.github.com','raw.githubusercontent.com','api.frankfurter.app','open.er-api.com','jsonplaceholder.typicode.com','worldtimeapi.org','hacker-news.firebaseio.com','api.alquran.cloud'];
+const RN_NET_ADD2=['api.frankfurter.dev','api.worldbank.org','date.nager.at','api.dictionaryapi.dev','api.zippopotam.us','pokeapi.co','api.tvmaze.com','hn.algolia.com','api.coingecko.com'];
+const RN_NET_DEAD=['restcountries.com','api.frankfurter.app','worldtimeapi.org'];
+const RN_NET_DEF=['en.wikipedia.org','wikipedia.org','api.open-meteo.com','geocoding-api.open-meteo.com','api.github.com','raw.githubusercontent.com','open.er-api.com','jsonplaceholder.typicode.com','hacker-news.firebaseio.com','api.alquran.cloud'].concat(RN_NET_ADD2);
 const $=s=>document.querySelector(s);
 const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch(e){return d}};
 const sv=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
@@ -16,7 +18,14 @@ const OLDM={groq:'llama-3.3-70b-versatile',cerebras:'llama-3.3-70b',openrouter:'
 Object.keys(OLDM).forEach(k=>{if(S.models&&S.models[k]===OLDM[k]){delete S.models[k];sv('nap_s',S)}});
 if(S.vision&&S.vision.provider==='nvidia'&&['nvidia/nemotron-3-ultra-550b-a55b','google/gemma-3-27b-it'].includes(S.vision.model)){S.vision={provider:'openrouter',model:'openrouter/free'};sv('nap_s',S)}
 if(S.models&&S.models.nvidia==='openai/gpt-oss-120b'){delete S.models.nvidia;sv('nap_s',S)}
-if(!(S.rn&&S.rn.netInit)){S.rn=Object.assign({},S.rn,{net:Array.from(new Set(((S.rn&&S.rn.net)||[]).concat(RN_NET_DEF))),netInit:true});sv('nap_s',S)}
+// allowed sites for js fetch. netV 2 (1.49000.1): dead defaults removed once, new safe ones added once (a site Najeef removes later stays removed)
+function rnNetMigrate(){
+  const r=S.rn||{};let net=(r.net||[]).slice(),ch=false;
+  if(!r.netInit){net=Array.from(new Set(net.concat(RN_NET_DEF)));ch=true}
+  else if(r.netV!==2){net=net.filter(h=>RN_NET_DEAD.indexOf(String(h).trim().toLowerCase())<0);RN_NET_ADD2.forEach(h=>{if(net.indexOf(h)<0)net.push(h)});ch=true}
+  if(ch){S.rn=Object.assign({},r,{net:net.slice(0,30),netInit:true,netV:2});sv('nap_s',S)}
+}
+rnNetMigrate();
 let H=ld('nap_h',[]);
 H.forEach(m=>{if(m.confirm&&m.confirm.state==='pending')m.confirm.state='expired'});
 const cool={};let busy=false,TURN=null,LAST_STOP=null;

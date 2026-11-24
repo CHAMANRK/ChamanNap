@@ -175,7 +175,7 @@ async function execTool0(name,a,steps,fl){
     if(name.indexOf('note_')===0)return await noteTool(name,a,note,fl);
     if(name==='ui_render')return await uiTool(a,note,fl);
     if(name==='run_code')return await codeTool(name,a,note,fl);
-    if(name==='js_site_check')return siteCheckTool(a,note,fl);
+    if(name==='js_site_check')return await siteCheckTool(a,note,fl);
     if(name==='generate_image')return await imageTool(a,note,fl);
     if(name==='api_check'||name==='device_api')return await apiTool(name,a,note,fl);
     if(name==='notify_now'||name.indexOf('schedule_')===0)return await schTool(name,a,note,fl);

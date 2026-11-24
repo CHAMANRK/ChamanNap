@@ -1,6 +1,6 @@
 // Step10: rules per area (AI reads the app copy only), auto-injection by keywords, rules_read tool, skill (auto from TOOLS),
 // folder copy for Najeef in /sdcard/Chaman/memory/rules (read-only for him, AI never reads it), guard against fake tool output.
-const RULES_VER='2026-11-24.2';
+const RULES_VER='2026-11-24.3';
 const RULES={
 files:`FILES (workspace /sdcard/Chaman; the file_* tools need no Termux, only the All files access permission for Chaman)
 - Layout: work/<project>/ your files, memory/ notes, backup/ (the app copies the old file there before every overwrite or edit), .trash/ (deleted items), logs/ (the app writes it, you never do). Paths: /sdcard/Chaman/... or relative to it. The file tools cannot go outside this folder.

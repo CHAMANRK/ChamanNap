@@ -105,10 +105,48 @@ t('rnRun=async(lang,code,o)=>{globalThis.__sent={lang,code,o};return typeof glob
   t('S.rn={on:false}');
   sc=await run('js_site_check',{});ok(/band hai/.test(sc.res),'js_site_check: runner off -> refused');
   t('S.rn={on:true,warm:true,net:["api.github.com"]}');
-  ok(t('TOOLS').some(x=>x.function.name==='js_site_check')&&/- js_site_check\(host\)/.test(t('skillText')()),'js_site_check is a tool and shows in the skill list (auto)');
+  ok(t('TOOLS').some(x=>x.function.name==='js_site_check')&&/- js_site_check\(host, test\)/.test(t('skillText')()),'js_site_check is a tool and shows in the skill list (auto)');
   ok(/js_site_check/.test(t('ruleText')('code')),'code rules tell the AI to call js_site_check before fetch');
   ok(t('ruleAreas')('fetch karke api se data lao').indexOf('code')>=0,'code rules join on the word fetch');
   ok(t('logTool')('js_site_check',{host:'example.com'})==='js_site_check example.com'&&t('logTool')('js_site_check',{})==='js_site_check','log line: host only, no output stored');
+
+  // 1.49000.1: test:true (one real GET, mocked here), default User-Agent, new default list + one-time migration
+  const fcalls=[];let fres={status:200,url:'https://api.worldbank.org/v2/x',ct:'application/json'};
+  ctx.fetch=async(u,o)=>{fcalls.push({u,o});if(fres.err)throw new Error(fres.err);return{status:fres.status,url:fres.url,headers:{get:()=>fres.ct}}};
+  t('S.rn={on:true,warm:true,net:["api.worldbank.org","pokeapi.co"]}');
+  sc=await run('js_site_check',{host:'api.worldbank.org',test:true});
+  ok(/ALLOWED/.test(sc.res)&&/-> 200/.test(sc.res)&&/application\/json/.test(sc.res)&&/No redirect to another site/.test(sc.res)&&fcalls.length===1&&fcalls[0].o.method==='GET','test:true: allowed site -> one real GET, status + type, no redirect');
+  ok(/ChamanNAP\//.test(fcalls[0].o.headers['User-Agent']),'probe sends the app User-Agent');
+  fres={status:301,url:'https://evil.example/x'};sc=await run('js_site_check',{host:'api.worldbank.org',test:true});
+  ok(/REDIRECTED to evil\.example/.test(sc.res)&&/not allowed/.test(sc.res),'test:true: redirect to an unlisted site is reported as not usable');
+  fres={status:200,url:'https://pokeapi.co/api/v2/'};sc=await run('js_site_check',{host:'api.worldbank.org',test:true});
+  ok(/REDIRECTED to pokeapi\.co/.test(sc.res)&&/also allowed/.test(sc.res),'test:true: redirect to another listed site is fine');
+  fres={status:404,url:'https://api.worldbank.org/'};sc=await run('js_site_check',{host:'api.worldbank.org',test:true});
+  ok(/-> 404/.test(sc.res)&&/refused or the path is wrong/.test(sc.res),'test:true: 4xx explained');
+  fres={err:'timeout'};sc=await run('js_site_check',{host:'api.worldbank.org',test:true});
+  ok(/Test GET failed: timeout/.test(sc.res)&&sc.steps.length>0,'test:true: network error reported');
+  fcalls.length=0;sc=await run('js_site_check',{host:'example.com',test:true});
+  ok(/NOT added/.test(sc.res)&&fcalls.length===0,'test:true on an unlisted site makes NO network call');
+  sc=await run('js_site_check',{host:'api.worldbank.org'});ok(fcalls.length===0&&/test:true/.test(sc.res),'without test: no network call, hint about test:true');
+  // rnNet adds the User-Agent unless the code sets its own
+  fres={status:200,url:'https://api.worldbank.org/v2/x',ct:'text/plain'};fcalls.length=0;
+  const rp=[];ctx.rnPost=m=>{rp.push(m)};
+  await t('rnNet')({lang:'js',id:1,url:'https://api.worldbank.org/v2/x',method:'GET',headers:{}});
+  ok(/ChamanNAP\//.test(fcalls[0].o.headers['User-Agent']),'rnNet: default User-Agent added');
+  await t('rnNet')({lang:'js',id:2,url:'https://api.worldbank.org/v2/x',method:'GET',headers:{'User-Agent':'mine/1'}});
+  ok(fcalls[1].o.headers['User-Agent']==='mine/1','rnNet: code-set User-Agent wins');
+  delete ctx.fetch;
+  // default list + migration
+  const D=t('RN_NET_DEF'),DEAD=t('RN_NET_DEAD');
+  ok(DEAD.every(h=>D.indexOf(h)<0)&&D.indexOf('api.frankfurter.dev')>=0&&D.length<=30,'defaults: dead sites gone, frankfurter.dev in, <= 30 ('+D.length+')');
+  t('S.rn={on:true,net:["restcountries.com","api.frankfurter.app","worldtimeapi.org","example.org","api.github.com"],netInit:true}');t('rnNetMigrate')();
+  let net=t('S.rn.net');
+  ok(DEAD.every(h=>net.indexOf(h)<0)&&net.indexOf('example.org')>=0&&net.indexOf('api.github.com')>=0&&net.indexOf('api.frankfurter.dev')>=0&&net.indexOf('pokeapi.co')>=0&&t('S.rn.netV')===2,'migration: dead removed, own sites kept, new safe ones added, netV 2');
+  t('S.rn.net=S.rn.net.filter(h=>h!=="pokeapi.co")');t('rnNetMigrate')();
+  ok(t('S.rn.net').indexOf('pokeapi.co')<0,'migration runs once: a site removed later stays removed');
+  t('S.rn={}');t('rnNetMigrate')();
+  ok(t('S.rn.net').length===D.length&&t('S.rn.netInit')===true&&t('S.rn.netV')===2,'fresh install gets the default list');
+  t('S.rn={on:true,warm:true,net:["api.github.com"]}');
 
   // logging: no code, no output
   const lg=t('logTool')('run_code',{lang:'js',code:'secret=123456789',csv:['a.csv']});

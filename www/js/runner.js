@@ -15,8 +15,9 @@ TOOLS.push(fn('run_code', 'Run a small piece of code inside the app, no Termux n
   max_rows: { type: 'integer', minimum: 1, maximum: 200, description: 'sql: rows shown per result, default 50' }
 }, ['lang', 'code']));
 
-TOOLS.push(fn('js_site_check', 'Check which internet sites run_code js fetch may use. Without host it lists the allowed sites (the default ones plus the ones Najeef added in Settings > Code runner). With host (a site name or a https URL) it says allowed or not allowed, with the same check fetch uses. It makes no network call. Use it before a js fetch when you are not sure the site is allowed. If a site you need is not allowed, tell Najeef to add it in Settings > Code runner; never try to get around the list.', {
-  host: { type: 'string', description: 'optional: site name or URL to check' }
+TOOLS.push(fn('js_site_check', 'Check which internet sites run_code js fetch may use. Without host it lists the allowed sites (the default ones plus the ones Najeef added in Settings > Code runner). With host (a site name or a https URL) it says allowed or not allowed, with the same check fetch uses, and makes no network call. With host and test true it also makes one real GET to that allowed site and reports the status, the time and whether the site redirected somewhere else. Use it before a js fetch when you are not sure the site is allowed or working. If a site you need is not allowed, tell Najeef to add it in Settings > Code runner; never try to get around the list.', {
+  host: { type: 'string', description: 'optional: site name or URL to check' },
+  test: { type: 'boolean', description: 'with host: also make one real GET (needs an allowed site)' }
 }));
 
 const rnOn = () => !(S.rn && S.rn.on === false);
@@ -152,6 +153,7 @@ function rnHostOk(host, list) {
   if (!host || host.indexOf('.') < 0 || /^[\d.]+$/.test(host) || host.indexOf(':') >= 0 || host === 'localhost' || /\.(local|internal|lan)$/.test(host)) return false;
   return (list || []).map(rnClean).filter(Boolean).some(e => host === e || host.endsWith('.' + e));
 }
+const rnUa = () => 'ChamanNAP/' + (typeof APP_VER !== 'undefined' ? APP_VER : '1') + ' (+https://github.com/CHAMANRK)';
 async function rnNet(d) {
   const reply = o => rnPost(Object.assign({ t: 'net-res', lang: d.lang, id: d.id }, o));
   try {
@@ -162,16 +164,28 @@ async function rnNet(d) {
     if (!rnHostOk(u.hostname, list)) return reply({ err: 'Ye site allowed nahi hai: ' + u.hostname + '. Najeef Settings > Code runner me add kare.' });
     const method = d.method === 'POST' ? 'POST' : 'GET';
     const body = method === 'POST' && typeof d.body === 'string' ? d.body.slice(0, 20000) : undefined;
-    const r = await Promise.race([fetch(u.href, { method, headers: d.headers || {}, body }), sleep(15000).then(() => { throw new Error('15 sec me jawab nahi aaya'); })]);
+    const r = await Promise.race([fetch(u.href, { method, headers: Object.assign({ 'User-Agent': rnUa() }, d.headers || {}), body }), sleep(15000).then(() => { throw new Error('15 sec me jawab nahi aaya'); })]);
     if (r.url) { try { if (!rnHostOk(new URL(r.url).hostname, list)) return reply({ err: 'Site ne kisi doosri jagah bhej diya (redirect), roka gaya.' }); } catch (e) {} }
     const text = String(await r.text()).slice(0, 300000);
     reply({ status: r.status, text });
   } catch (e) { reply({ err: errMsg(e) }); }
 }
 
+// one real GET for js_site_check test:true. Only called for hosts that passed rnHostOk. The body is never read or returned.
+async function rnProbe(u) {
+  const t0 = Date.now();
+  try {
+    const r = await Promise.race([fetch(u.href, { method: 'GET', headers: { 'User-Agent': rnUa() } }), sleep(10000).then(() => { throw new Error('10 sec me jawab nahi aaya'); })]);
+    let fin = '';
+    if (r.url) { try { fin = new URL(r.url).hostname.toLowerCase(); } catch (e) {} }
+    let ct = '';
+    try { ct = (r.headers && r.headers.get && r.headers.get('content-type')) || ''; } catch (e) {}
+    return { status: r.status, fin, ct: String(ct).split(';')[0], ms: Date.now() - t0 };
+  } catch (e) { return { err: errMsg(e) }; }
+}
 // js_site_check: tells the AI which sites js fetch may reach (no network call, same rnHostOk check as rnNet)
 function rnSiteList() { return Array.from(new Set(((S.rn && S.rn.net) || []).map(rnClean).filter(Boolean))); }
-function siteCheckTool(a, note, fl) {
+async function siteCheckTool(a, note, fl) {
   const bad = s => { fl.bad = true; return note(s); };
   if (!rnOn()) return bad('Code runner band hai') + ' Najeef ne Settings > Code runner me off kiya hai, js fetch nahi chalega.';
   const list = rnSiteList();
@@ -189,8 +203,22 @@ function siteCheckTool(a, note, fl) {
   if (u.protocol !== 'https:') { note('js_site_check: ' + host + ' no (not https)'); return host + ': NOT usable. js fetch accepts https only (this was ' + u.protocol.replace(':', '') + ').'; }
   if (rnHostOk(host, list)) {
     const via = list.map(rnClean).find(e => host === e || host.endsWith('.' + e));
-    note('js_site_check: ' + host + ' yes');
-    return host + ': ALLOWED' + (via && via !== host ? ' (through ' + via + ')' : '') + '. If the site redirects to another site that is not listed, the answer is blocked.';
+    const head = host + ': ALLOWED' + (via && via !== host ? ' (through ' + via + ')' : '') + '.';
+    if (!a.test) {
+      note('js_site_check: ' + host + ' yes');
+      return head + ' If the site redirects to another site that is not listed, the answer is blocked. Add test:true for one real GET.';
+    }
+    const pr = await rnProbe(u);
+    if (pr.err) { note('js_site_check: ' + host + ' test fail'); fl.bad = true; return head + ' Test GET failed: ' + pr.err; }
+    const moved = pr.fin && pr.fin !== host;
+    const finOk = moved && rnHostOk(pr.fin, list);
+    let v = 'Test GET ' + u.href.slice(0, 80) + ' -> ' + pr.status + ' (' + pr.ms + ' ms' + (pr.ct ? ', ' + pr.ct : '') + ').';
+    if (moved) v += ' REDIRECTED to ' + pr.fin + (finOk ? ' (that site is also allowed, so it works).' : ' (not allowed: fetch will block the answer, do not use this site).');
+    else if (!pr.fin) v += ' The final site is not known, so a redirect cannot be ruled out.';
+    else v += ' No redirect to another site.';
+    if (pr.status >= 400) v += ' The site refused or the path is wrong (a bare site name tests only its front page; 404 there can be normal). It may also need a key or a User-Agent.';
+    note('js_site_check: ' + host + ' test ' + pr.status + (moved ? ' redirect' : ''));
+    return head + ' ' + v;
   }
   const never = !host || host.indexOf('.') < 0 || /^[\d.]+$/.test(host) || host.indexOf(':') >= 0 || host === 'localhost' || /\.(local|internal|lan)$/.test(host);
   note('js_site_check: ' + host + ' no');
@@ -352,7 +380,7 @@ function codeRules() {
   return 'CODE RUNNER (run_code {lang, code})\n'
     + '- Three languages run inside the app, no Termux: js (JavaScript, async/await ok), sql (SQLite), py (MicroPython).\n'
     + '- Use it instead of guessing: exact math, percentages, unit or currency maths with the rate he gave, dates and times (js: new Date() is the phone clock), days between dates, counts, sorting, regex tests, JSON and text work, queries on a CSV. Not for plain chat answers.\n'
-    + '- js: show results with console.log, or end with a value / return it. Example: Math.ceil((new Date(2026,11,25)-new Date())/864e5). Top-level await works. fetch works only for sites Najeef allowed in Settings (Code runner); other sites fail. Not sure a site is allowed? Call js_site_check first (no host = the allowed list, host = check one site).\n'
+    + '- js: show results with console.log, or end with a value / return it. Example: Math.ceil((new Date(2026,11,25)-new Date())/864e5). Top-level await works. fetch works only for sites Najeef allowed in Settings (Code runner); other sites fail. Not sure a site is allowed? Call js_site_check first (no host = the allowed list, host = check one site, host + test:true = one real GET that shows the status and any redirect).\n'
     + '- sql: csv:[paths] loads workspace CSV files as tables (the result lists table and column names; types are guessed), db:path opens a SQLite file in memory. Changes are not saved. Quote column names that are SQL words.\n'
     + '- py: MicroPython, not CPython. Has json, math, re, random, time, datetime, collections, itertools, functools, heapq, struct, hashlib, base64, zlib. No numpy, pandas, requests, pip, statistics, decimal, csv, textwrap. Print results (the value of the last line is not shown). For heavy Python use Termux.\n'
     + '- Limits: 10 s (timeout_s up to 30), output 4000 chars, no files, no phone, no screen, no keys. A runner error is not the task result: report it as it is and fix the code once.\n'
