@@ -37,7 +37,7 @@ function tcTarget(name,a){
     }
   }catch(e){t=''}
   if(typeof logClean==='function')t=logClean(t);
-  return tcCut(t,70);
+  return tcCut(t,200);
 }
 // AI writes one short line per tool call (card title). Added to a COPY of the tool list at send time; execTool strips it before the tool runs.
 const TC_WHY={type:'string',description:'Max 10 words, Hinglish: abhi kya kar rahe ho (jaise "gsm folder me git status dekh raha hu"). Koi secret, password ya OTP mat likho.'};
@@ -73,7 +73,7 @@ function tcBegin(steps,name,a,why){
     if(!steps)return null;
     if(!steps.cards)steps.cards=[];
     if(steps.cards.length>=TC_MAX)return null;
-    const c={n:name,k:tcKind(name),l:(typeof lnLabel==='function'?lnLabel(name,a):String(name)),w:tcCut(why,70),g:tcTarget(name,a),fc:tcFull(steps,name,a),s:'run',t0:Date.now(),t:0,r:'',nt:[],i:steps.length,j:steps.length};
+    const c={n:name,k:tcKind(name),l:(typeof lnLabel==='function'?lnLabel(name,a):String(name)),w:tcCut(why,200),g:tcTarget(name,a),fc:tcFull(steps,name,a),s:'run',t0:Date.now(),t:0,r:'',nt:[],i:steps.length,j:steps.length};
     steps.cards.push(c);
     TC_CUR=c;
     return c;

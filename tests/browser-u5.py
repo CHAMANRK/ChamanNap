@@ -49,6 +49,15 @@ def run(theme):
         ok(pg.evaluate("document.querySelector('#chat .tcgrp .tc .tcc').textContent")==FULL, t+': tap shows the FULL command')
         ok(pg.evaluate("[...document.querySelectorAll('#chat .tcc')].every(e=>parseFloat(getComputedStyle(e).fontSize)>=12)"), t+': command text >=12px')
         pg.screenshot(path="/tmp/shots/u5-hist-%s.png" % t)
+        # ---- long title: one line + ellipsis by default, full text (wrapped) when the card is open
+        LONG='gsm folder ke andar git status dekh raha hu aur phir pichle paanch commits ka log nikaal raha hu taaki pata chale kya badla'
+        pg.evaluate("(l)=>{H[1].cards[0].w=l;H[1].cards[0].g=l;render()}", LONG)
+        pg.wait_for_timeout(150)
+        ok(pg.evaluate("(()=>{const e=document.querySelector('#chat .tcgrp .tc .tcl');return e.scrollWidth>e.clientWidth && getComputedStyle(e).whiteSpace==='nowrap' && e.textContent.length>100})()"), t+': long title stays one line with ... when closed (full text stored)')
+        pg.click("#chat .tcgrp .tc:nth-child(1) .tch"); pg.wait_for_timeout(120)
+        ok(pg.evaluate("(()=>{const e=document.querySelector('#chat .tcgrp .tc .tcl'),g=document.querySelector('#chat .tcgrp .tc .tcg');return e.textContent==%s && e.scrollWidth<=e.clientWidth && e.getBoundingClientRect().height>25 && g.getBoundingClientRect().height>20 && g.scrollWidth<=g.clientWidth})()" % json.dumps(LONG)), t+': open card shows full title + command line wrapped')
+        pg.screenshot(path="/tmp/shots/u5-long-%s.png" % t)
+        pg.evaluate("render()")
         # ---- tool list: why added to a COPY, required, original untouched
         ok(pg.evaluate("(()=>{const w=tcWhyTools(TOOLS);return w.length===TOOLS.length&&w.every(x=>x.function.parameters.properties.why&&x.function.parameters.required.indexOf('why')>=0)&&TOOLS.every(x=>!x.function.parameters.properties.why)})()"), t+': why added to every tool copy, original TOOLS untouched')
         # ---- execTool strips why, card gets it

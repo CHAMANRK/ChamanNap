@@ -583,3 +583,6 @@ tr.on td{background:var(--user)}
 .tcsum.run{border-color:color-mix(in srgb,var(--accent) 55%,var(--border))}
 .tcsl{flex:1;min-width:0;font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tcgrp.open>.tcsum .tck{transform:rotate(90deg)}
+
+/* 1.48001.0: title + command line are one line with "..." by default; opened card shows them in full (wrapped) */
+.tc.open .tcl,.tc.open .tcg{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
