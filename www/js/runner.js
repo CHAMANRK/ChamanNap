@@ -153,6 +153,8 @@ function rnHostOk(host, list) {
   if (!host || host.indexOf('.') < 0 || /^[\d.]+$/.test(host) || host.indexOf(':') >= 0 || host === 'localhost' || /\.(local|internal|lan)$/.test(host)) return false;
   return (list || []).map(rnClean).filter(Boolean).some(e => host === e || host.endsWith('.' + e));
 }
+// Capacitor's fetch returns r.url = the app's own origin (https://localhost/), never the real final URL. That value says nothing about a redirect, so it is ignored.
+const rnSelf = h => { h = String(h || '').toLowerCase(); return !h || h === 'localhost' || (typeof location !== 'undefined' && location && h === String(location.hostname || '').toLowerCase()); };
 const rnUa = () => 'ChamanNAP/' + (typeof APP_VER !== 'undefined' ? APP_VER : '1') + ' (+https://github.com/CHAMANRK)';
 async function rnNet(d) {
   const reply = o => rnPost(Object.assign({ t: 'net-res', lang: d.lang, id: d.id }, o));
@@ -165,7 +167,7 @@ async function rnNet(d) {
     const method = d.method === 'POST' ? 'POST' : 'GET';
     const body = method === 'POST' && typeof d.body === 'string' ? d.body.slice(0, 20000) : undefined;
     const r = await Promise.race([fetch(u.href, { method, headers: Object.assign({ 'User-Agent': rnUa() }, d.headers || {}), body }), sleep(15000).then(() => { throw new Error('15 sec me jawab nahi aaya'); })]);
-    if (r.url) { try { if (!rnHostOk(new URL(r.url).hostname, list)) return reply({ err: 'Site ne kisi doosri jagah bhej diya (redirect), roka gaya.' }); } catch (e) {} }
+    if (r.url) { try { const fh = new URL(r.url).hostname; if (!rnSelf(fh) && !rnHostOk(fh, list)) return reply({ err: 'Site ne kisi doosri jagah bhej diya (redirect), roka gaya.' }); } catch (e) {} }
     const text = String(await r.text()).slice(0, 300000);
     reply({ status: r.status, text });
   } catch (e) { reply({ err: errMsg(e) }); }
@@ -178,6 +180,7 @@ async function rnProbe(u) {
     const r = await Promise.race([fetch(u.href, { method: 'GET', headers: { 'User-Agent': rnUa() } }), sleep(10000).then(() => { throw new Error('10 sec me jawab nahi aaya'); })]);
     let fin = '';
     if (r.url) { try { fin = new URL(r.url).hostname.toLowerCase(); } catch (e) {} }
+    if (rnSelf(fin)) fin = '';
     let ct = '';
     try { ct = (r.headers && r.headers.get && r.headers.get('content-type')) || ''; } catch (e) {}
     return { status: r.status, fin, ct: String(ct).split(';')[0], ms: Date.now() - t0 };

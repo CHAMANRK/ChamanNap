@@ -112,7 +112,7 @@ t('rnRun=async(lang,code,o)=>{globalThis.__sent={lang,code,o};return typeof glob
 
   // 1.49000.1: test:true (one real GET, mocked here), default User-Agent, new default list + one-time migration
   const fcalls=[];let fres={status:200,url:'https://api.worldbank.org/v2/x',ct:'application/json'};
-  ctx.fetch=async(u,o)=>{fcalls.push({u,o});if(fres.err)throw new Error(fres.err);return{status:fres.status,url:fres.url,headers:{get:()=>fres.ct}}};
+  ctx.fetch=async(u,o)=>{fcalls.push({u,o});if(fres.err)throw new Error(fres.err);return{status:fres.status,url:fres.url,headers:{get:()=>fres.ct},text:async()=>'{"ok":1}'}};
   t('S.rn={on:true,warm:true,net:["api.worldbank.org","pokeapi.co"]}');
   sc=await run('js_site_check',{host:'api.worldbank.org',test:true});
   ok(/ALLOWED/.test(sc.res)&&/-> 200/.test(sc.res)&&/application\/json/.test(sc.res)&&/No redirect to another site/.test(sc.res)&&fcalls.length===1&&fcalls[0].o.method==='GET','test:true: allowed site -> one real GET, status + type, no redirect');
@@ -121,6 +121,11 @@ t('rnRun=async(lang,code,o)=>{globalThis.__sent={lang,code,o};return typeof glob
   ok(/REDIRECTED to evil\.example/.test(sc.res)&&/not allowed/.test(sc.res),'test:true: redirect to an unlisted site is reported as not usable');
   fres={status:200,url:'https://pokeapi.co/api/v2/'};sc=await run('js_site_check',{host:'api.worldbank.org',test:true});
   ok(/REDIRECTED to pokeapi\.co/.test(sc.res)&&/also allowed/.test(sc.res),'test:true: redirect to another listed site is fine');
+  // 1.49000.2: Capacitor fetch gives r.url = app origin (https://localhost/) -> must not count as a redirect
+  fres={status:200,url:'https://localhost/',ct:'application/json'};sc=await run('js_site_check',{host:'api.worldbank.org',test:true});
+  ok(/-> 200/.test(sc.res)&&!/REDIRECTED/.test(sc.res)&&/final site is not known/.test(sc.res),'test:true: r.url = localhost is ignored (not a redirect), says final site unknown');
+  fres={status:200,url:'',ct:'application/json'};sc=await run('js_site_check',{host:'api.worldbank.org',test:true});
+  ok(/-> 200/.test(sc.res)&&/final site is not known/.test(sc.res),'test:true: empty r.url -> final site unknown');
   fres={status:404,url:'https://api.worldbank.org/'};sc=await run('js_site_check',{host:'api.worldbank.org',test:true});
   ok(/-> 404/.test(sc.res)&&/refused or the path is wrong/.test(sc.res),'test:true: 4xx explained');
   fres={err:'timeout'};sc=await run('js_site_check',{host:'api.worldbank.org',test:true});
@@ -130,11 +135,24 @@ t('rnRun=async(lang,code,o)=>{globalThis.__sent={lang,code,o};return typeof glob
   sc=await run('js_site_check',{host:'api.worldbank.org'});ok(fcalls.length===0&&/test:true/.test(sc.res),'without test: no network call, hint about test:true');
   // rnNet adds the User-Agent unless the code sets its own
   fres={status:200,url:'https://api.worldbank.org/v2/x',ct:'text/plain'};fcalls.length=0;
-  const rp=[];ctx.rnPost=m=>{rp.push(m)};
+  const rp=[];ctx.__rp=rp;t('RN.frame={contentWindow:{postMessage:m=>__rp.push(m)}}');
   await t('rnNet')({lang:'js',id:1,url:'https://api.worldbank.org/v2/x',method:'GET',headers:{}});
   ok(/ChamanNAP\//.test(fcalls[0].o.headers['User-Agent']),'rnNet: default User-Agent added');
   await t('rnNet')({lang:'js',id:2,url:'https://api.worldbank.org/v2/x',method:'GET',headers:{'User-Agent':'mine/1'}});
   ok(fcalls[1].o.headers['User-Agent']==='mine/1','rnNet: code-set User-Agent wins');
+  // 1.49000.2: rnNet with Capacitor-style r.url = app origin must return the data; a real redirect to an unlisted site is still blocked
+  rp.length=0;fres={status:200,url:'https://localhost/',ct:'application/json'};
+  await t('rnNet')({lang:'js',id:3,url:'https://api.worldbank.org/v2/x',method:'GET',headers:{}});
+  ok(rp.length===1&&rp[0].status===200&&rp[0].text==='{"ok":1}'&&!rp[0].err,'rnNet: r.url = localhost -> status + body returned (not blocked)');
+  rp.length=0;fres={status:200,url:'',ct:'application/json'};
+  await t('rnNet')({lang:'js',id:4,url:'https://api.worldbank.org/v2/x',method:'GET',headers:{}});
+  ok(rp.length===1&&rp[0].status===200&&!rp[0].err,'rnNet: empty r.url -> data returned');
+  rp.length=0;fres={status:200,url:'https://evil.example/x',ct:'application/json'};
+  await t('rnNet')({lang:'js',id:5,url:'https://api.worldbank.org/v2/x',method:'GET',headers:{}});
+  ok(rp.length===1&&/doosri jagah/.test(rp[0].err||'')&&rp[0].text===undefined,'rnNet: visible redirect to an unlisted site is still blocked');
+  rp.length=0;fres={status:200,url:'https://pokeapi.co/api/v2/',ct:'application/json'};
+  await t('rnNet')({lang:'js',id:6,url:'https://api.worldbank.org/v2/x',method:'GET',headers:{}});
+  ok(rp.length===1&&rp[0].status===200,'rnNet: visible redirect to another listed site is allowed');
   delete ctx.fetch;
   // default list + migration
   const D=t('RN_NET_DEF'),DEAD=t('RN_NET_DEAD');
