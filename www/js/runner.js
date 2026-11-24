@@ -166,7 +166,7 @@ async function rnNet(d) {
     if (!rnHostOk(u.hostname, list)) return reply({ err: 'Ye site allowed nahi hai: ' + u.hostname + '. Najeef Settings > Code runner me add kare.' });
     const method = d.method === 'POST' ? 'POST' : 'GET';
     const body = method === 'POST' && typeof d.body === 'string' ? d.body.slice(0, 20000) : undefined;
-    const r = await Promise.race([fetch(u.href, { method, headers: Object.assign({ 'User-Agent': rnUa() }, d.headers || {}), body }), sleep(15000).then(() => { throw new Error('15 sec me jawab nahi aaya'); })]);
+    const r = await Promise.race([fetch(u.href, { method, headers: Object.assign({ 'User-Agent': rnUa() }, d.headers || {}), body }), sleep(20000).then(() => { throw new Error('20 sec me jawab nahi aaya'); })]);
     if (r.url) { try { const fh = new URL(r.url).hostname; if (!rnSelf(fh) && !rnHostOk(fh, list)) return reply({ err: 'Site ne kisi doosri jagah bhej diya (redirect), roka gaya.' }); } catch (e) {} }
     const text = String(await r.text()).slice(0, 300000);
     reply({ status: r.status, text });

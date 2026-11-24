@@ -132,11 +132,17 @@ async function init(m) {
   const F = m.files || {};
   if (LANG === 'js') {
     // the only way out: fetch goes through the app, which allows only the sites Najeef listed. Everything else is blocked by the CSP.
+    // 1.49000.3: fetch honours o.signal (AbortController) and gives up after 22 s (the app's own limit is 20 s) instead of hanging until the run is killed.
+    const abortErr = () => { try { return new DOMException('The operation was aborted.', 'AbortError'); } catch (e) { const x = new Error('The operation was aborted.'); x.name = 'AbortError'; return x; } };
     self.fetch = function (u, o) {
       o = o || {};
       return new Promise((res, rej) => {
+        const sg = o.signal;
+        if (sg && sg.aborted) return rej(abortErr());
         const id = ++NID;
-        NETP[id] = { res, rej };
+        const tm = setTimeout(() => { if (NETP[id]) { delete NETP[id]; rej(new Error('20 sec me jawab nahi aaya')); } }, 22000);
+        NETP[id] = { res: v => { clearTimeout(tm); res(v); }, rej: e => { clearTimeout(tm); rej(e); } };
+        if (sg && typeof sg.addEventListener === 'function') sg.addEventListener('abort', () => { if (NETP[id]) { delete NETP[id]; clearTimeout(tm); rej(abortErr()); } });
         const h = {};
         if (o.headers && typeof o.headers === 'object') Object.keys(o.headers).slice(0, 10).forEach(k => { h[String(k)] = String(o.headers[k]); });
         POST({ t: 'net', id, url: typeof u === 'string' ? u : String((u && u.url) || u), method: String(o.method || 'GET').toUpperCase(), headers: h, body: typeof o.body === 'string' ? o.body : undefined });
