@@ -33,7 +33,7 @@ function rdBuild(idx){
   return'<div class="rdh">'+RD_ICO+'<b>'+esc(p.title)+'</b></div>'
     +'<div class="rdr"><b>Risk:</b> '+esc(p.risk)+'</div>'
     +(p.body?'<pre class="rdb">'+esc(p.body)+'</pre>':'')
-    +'<div class="rda">'+'<button type="button" class="rdn" data-m="'+idx+'" data-o="x">Cancel</button>'
+    +'<div class="rda">'+'<button type="button" class="rdn" data-m="'+idx+'" data-o="x">'+(H[idx].confirm.type==='cn'?'Deny':'Cancel')+'</button>'
     +p.btns.map(b=>'<button type="button" class="rdy'+(p.btns.length>1?' w':'')+'" data-m="'+idx+'" data-o="'+b.o+'">'+esc(b.l)+'</button>').join('')+'</div>';
 }
 function rdEl(){

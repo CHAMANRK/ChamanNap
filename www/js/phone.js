@@ -15,6 +15,13 @@ $('#chat').addEventListener('click',async e=>{
   const b=e.target.closest('.abtn');if(!b)return;
   const m=H[+b.dataset.m];if(!m||!m.confirm||m.confirm.state!=='pending')return;
   const c=m.confirm;
+  if(c.type==='cn'){
+    const res=CNCONF[c.id];delete CNCONF[c.id];
+    const x=b.dataset.o==='x',al=b.dataset.o==='1';
+    c.state=x?'cancelled':'done';m.content+=x?'\n\nDeny kiya.':al?'\n\nAllow: hamesha (is action ke liye).':'\n\nAllow: ek baar.';
+    logAdd('confirm','app '+(x?'DENY':al?'ALLOW always':'ALLOW once'));
+    persist();render();if(res)res(x?'deny':al?'always':'once');return;
+  }
   if(c.type==='termux'){
     const res=TCONF[c.id];delete TCONF[c.id];
     if(b.dataset.o==='x'){c.state='cancelled';m.content+='\n\nCancel kar diya.'}else{c.state='done';m.content+='\n\nAllow kiya.'}

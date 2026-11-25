@@ -355,7 +355,7 @@ function uiScan(){
 }
 // a widget message made in this app run is fresh; anything loaded from storage or an old session is not (it shows as expired)
 function uiFresh(m){if(m&&typeof m==='object')UI_FRESH.add(m)}
-const uiTools=()=>uiOn()?TOOLS:TOOLS.filter(t=>t.function.name!=='ui_render');
+const uiTools=()=>{const t=uiOn()?TOOLS:TOOLS.filter(x=>x.function.name!=='ui_render');return(typeof cnOn==='function'&&cnOn())?t:t.filter(x=>x.function.name!=='app_call')};
 function uiCtx(hi){UI_HI=hi;UI_K=0;return''}
 const uiHide=(m,hi)=>!!(m&&m.ui&&UI_INFO[hi+':0']==='old');
 const uiStat=key=>UI_INFO[key]||'frozen';

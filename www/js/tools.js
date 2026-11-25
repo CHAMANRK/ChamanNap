@@ -58,6 +58,7 @@ function pillText(name,a){
     case'run_code':return'Running '+({js:'JavaScript',sql:'SQL',py:'Python'}[a.lang]||'code');
     case'api_check':return'Checking Termux:API';
     case'notify_now':return'Sending notification';
+    case'app_call':return'App: '+cut(String(a.action||''),24);
     case'rule_save':return'Saving a rule';
     case'rule_list':return'Listing rules';
     case'schedule_add':return'Setting reminder';
@@ -170,6 +171,7 @@ async function execTool0(name,a,steps,fl){
     if(name.indexOf('screen_')===0||name==='ask_user'||name==='wait_for_user')return await screenTool(name,a,note,fl);
     if(name==='open_url'||name==='open_intent'||name==='set_switch'||name==='tap_when_visible'||name==='run_flow')return await fastTool(name,a,note,fl);
     if(name.indexOf('file_')===0||name==='edit_file')return await fileTool(name,a,note,fl);
+    if(name==='app_call')return await cnTool(a,note,fl);
     if(name==='rules_read')return rulesTool(a,note,fl);
     if(name==='rule_save'||name==='rule_list')return await crTool(name,a,note,fl);
     if(name.indexOf('note_')===0)return await noteTool(name,a,note,fl);

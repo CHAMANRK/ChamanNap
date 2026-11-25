@@ -113,7 +113,7 @@ function render(){
   if(!H.length){c.innerHTML='<div class="empty"><b>Chaman</b></div>';chNear=true;chNew=false;chBtn();return}
   const st0=c.scrollTop;
   if(typeof uiScan==='function')uiScan();
-  c.innerHTML=H.map((m,hi)=>(typeof uiHide==='function'&&uiHide(m,hi))?'':m.role==='user'?(m.chip?'<div class="msg me uichip">'+esc(m.chip)+'</div>':'<div class="msg me">'+esc(m.content||'')+att(m)+'</div>'):'<div class="msg ai'+(m.err?' err':'')+'">'+(typeof uiCtx==='function'?uiCtx(hi):'')+stepsH(m,hi)+(m.term&&typeof termH==='function'?termH(m.term,hi):fmt(m.content))+(typeof uiH==='function'?uiH(m,hi):'')+acts(m,hi)+(typeof artH==='function'?artH(m,hi):'')+(typeof imgH==='function'?imgH(m,hi):'')+(typeof noteH==='function'?noteH(m,hi):'')+(m.by?'<span class="by">'+esc(m.by)+'</span>':'')+'</div>').join('');
+  c.innerHTML=H.map((m,hi)=>(typeof uiHide==='function'&&uiHide(m,hi))?'':m.role==='user'?(m.chip?'<div class="msg me uichip">'+esc(m.chip)+'</div>':'<div class="msg me">'+esc(m.content||'')+att(m)+'</div>'):'<div class="msg ai'+(m.err?' err':'')+'">'+(typeof uiCtx==='function'?uiCtx(hi):'')+stepsH(m,hi)+(m.term&&typeof termH==='function'?termH(m.term,hi):fmt(m.content))+(typeof uiH==='function'?uiH(m,hi):'')+acts(m,hi)+(typeof artH==='function'?artH(m,hi):'')+(typeof imgH==='function'?imgH(m,hi):'')+(typeof noteH==='function'?noteH(m,hi):'')+(typeof cnH==='function'?cnH(m,hi):'')+(m.by?'<span class="by">'+esc(m.by)+'</span>':'')+'</div>').join('');
   chFollow(st0);
   if(typeof lnDraw==='function')lnDraw();
   if(typeof bubSync==='function')bubSync();

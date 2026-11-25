@@ -23,12 +23,12 @@ const NT=(m,o)=>NPx('Termux',m,o);
 const errMsg=e=>(e&&(e.message||e.errorMessage))||String(e);
 function persist(){sv('nap_h',H.map(m=>m.role==='user'?Object.assign({},m,{imgs:undefined,files:(m.files||[]).map(a=>({name:a.name,size:a.size,kind:a.kind,path:a.path}))}):m))}
 function aiText(m){
-  if(m.confirm)return'[app log] '+(m.confirm.type==='sms'?'SMS bhejne ka confirm':m.confirm.type==='termux'?'Termux command/file ka confirm':'Call karne ka confirm')+' - '+m.confirm.state;
+  if(m.confirm)return'[app log] '+(m.confirm.type==='sms'?'SMS bhejne ka confirm':m.confirm.type==='termux'?'Termux command/file ka confirm':m.confirm.type==='cn'?'App ka kaam chalane ka confirm':'Call karne ka confirm')+' - '+m.confirm.state;
   if(m.local)return'[app log] '+(m.aiNote||m.content);
   return m.content;
 }
 function acts(m,hi){
   if(!m.confirm||m.confirm.state!=='pending')return'';
   const c=m.confirm,lab=c.lab||(c.type==='sms'?'Bhejo':c.type==='termux'?'Chalao':'Call karo');
-  return'<div class="acts">'+c.opts.map((o,i)=>'<button type="button" class="abtn" data-m="'+hi+'" data-o="'+i+'">'+esc(c.opts.length>1?lab+': '+o.name:lab)+'</button>').join('')+'<button type="button" class="abtn x" data-m="'+hi+'" data-o="x">Cancel</button></div>';
+  return'<div class="acts">'+c.opts.map((o,i)=>'<button type="button" class="abtn" data-m="'+hi+'" data-o="'+i+'">'+esc(c.opts.length>1?lab+': '+o.name:lab)+'</button>').join('')+'<button type="button" class="abtn x" data-m="'+hi+'" data-o="x">'+(c.type==='cn'?'Deny':'Cancel')+'</button></div>';
 }

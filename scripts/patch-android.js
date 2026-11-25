@@ -6,7 +6,7 @@ const pkgDir = path.join(root, 'android/app/src/main/java/com/chaman/nap');
 const resDir = path.join(root, 'android/app/src/main/res');
 fs.mkdirSync(pkgDir, { recursive: true });
 
-for (const f of ['PhoneControlPlugin.java', 'ScreenControlPlugin.java', 'ChamanAccessibilityService.java', 'TermuxPlugin.java', 'TermuxResultReceiver.java', 'FilesPlugin.java', 'IntentsPlugin.java', 'NotifyCore.java', 'NotifyReceiver.java', 'NotifyBootReceiver.java', 'NotifyPlugin.java', 'NotifyAi.java', 'AiClient.java', 'AiJobService.java', 'ChamanBubble.java', 'FaceBackupCrypto.java', 'FaceBackup.java']) {
+for (const f of ['PhoneControlPlugin.java', 'ScreenControlPlugin.java', 'ChamanAccessibilityService.java', 'TermuxPlugin.java', 'TermuxResultReceiver.java', 'FilesPlugin.java', 'IntentsPlugin.java', 'NotifyCore.java', 'NotifyReceiver.java', 'NotifyBootReceiver.java', 'NotifyPlugin.java', 'NotifyAi.java', 'AiClient.java', 'AiJobService.java', 'ChamanBubble.java', 'FaceBackupCrypto.java', 'FaceBackup.java', 'LinkPlugin.java']) {
   fs.copyFileSync(path.join(root, 'native', f), path.join(pkgDir, f));
 }
 
@@ -39,6 +39,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(IntentsPlugin.class);
         registerPlugin(FaceLockPlugin.class);
         registerPlugin(NotifyPlugin.class);
+        registerPlugin(LinkPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
@@ -70,6 +71,14 @@ if (!m.includes('android.permission.READ_SMS')) {
     </queries>
 `;
   m = m.replace('<application', add + '    <application');
+}
+if (!m.includes('com.chaman.permission.LINK')) {
+  // chaman-link (CONNECTOR.md section 3): the signature permission (declared by every app, same key) + discovery of apps that have the BIND service
+  if (!m.includes('<queries>')) throw new Error('<queries> block not found in manifest');
+  m = m.replace('<queries>', '<queries>\n        <intent>\n            <action android:name="com.chaman.link.BIND" />\n        </intent>');
+  m = m.replace('<application', `    <permission android:name="com.chaman.permission.LINK" android:protectionLevel="signature" />
+    <uses-permission android:name="com.chaman.permission.LINK" />
+    <application`);
 }
 if (!m.includes('ChamanAccessibilityService')) {
   const svc = `        <service

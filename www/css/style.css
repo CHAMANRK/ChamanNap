@@ -586,3 +586,11 @@ tr.on td{background:var(--user)}
 
 /* 1.48001.0: title + command line are one line with "..." by default; opened card shows them in full (wrapped) */
 .tc.open .tcl,.tc.open .tcg{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
+
+/* 1.50000.0 connector: list rows (chat + Settings) */
+.cnb{background:var(--accent);color:var(--on-accent);border-radius:10px;padding:8px 14px;font-weight:600;font-size:14px;text-align:left}
+.cnb.x{background:none;border:1px solid var(--border);color:var(--text)}
+.cnrow{display:flex;align-items:center;gap:8px;padding:10px 0;border-top:1px solid var(--border)}
+.cnrow:first-child{border-top:0}
+.cnt{flex:1;min-width:0;display:flex;flex-direction:column}
+.cnt small{font-size:12px;color:var(--muted)}

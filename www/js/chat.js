@@ -20,6 +20,7 @@ async function runLoop(p){
   const rb=rulesBlock();if(rb)msgs[0].content+=rb;
   const uh=typeof uiHint==='function'?uiHint():'';if(uh)msgs[0].content+=uh;
   const cb=typeof crBlock==='function'?crBlock():'';if(cb)msgs[0].content+=cb;
+  const ab=typeof cnBlock==='function'?cnBlock():'';if(ab)msgs[0].content+=ab;
   const guard={n:0};
   let tools=typeof uiTools==='function'?uiTools():TOOLS;
   if(typeof tcWhyTools==='function')tools=tcWhyTools(tools);
