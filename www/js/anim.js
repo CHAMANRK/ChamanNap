@@ -1,9 +1,10 @@
+// 1.53000.0: Live voice mode shows one round ring of dots in the middle (cwLive); works even while Settings > Waiting animation is Off.
 // step27 (1.35000.0): waiting animation v1. 1.36000.0 (v2): long waits also show small acts and /anim previews them. 1.36002.0: 14 acts (clock, bolt, smiley, tick + 4 more texts, 2-line text).
 // Fine dots form the word "Chaman": in the middle of an empty chat, and in the status row (where the old dot was) while the AI works.
 // On send the dots scatter over the CHAT AREA only, now and then regroup into "Chaman", and settle when the answer arrives.
 // One canvas over #chat (pointer-events none). No native code. If canvas is missing or anything throws, the animation turns itself off
 // and the old look stays. Pure maths (cwTplBuild, cwSpawn, cwStep, cwAdvance) has no DOM, so tests/sim-anim.js can run it in node.
-const CW={on:false,dead:false,cv:null,g:null,mode:'off',P:[],tpl:null,W:0,H:0,dpr:1,raf:0,last:0,T:0,mt:0,al:0,col:'#6fb08f',anc:null,miss:0,rm:false,N:560,rdur:5,busy:false,tm:0,wt:0,nextAct:false,act:null,actTpl:null,cur:'word',ac:{},ctxt:'',lastAct:'',demo:0,did:0,force:''};
+const CW={on:false,dead:false,cv:null,g:null,mode:'off',P:[],tpl:null,W:0,H:0,dpr:1,raf:0,last:0,T:0,mt:0,al:0,col:'#6fb08f',anc:null,miss:0,rm:false,N:560,rdur:5,busy:false,tm:0,wt:0,nextAct:false,act:null,actTpl:null,cur:'word',ac:{},ctxt:'',lastAct:'',demo:0,did:0,force:'',live:'',lv:false,orbTpl:null};
 const CW_TIME={hold:.5,regroup:1.7,finHold:.45,finFade:.35,intro:1.3,roamMin:4.5,roamMax:6.5,act:2.6,demoMin:1.8,demoMax:2.4};
 const cwR=(a,b)=>a+Math.random()*(b-a);
 const cwRoamDur=()=>CW.demo?cwR(CW_TIME.demoMin,CW_TIME.demoMax):cwR(CW_TIME.roamMin,CW_TIME.roamMax);
@@ -139,6 +140,21 @@ function cwActAnchor(){
 function cwDemo(name){CW.demo=++CW.did;CW.force=name||'';return CW.demo}
 function cwDemoEnd(id){if(!id||CW.demo===id){CW.demo=0;CW.force=''}}
 function animList(){return CW_ACTS.map(a=>a.n).join(', ')}
+// ---- live voice mode (1.53000.0): the dots form one round ring in the middle of the chat area. voice.js calls cwLive(state) every 250 ms.
+// state: '' (live is off) | 'listen' (slow breathing) | 'think' (heart-like beat while the AI works) | 'speak' (soft rhythm).
+// It runs even when Settings > Waiting animation is Off (parked); when live ends the ring fades out and that setting applies again.
+function cwOrb(x,y){const r=Math.hypot(x,y);return r>=.78&&r<=1}
+function cwLiveFx(st,t){
+  if(st==='think'){const ph=(t*1.25)%1;const pu=ph<.14?Math.sin(ph/.14*Math.PI):(ph>.22&&ph<.34?.55*Math.sin((ph-.22)/.12*Math.PI):0);return 1+.28*pu}
+  if(st==='speak')return 1+.07*Math.sin(t*5.5)+.03*Math.sin(t*9.1);
+  return 1+.02*Math.sin(t*2.2);
+}
+function cwLiveAnchor(){const s=Math.max(60,Math.min(CW.W*.58,CW.H*.5,230));return{x:CW.W/2,y:CW.H*.45,w:s,h:s}}
+function cwLive(st){
+  st=st||'';const was=CW.live;CW.live=st;
+  try{document.documentElement.classList.toggle('vlive',!!st)}catch(e){}  // chat text dims a little behind the ring
+  if(st&&!was&&typeof setTimeout==='function')setTimeout(cwCheck,0);
+}
 async function animCmd(a){
   const q=String(a||'').trim().toLowerCase();
   const say=t=>H.push({role:'assistant',by:'App',info:1,content:t});
@@ -180,6 +196,7 @@ function cwBurst(A){
 // one physics step. form=true: spring to the word; form=false: roam over the area.
 function cwStep(P,dt,form,A,T,tm){
   const W=CW.W,H=CW.H;
+  const K=A.kk||46,Dm=A.kd||11; // spring stiffness / damping (the live ring uses a stiffer one so the beat shows up on screen)
   let rc=1,rs=0,sc=1;if(A.rot){rc=Math.cos(A.rot);rs=Math.sin(A.rot)}if(A.s)sc=A.s; // acts can spin / pulse
   const hd=A.hd,sq=A.sq;let c1=1,s1=0,c2=1,s2=0;if(hd){c1=Math.cos(hd[1]);s1=Math.sin(hd[1]);c2=Math.cos(hd[2]);s2=Math.sin(hd[2])} // group 1/2 turn (clock hands), group 1 squashes (eyes blink)
   for(const p of P){
@@ -188,7 +205,7 @@ function cwStep(P,dt,form,A,T,tm){
       if(p.g){if(hd){const c=p.g===1?c1:c2,s=p.g===1?s1:s2,nx=ox*c-oy*s;oy=ox*s+oy*c;ox=nx}else if(sq!==undefined&&p.g===1)oy=A.gcy+(oy-A.gcy)*sq}
       if(rs){const nx=ox*rc-oy*rs;oy=ox*rs+oy*rc;ox=nx}
       const tx=A.x+ox*sc,ty=A.y+oy*sc;
-      p.vx+=((tx-p.x)*46-p.vx*11)*dt;p.vy+=((ty-p.y)*46-p.vy*11)*dt;
+      p.vx+=((tx-p.x)*K-p.vx*Dm)*dt;p.vy+=((ty-p.y)*K-p.vy*Dm)*dt;
       const sp=Math.hypot(p.vx,p.vy);if(sp>900){p.vx*=900/sp;p.vy*=900/sp}
     }else{
       let dx=p.wx-p.x,dy=p.wy-p.y;const d=Math.hypot(dx,dy)||1;
@@ -205,7 +222,7 @@ function cwStep(P,dt,form,A,T,tm){
 }
 // state machine (no DOM). busy = the AI is working. Modes:
 // intro (assemble, empty chat) -> idle | hold -> roam <-> regroup (the word) or act (a text/shape, every second stop) | fin (settle + fade) -> off
-function cwSet(m){CW.mode=m;CW.mt=0;if(m!=='act'&&CW.cur!=='word'&&CW.tpl&&CW.P.length)cwUseTpl(CW.tpl,'word')} // leaving an act: dots go back to the word's places
+function cwSet(m){CW.mode=m;CW.mt=0;if(m!=='act'&&m!=='live'&&!(m==='fin'&&CW.lv)&&CW.cur!=='word'&&CW.tpl&&CW.P.length)cwUseTpl(CW.tpl,'word')} // leaving an act: dots go back to the word's places
 function cwAdvance(dt,A){
   CW.T+=dt;CW.mt+=dt;
   const m=CW.mode;
@@ -217,13 +234,15 @@ function cwAdvance(dt,A){
     return;
   }
   if(m==='act'&&CW.act){if(CW.act.fx){const f=CW.act.fx(CW.mt);A.s=f.s;A.rot=f.r;if(f.hd)A.hd=f.hd;if(f.sq!==undefined&&CW.actTpl.gc){A.sq=f.sq;A.gcy=(CW.actTpl.gc[1][1]-.5)*A.h}}if(CW.act.k==='count')cwCountTick()}
-  const form=m==='intro'||m==='idle'||m==='hold'||m==='regroup'||m==='act'||m==='fin';
+  if(m==='live'){A.s=cwLiveFx(CW.live,CW.T);A.kk=150;A.kd=18} // the ring breathes / beats (stiff spring: follows the beat quickly)
+  const form=m==='live'||m==='intro'||m==='idle'||m==='hold'||m==='regroup'||m==='act'||m==='fin';
   cwStep(CW.P,dt,form,A,CW.T,CW.mt);
   if(m==='intro'){CW.al=Math.min(1,CW.al+dt/.5);if(CW.mt>CW_TIME.intro)cwSet('idle')}
   else if(m==='hold'){CW.al=Math.min(1,CW.al+dt/.25);if(CW.mt>CW_TIME.hold){cwBurst(A);CW.rdur=cwRoamDur();if(CW.demo)CW.nextAct=true;cwSet('roam')}}
   else if(m==='roam'){CW.al=Math.min(1,CW.al+dt/.25);if(CW.mt>CW.rdur){if(CW.nextAct)cwEnterAct();else cwSet('regroup')}}
   else if(m==='regroup'){if(CW.mt>CW_TIME.regroup){cwBurst(A);CW.rdur=cwRoamDur();CW.nextAct=true;cwSet('roam')}}
   else if(m==='act'){CW.al=Math.min(1,CW.al+dt/.25);if(CW.mt>CW_TIME.act){cwBurst(A);CW.rdur=cwRoamDur();CW.nextAct=!!(CW.demo&&CW.force);cwSet('roam')}}
+  else if(m==='live'){CW.al=Math.min(1,CW.al+dt/.4)}
   else if(m==='fin'){CW.al=Math.max(0,CW.al-dt/(CW_TIME.finHold+CW_TIME.finFade));if(CW.al<=0)cwSet('off')} // fades while it settles, so the first lines of the answer stay readable
 }
 // who wants what: called every 250 ms. busy -> roam cycle; empty chat -> idle word; otherwise settle and stop.
@@ -241,13 +260,15 @@ function cwWant(busy,empty){
 // ---- DOM side ----
 // U1 (1.42000.0): the animation is parked. It only runs when Settings > Waiting animation is On (S.anim.on===true); default off.
 function cwUser(){try{return !!(S&&S.anim&&S.anim.on===true)}catch(e){return false}}
+function cwActive(){return cwUser()||!!CW.live||CW.lv} // the setting, or live voice mode (or its fade-out)
 function cwPark(){
+  CW.lv=false;
   if(CW.mode!=='off'){CW.mode='off';CW.P=[]}
   if(CW.cv)CW.cv.style.display='none';
   try{document.documentElement.classList.remove('cw')}catch(e){}
 }
 function cwOk(){return CW.on&&!CW.dead&&cwUser()}
-function cwOff(){CW.dead=true;CW.mode='off';CW.P=[];if(CW.cv)CW.cv.style.display='none';try{document.documentElement.classList.remove('cw')}catch(e){}}
+function cwOff(){CW.dead=true;CW.lv=false;CW.mode='off';CW.P=[];if(CW.cv)CW.cv.style.display='none';try{document.documentElement.classList.remove('cw')}catch(e){}}
 function cwAnchor(){
   const chat=document.querySelector('#chat');if(!chat)return null;
   const R=chat.getBoundingClientRect();
@@ -286,14 +307,16 @@ function cwFrame(dt){
   const a=cwAnchor();
   if(a)CW.anc=a;
   const A=a||CW.anc;
-  if(!A){cwSet('off');return}
+  const lm=CW.mode==='live'||(CW.mode==='fin'&&CW.lv); // live ring (also while it fades out)
+  if(!A&&!lm){cwSet('off');return}
   cwPlace();
-  if(CW.needSpawn){cwSpawn(CW.needSpawn,A);CW.needSpawn=null}
-  const AA=CW.mode==='act'&&CW.actTpl?cwActAnchor():A; // an act is drawn in the middle of the chat area, the word stays at its anchor
+  if(CW.needSpawn){cwSpawn(CW.needSpawn,A||cwLiveAnchor());CW.needSpawn=null}
+  if(CW.mode==='live'&&CW.cur!=='orb'&&CW.orbTpl&&CW.P.length)cwUseTpl(CW.orbTpl,'orb');
+  const AA=lm?cwLiveAnchor():(CW.mode==='act'&&CW.actTpl?cwActAnchor():A); // an act is drawn in the middle of the chat area, the word stays at its anchor
   if(CW.needBurst){cwBurst(AA);CW.needBurst=false}
   cwAdvance(dt,AA);
   cwDraw();
-  if(CW.mode==='off'){CW.cv.style.display='none';CW.P=[]}
+  if(CW.mode==='off'){CW.cv.style.display='none';CW.P=[];CW.lv=false}
 }
 function cwLoop(ts){
   CW.raf=0;
@@ -310,15 +333,24 @@ function cwKick(){
   if(CW.raf)return;
   CW.last=0;CW.raf=requestAnimationFrame(cwLoop);
 }
+function cwLiveEnter(){
+  const t=CW.orbTpl||(CW.orbTpl=cwShapeTpl({f:cwOrb}));
+  if(!t){cwOff();return}
+  if(CW.mode==='off'||!CW.P.length){CW.al=0;CW.needSpawn='rand'}  // dots come from everywhere and gather into the ring
+  CW.lv=true;cwSet('live');
+}
 function cwCheck(){
-  if(CW.on&&!CW.dead&&!cwUser()){cwPark();return}
-  if(!cwOk())return;
+  if(CW.on&&!CW.dead&&!cwActive()){cwPark();return}
+  if(!(CW.on&&!CW.dead&&cwActive()))return;
   try{
     document.documentElement.classList.add('cw');
     const busyNow=typeof busy!=='undefined'&&busy&&!!document.querySelector('#ty .cwx');
     const empty=typeof H!=='undefined'&&!H.length&&!!document.querySelector('.empty b');
     const c=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();if(c)CW.col=c;
     if(!CW.tpl){CW.tpl=cwSample();if(!CW.tpl){cwOff();return}}
+    if(CW.live){if(CW.mode!=='live')cwLiveEnter();cwKick();return}   // live voice mode: the AI wait is shown as a beat of the ring, no roaming
+    if(CW.mode==='live')cwSet('fin');                                   // live ended: the ring fades out in place
+    if(!cwUser()){cwKick();return}                                      // fading out and the waiting animation is parked: nothing new starts
     cwWant(busyNow,empty);
     cwKick();
   }catch(e){cwOff()}

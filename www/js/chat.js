@@ -139,6 +139,7 @@ function stopTurn(){
   NS('stop').catch(()=>{});
   if(typeof FL_BUSY!=='undefined'&&FL_BUSY&&typeof FLN==='function')FLN('cancel').catch(()=>{});
   logAdd('stop','Stop dabaya gaya');
+  if(typeof vcOnStop==='function')vcOnStop();
   if(t.wake)t.wake();
 }
 {const sb=$('#send');if(sb&&sb.addEventListener)sb.addEventListener('click',e=>{if(busy){e.preventDefault();stopTurn()}})}

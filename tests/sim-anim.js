@@ -135,6 +135,39 @@ ok(ev("cwUser()")===true&&ev("cwOk()")===true,'S.anim.on=true -> animation allow
 ev("S.anim.on=false");ok(ev("cwUser()")===false&&ev("cwOk()")===false,'S.anim off (default) -> parked, cwOk false (status row keeps the plain look)');
 ev("S.anim={}");ok(ev("cwUser()")===false,'S.anim without on -> parked');
 ev("S.anim={on:true}");
+// ---- live voice ring (1.53000.0) ----
+ev("S.anim={};CW.rm=false;CW.W=360;CW.H=600;CW.live='';CW.lv=false;CW.mode='off';CW.P=[];CW.cur='word';CW.needSpawn=null");
+ok(ev("cwActive()")===false,'live off + animation parked -> not active');
+let lt=false;try{ev("cwLive('listen')")}catch(e){lt=true}
+ok(!lt,'cwLive does not throw when classList.toggle is missing');
+ok(ev("cwActive()")===true&&ev("cwUser()")===false&&ev("CW.live")==='listen','live voice mode makes it active while Settings > Waiting animation stays Off');
+ok(ev("(()=>{const t=cwShapeTpl({f:cwOrb});return !!t&&t.pts.length===CW.N&&t.pts.every(q=>{const r=Math.hypot(q[0]*2-1,q[1]*2-1);return r>=.76&&r<=1.01})})()"),'ring template: N dots, all on a round ring');
+const fxs=st=>ev("(()=>{const o=[];for(let i=0;i<400;i++)o.push(cwLiveFx('"+st+"',i*.01));return[Math.min(...o),Math.max(...o)]})()");
+const fl=fxs('listen'),ft=fxs('think'),fs2=fxs('speak');
+ok(fl[1]<=1.021&&fl[0]>=.979,'listen: only a slow breath ('+fl.map(x=>x.toFixed(3))+')');
+ok(ft[1]>=1.25&&ft[0]>=.999,'think: heart-like beat, up to +28% ('+ft.map(x=>x.toFixed(3))+')');
+ok(fs2[1]>1.06&&fs2[0]<.94,'speak: soft rhythm around 1 ('+fs2.map(x=>x.toFixed(3))+')');
+ev("cwLiveEnter()");
+ok(ev("CW.mode")==='live'&&ev("CW.lv")===true&&ev("CW.needSpawn")==='rand'&&ev("CW.al")===0,'live starts: dots come from everywhere, fade in');
+ev("cwSpawn('rand',cwLiveAnchor());CW.needSpawn=null;cwUseTpl(CW.orbTpl,'orb')");
+const runL=sec=>ev("for(let i=0;i<"+Math.round(sec/.033)+";i++)cwAdvance(.033,cwLiveAnchor())");
+runL(3);
+const rg=ev("(()=>{const A=cwLiveAnchor(),R=A.w/2,rs=CW.P.map(p=>Math.hypot(p.x-A.x,p.y-A.y)/R);return[Math.min(...rs),Math.max(...rs),CW.al,CW.mode]})()");
+ok(rg[0]>=.66&&rg[1]<=1.14&&rg[2]===1&&rg[3]==='live','all dots gather into the ring ('+rg.slice(0,2).map(x=>x.toFixed(2))+'), fully visible, mode stays live');
+ok(ev("(()=>{const A=cwLiveAnchor();return A.x===180&&A.y===270&&A.w===A.h&&A.w<=230&&A.w>=60})()"),'ring sits in the middle of the chat area');
+const beat=st=>ev("(()=>{CW.live='"+st+"';let mn=1e9,mx=0;for(let i=0;i<150;i++){const A=cwLiveAnchor();cwAdvance(.033,A);const r=CW.P.reduce((s,p)=>s+Math.hypot(p.x-A.x,p.y-A.y),0)/CW.P.length;if(i>40){mn=Math.min(mn,r);mx=Math.max(mx,r)}}return mx/mn})()");
+const bt=beat('think'),bl=beat('listen');
+ok(bt>1.10,'waiting for the AI: the ring really beats on screen (x'+bt.toFixed(3)+')');
+ok(bl<1.08&&bl<bt,'listening: calmer than the beat (x'+bl.toFixed(3)+')');
+ev("CW.live='listen';CW.rm=true;CW.al=0;cwAdvance(.033,cwLiveAnchor())");
+ok(ev("CW.al")===1&&ev("(()=>{const A=cwLiveAnchor(),p=CW.P[0];return Math.hypot(p.x-(A.x+(p.u-.5)*A.w),p.y-(A.y+(p.v-.5)*A.h))<1e-6})()"),'reduced motion: still ring, no movement');
+ev("CW.rm=false");
+ev("CW.live='';cwSet('fin')");
+ok(ev("CW.cur")==='orb','live ended: ring fades out in place (dots do not fly to the word)');
+runL(1.2);ok(ev("CW.mode")==='off','then it stops');
+ev("CW.lv=false;CW.cur='orb';cwSet('fin')");ok(ev("CW.cur")==='word','normal wait (not live): old behaviour, dots go back to the word');
+ev("CW.mode='off';CW.P=[];CW.cur='word';CW.lv=false;CW.live='';CW.rm=false;S.anim={on:true}");
+ok(/vlive/.test(fs.readFileSync('css/style.css','utf8'))&&/#micb\.live/.test(fs.readFileSync('css/style.css','utf8')),'css: chat dims behind the ring, mic button has a live look');
 (async()=>{
   ev("S.anim.on=false");await ev("animCmd('')");ok(/park/.test(ev("H[0].content")),'/anim while parked says it is parked');ev("H.length=0;S.anim.on=true");
   await ev("animCmd('list')");ok(ev("H.length")===1&&/soch, bas, counter, ruk, dimag, chai, net, heart, ring, star, clock, bolt, smile, tick/.test(ev("H[0].content"))&&/ghadi = clock/.test(ev("H[0].content")),'/anim list names the acts and aliases');

@@ -306,6 +306,10 @@ button.uibg:disabled{opacity:.5}
 .crow .ib{color:var(--muted)}
 #micb.rec{color:var(--danger);background:color-mix(in srgb,var(--danger) 14%,transparent);animation:micp 1.2s ease-in-out infinite}
 #micb.spk{color:var(--accent)}
+/* 1.53000.0 live voice mode */
+#micb{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
+#micb.live{box-shadow:inset 0 0 0 2px var(--accent)}
+html.vlive #chat{opacity:.45;transition:opacity .3s}
 #micb[hidden]{display:none}
 @keyframes micp{50%{opacity:.55}}
 #vc_list .vcp{margin-top:6px;text-align:left}

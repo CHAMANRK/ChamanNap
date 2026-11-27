@@ -87,7 +87,7 @@ const reset=()=>{t('S.up={}');t('UP.info=null;UP.busy=false');delete els['#modal
  t('S.up.last=0');delete els['#modal#open'];
  await t('upAuto()');
  ok(!els['#modal#open'],'same tag is not shown again after Baad me');
- RESP.body.tag_name='v1.53000.0';t('S.up.last=0');
+ RESP.body.tag_name='v1.99100.0';t('S.up.last=0');
  await t('upAuto()');
  ok(els['#modal#open']===1,'a newer tag after Baad me shows the popup again');
  // throttle

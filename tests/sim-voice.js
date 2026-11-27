@@ -181,6 +181,96 @@ const reset=()=>{calls.length=0;n=0;ELCALLS=0;ELFAIL={};PLAYWAIT=null;ANDROID_FA
   reset();ev("S.vc={keys:'k1',on:false}");const b2=calls.length;await ev('vcMic()');
   ok(calls.length===b2,'Voice off: mic does nothing');
 
+  // ---------- live mode (1.53000.0) ----------
+  ev("var LIVELOG=[];function cwLive(s){LIVELOG.push(s)}");
+  let LQ=null,hang=null;
+  ctx.Capacitor.nativePromise=(old=>async(pl,m,o)=>{
+    if(pl==='Voice'&&m==='stopListen'){calls.push({pl,m,o});const h=hang;hang=null;if(h)h({text:'',reason:'cancelled'});return{}}
+    if(pl==='Voice'&&m==='listen'&&LQ){calls.push({pl,m,o});if(LQ.length){const x=LQ.shift();if(x.err)throw err(x.err,x.code);return x}return new Promise(r=>{hang=r})}
+    return old(pl,m,o)})(ctx.Capacitor.nativePromise);
+  const waitFor=async(f,ms)=>{const t0=Date.now();while(Date.now()-t0<(ms||2500)){if(f())return true;await sleep(5)}return false};
+  const seq=()=>calls.filter(c=>c.m==='listen'||c.m==='speakAndroid').map(c=>c.m).join();
+  const liveReset=()=>{reset();doc.hidden=false;ev("S.vc={engine:'android',on:true};VC.live=false;VC.waitTurn=false;LIVELOG.length=0");LQ=[];hang=null};
+  // A: listen -> AI -> speak -> listen again, twice, then the third listen waits (open mic)
+  liveReset();LQ=[{text:'pehla sawal'},{text:'doosra sawal'}];script=[{msg:'Pehla jawab.'},{msg:'Doosra jawab.'}];
+  ev('vcLiveStart()');
+  ok(await waitFor(()=>all('listen').length>=3&&all('speakAndroid').length>=2),'live: loop reached the third listen after two full rounds');
+  ok(seq()==='listen,speakAndroid,listen,speakAndroid,listen','order: listen, speak, listen, speak, listen (mic never opens while speaking)');
+  ok(ev("H.filter(x=>x.role==='user').map(x=>x.content).join()")==='pehla sawal,doosra sawal'&&ev("H.filter(x=>x.role==='assistant'&&!x.info).length")===2,'both spoken messages went through the normal chat path');
+  ok(ev('VC.live')===true&&ev("LIVELOG.includes('listen')&&LIVELOG.includes('speak')&&LIVELOG.includes('think')"),'ring told: listen, think (AI wait) and speak states ('+ev("[...new Set(LIVELOG)].join()")+')');
+  ok(ev("document.querySelector('#micb')&&true"),'mic button exists');
+  ev('vcLiveStop()');await sleep(20);
+  ok(ev('VC.live')===false&&all('stopListen').length>=1&&ev('LIVELOG[LIVELOG.length-1]')==='','stop: no longer live, mic asked to stop, ring off');
+  const n0=all('listen').length;await sleep(40);ok(all('listen').length===n0,'after stop no new listen starts');
+  // B: two empty listens in a row end live mode by themselves
+  liveReset();LQ=[{text:'',reason:'no_speech'},{text:'',reason:'no_speech'}];
+  ev('vcLiveStart()');
+  ok(await waitFor(()=>!ev('VC.live')),'two silent listens in a row stop live mode');
+  ok(all('listen').length===2&&ev("H.some(x=>x.info&&/Live mode band/.test(x.content))"),'exactly two listens, one short note in chat');
+  // one silence, then speech: counter resets, no stop
+  liveReset();LQ=[{text:'',reason:'no_speech'},{text:'ab bolta hu'}];script=[{msg:'Haan.'}];
+  ev('vcLiveStart()');
+  ok(await waitFor(()=>all('listen').length>=3&&all('speakAndroid').length>=1)&&ev('VC.live')===true,'one silence does not stop live; the next speech is handled');
+  ev('vcLiveStop()');await sleep(20);
+  // C: mic permission error stops live
+  liveReset();LQ=[{err:'Mic permission nahi hai',code:'PERMISSION'}];
+  ev('vcLiveStart()');
+  ok(await waitFor(()=>!ev('VC.live'))&&ev("H.some(x=>x.info&&/permission/i.test(x.content))"),'permission error stops live and tells why');
+  // D: a typed message ends live mode
+  liveReset();LQ=[];script=[{msg:'Likha mila.'}];
+  ev('vcLiveStart()');await waitFor(()=>all('listen').length>=1);
+  ev("$('#in').value='likha hua sawal';$('#f').dispatchEvent(new Event('submit',{cancelable:true,bubbles:true}))");
+  ok(await waitFor(()=>!ev('VC.live')),'typing a message ends live mode');
+  await idle();ok(ev("H.some(x=>x.role==='user'&&x.content==='likha hua sawal')"),'typed message still goes through');
+  // E: Stop button of a turn ends live mode
+  liveReset();LQ=[];ev('vcLiveStart()');await waitFor(()=>all('listen').length>=1);
+  ev('vcOnStop()');ok(await waitFor(()=>!ev('VC.live')),'Stop (vcOnStop) ends live mode');
+  ok(/vcOnStop\(\)/.test(fs.readFileSync('js/chat.js','utf8').split('function stopTurn')[1].split('\n}\n')[0]),'chat.js stopTurn calls vcOnStop');
+  // F: confirm card waiting for a tap pauses the loop, resumes after it
+  liveReset();LQ=[{text:'phir se'}];script=[{msg:'Theek.'}];
+  ev("H.push({role:'assistant',content:'SMS bhejna hai',confirm:{state:'pending'}})");
+  ev('vcLiveStart()');await sleep(80);
+  ok(all('listen').length===0&&ev('VC.live')===true,'confirm card pending: mic stays closed');
+  ok(ev("LIVELOG[LIVELOG.length-1]")==='think','ring keeps beating while a card waits for his tap');
+  ev("H[0].confirm.state='done'");
+  ok(await waitFor(()=>all('listen').length>=1),'after the tap the loop goes on');
+  ev('vcLiveStop()');await sleep(20);
+  // G: app in background: waits, comes back; 1 minute in background ends live
+  liveReset();LQ=[{text:'wapas aaya'}];script=[{msg:'Ok.'}];doc.hidden=true;
+  ev('vcLiveStart()');await sleep(60);
+  ok(all('listen').length===0,'app hidden: mic not opened');
+  doc.hidden=false;ok(await waitFor(()=>all('listen').length>=1),'app visible again: loop continues');
+  ev('vcLiveStop()');await sleep(20);
+  liveReset();doc.hidden=true;ev('vcLiveStart()');await sleep(30);ev('VC.hidAt=Date.now()-61000');
+  ok(await waitFor(()=>!ev('VC.live'))&&ev("H.some(x=>x.info&&/background/.test(x.content))"),'1 minute in background ends live mode');
+  doc.hidden=false;
+  // H: Settings "Reply kab bole = off" still speaks in live mode
+  liveReset();ev("S.vc={engine:'android',on:true,say:'off'}");LQ=[{text:'bolo'}];script=[{msg:'Bol raha hu.'}];
+  ev('vcLiveStart()');ok(await waitFor(()=>all('speakAndroid').length>=1),'live mode speaks even when "Reply kab bole" is off');
+  ev('vcLiveStop()');await sleep(20);
+  // I: mic button: long press = live on/off, tap while live = off, plain tap = one listen
+  liveReset();LQ=[];const mb=els['#micb'];
+  mb.dispatchEvent({type:'pointerdown'});await sleep(30);
+  ok(ev('VC.live')===true,'long press on the mic starts live mode');
+  mb.dispatchEvent({type:'pointerup'});mb.onclick();
+  ok(ev('VC.live')===true,'the click that follows the long press is ignored');
+  await waitFor(()=>all('listen').length>=1);
+  await mb.onclick();await sleep(20);
+  ok(ev('VC.live')===false,'plain tap while live = stop live mode');
+  mb.dispatchEvent({type:'pointerdown'});await sleep(30);mb.dispatchEvent({type:'pointerup'});mb.onclick();
+  ok(ev('VC.live')===true,'long press again = live on');
+  mb.dispatchEvent({type:'pointerdown'});await sleep(30);mb.dispatchEvent({type:'pointerup'});mb.onclick();await sleep(20);
+  ok(ev('VC.live')===false,'long press while live = live off');
+  liveReset();LQ=[{text:'sirf ek baar'}];script=[{msg:'Ek hi baar.'}];mb.dispatchEvent({type:'pointerdown'});mb.dispatchEvent({type:'pointerup'});await mb.onclick();await idle();
+  ok(ev('VC.live')===false&&all('listen').length===1,'short tap = one listen, as in v0.1 (no live mode)');
+  // J: voice off while live
+  liveReset();LQ=[];ev('vcLiveStart()');await waitFor(()=>all('listen').length>=1);
+  els['#vc_on']=mk('#vc_on');els['#vc_on'].value='off';ev('vcRead()');
+  ok(await waitFor(()=>!ev('VC.live')),'turning Voice off in Settings ends live mode');
+  ok(/Mic ko lamba dabao/.test(ev('vcSettingsHtml()')),'Settings > Voice explains the long press');
+  ev("S.vc={}");LQ=null;
+  const swait=()=>0;
+
   // ---------- keys import ----------
   ev("S.vc={}");
   const pk=ev("parseKeys('ElevenLabs: sk_abcdefghijklmnopqrstuvwx1234\\nsk_zzzzzzzzzzzzzzzzzzzzzzzz9999\\ngroq: gsk_1234567890abcd')");
@@ -191,7 +281,7 @@ const reset=()=>{calls.length=0;n=0;ELCALLS=0;ELFAIL={};PLAYWAIT=null;ANDROID_FA
   ev("applyKeys(parseKeys('sk_abcdefghijklmnopqrstuvwx1234'))");
   ok(ev("vcKeys().length")===2,'importing the same key again does not duplicate it');
   ok(!ev("JSON.stringify(S.keys)").includes('sk_abc'),'ElevenLabs key did not go into the chat provider keys');
-  ok(ev("sumr(parseKeys('deepseek: sk'+'-abcdefghijklmnopqrstuvwxyz123456')).join()").indexOf('DeepSeek')===0,'DeepSeek sk- keys still detected as before');
+  ok(ev("sumr(parseKeys('deepseek: sk-'+'abcdefghijklmnopqrstuvwxyz123456')).join()").indexOf('DeepSeek')===0,'DeepSeek sk- keys still detected as before');
 
   // ---------- settings ----------
   const sh=ev('vcSettingsHtml()');
