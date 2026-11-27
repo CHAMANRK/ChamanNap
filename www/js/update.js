@@ -1,7 +1,7 @@
 // 1.51000.0: update detector. Reads the latest GitHub Release of the public repo (no token), compares its tag with APP_VER,
 // and offers the APK link. Install is always done by Najeef (Android needs his tap), so no install permission is added.
 // Releases are created by CI only when he pushes a tag of a tested version (see .github/workflows/build.yml).
-const UP_REPO='CHAMANRK/Chaman-Nap';
+const UP_REPO='CHAMANRK/ChamanNap';
 const UP_API='https://api.github.com/repos/'+UP_REPO+'/releases/latest';
 const UP_EVERY=6*3600*1000;
 const UP={busy:false,info:null};
