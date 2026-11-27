@@ -304,6 +304,11 @@ button.uibg:disabled{opacity:.5}
 .comp textarea::placeholder{color:var(--muted)}
 .crow{display:flex;align-items:center;gap:4px;margin-left:-10px}
 .crow .ib{color:var(--muted)}
+#micb.rec{color:var(--danger);background:color-mix(in srgb,var(--danger) 14%,transparent);animation:micp 1.2s ease-in-out infinite}
+#micb.spk{color:var(--accent)}
+#micb[hidden]{display:none}
+@keyframes micp{50%{opacity:.55}}
+#vc_list .vcp{margin-top:6px;text-align:left}
 .pchip{display:inline-flex;align-items:center;gap:6px;min-height:44px;max-width:52%;padding:0 12px;border-radius:999px;color:var(--muted);font-size:13px;font-weight:500}
 .pchip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pchip svg{width:14px;height:14px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;transition:transform .15s ease-out}

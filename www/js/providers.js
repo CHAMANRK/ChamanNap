@@ -48,6 +48,7 @@ function userText(m,vision,last){
     else if(a.kind==='img'){if(!(vision&&last&&m.imgs&&m.imgs.length))t+='\n\n[Image attached: '+a.name+' - tumhe ye dikhti nahi]'+sv}
     else t+='\n\n[File attached: '+a.name+', '+kb(a.size)+'. Content chat me nahi hai'+(a.path?'; use the saved copy: Termux (pdftotext, unzip, python) or file tools if it is text':', sirf naam aur size pata hai')+']'+sv;
   });
+  if(m.voice&&last&&typeof VC_HINT!=='undefined')t+=VC_HINT;
   return t.trim()||'(attachment)';
 }
 const STEPS_KEEP=15;

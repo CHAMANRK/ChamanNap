@@ -18,6 +18,7 @@ function sheet(){
   h+='<details class="sec"><summary><span class="st">Floating Chaman</span>'+onoff(typeof bubOn==='function'&&bubOn())+'</summary><div class="sbd"><p class="hint" style="margin:0 0 10px">Chhota halka icon jo doosre apps ke upar rehta hai (left beech me, drag kar sakte ho). Tap karo to mini panel: message likho, jawab dekho, confirm card pe Allow/Cancel. 5 sec kuch na ho to panel gayab aur icon 25% dim. Chaman app khula ho to icon nahi dikhta. Screen control (Accessibility) on honi chahiye, aur Overlay permission mil jaye to behtar.</p><label>Floating Chaman</label><select id="bub_on"><option value="off">Off</option><option value="on">On</option></select></div></details>';
   h+='<details class="sec"><summary><span class="st">Termux</span>'+('')+'</summary><div class="sbd"><p class="hint" id="tms" style="margin:0 0 10px">Check ho raha hai...</p><button type="button" class="btn ghost" style="margin-top:0" id="tmc">Termux setup line copy karo</button><button type="button" class="btn ghost" id="tmp">Chaman ki permissions kholo</button><p class="hint">Copy ki hui line Termux me paste karke chalao (ek baar). Phir Chaman ki permissions me Additional permissions > Run commands in Termux environment allow karo. Termux F-Droid ya GitHub wala hona chahiye.</p></div></details>';
   h+=(typeof cnSettingsHtml==='function'?cnSettingsHtml():'');
+  h+=(typeof vcSettingsHtml==='function'?vcSettingsHtml():'');
   h+='<details class="sec"><summary><span class="st">Files (bina Termux)</span>'+('')+'</summary><div class="sbd"><p class="hint" id="fls" style="margin:0 0 10px">Check ho raha hai...</p><button type="button" class="btn ghost" style="margin-top:0" id="flb">All files access allow karo</button><button type="button" class="btn ghost" id="fli">Workspace folders banao</button><p class="hint">AI ke file tools (padhna, likhna, edit, move, delete) /sdcard/Chaman ke andar Termux ke bina chalte hain. Iske liye Chaman ko All files access chahiye. Delete .trash me jata hai, har overwrite/edit se pehle purani copy backup/ me.</p></div></details>';
   h+='<details class="sec"><summary><span class="st">Workspace (/sdcard/Chaman)</span>'+('')+'</summary><div class="sbd"><p class="hint" id="wss" style="margin:0 0 10px">Check ho raha hai...</p><button type="button" class="btn ghost" style="margin-top:0" id="wsb">Workspace banao / check karo</button><label>Auto memory</label><select id="ws_auto"><option value="on">On: kaam ke baad khud note save</option><option value="off">Off</option></select><p class="hint">AI ka apna folder: work/ (uski files), memory/ (har project ki .md memory), backup/ (overwrite se pehle ki copy). Memory aur notes ke liye Termux nahi chahiye, bas Files wali All files access.</p></div></details>';
   h+=(typeof flHtml==='function'?flHtml():'');
@@ -58,6 +59,7 @@ function sheet(){
   $('#rnt').onclick=()=>{$('#rnr').textContent='Test chal raha hai...';rnTest().then(t=>{$('#rnr').textContent=t;$('#rns').textContent=rnStatus()}).catch(e=>{$('#rnr').textContent='Test fail: '+errMsg(e)})};
   if(typeof flBind==='function')flBind();
   if(typeof cnBind==='function')cnBind();
+  if(typeof vcBind==='function')vcBind();
   if(typeof upBind==='function')upBind();
   $('#save').onclick=async()=>{
     // Face lock: a change that makes it weaker needs the owner first. If that fails nothing is saved and the sheet stays open.
@@ -73,7 +75,7 @@ function sheet(){
     P.filter(p=>!p.g).forEach(p=>{S.keys[p.id]=$('#k_'+p.id).value.trim();const m=$('#m_'+p.id).value.trim();S.models[p.id]=m||p.model});
     S.system=$('#sys').value.trim()||DEF_SYS;S.prov=$('#prov_s').value;S.anim={on:$('#an_on').value==='on'};S.theme=$('#th').value;S.ws={auto:$('#ws_auto').value!=='off'};S.lg={on:$('#lg_on').value!=='off'};S.ui={off:$('#ui_on').value==='off'};S.rn={on:$('#rn_on').value!=='off',warm:$('#rn_warm').value!=='off',netInit:true,netV:2,net:$('#rn_net').value.split(/[\n,]+/).map(x=>rnClean(x)).filter(Boolean).slice(0,30)};S.ptr={};S.vision={provider:$('#v_p').value,model:$('#v_m').value.trim()||'openrouter/free'};S.img={model:$('#im_m').value.trim(),w:$('#im_w').value,h:$('#im_h').value,steps:$('#im_s').value};
     if(nfl){S.fl=nfl;flSync()}
-    S.bub={on:$('#bub_on').value==='on'};sv('nap_s',S);if(typeof bubApply==='function')bubApply();theme();if(typeof syncProv==='function')syncProv();spReset();$('#sheet').classList.remove('open');
+    S.bub={on:$('#bub_on').value==='on'};if(typeof vcRead==='function')vcRead();sv('nap_s',S);if(typeof bubApply==='function')bubApply();theme();if(typeof syncProv==='function')syncProv();spReset();$('#sheet').classList.remove('open');
   };
   try{setUx()}catch(e){}   // looks only: if this ever fails the old cards still work
 }

@@ -7,8 +7,8 @@ const mk=sel=>{const o={value:'',style:{},dataset:{},options:[],hidden:false,cla
 const doc={querySelector:s=>els[s]||(els[s]=mk(s)),createElement:()=>mk('c'),body:mk('body'),documentElement:{dataset:{}},addEventListener(){}};
 const store={};
 const sleepR=ms=>new Promise(r=>setTimeout(r,ms));
-const APK='https://github.com/CHAMANRK/ChamanNap/releases/download/v1.52000.0/chaman-nap-v1.52000.0.apk';
-const REL=()=>({tag_name:'v1.52000.0',name:'Chaman v1.52000.0',body:'**Step 52**: voice\n- mic',html_url:'https://github.com/CHAMANRK/ChamanNap/releases/tag/v1.52000.0',assets:[{name:'chaman-nap-v1.52000.0.apk',browser_download_url:APK}]});
+const APK='https://github.com/CHAMANRK/ChamanNap/releases/download/v1.99000.0/chaman-nap-v1.99000.0.apk';
+const REL=()=>({tag_name:'v1.99000.0',name:'Chaman v1.99000.0',body:'**Step 99**: voice\n- mic',html_url:'https://github.com/CHAMANRK/ChamanNap/releases/tag/v1.99000.0',assets:[{name:'chaman-nap-v1.99000.0.apk',browser_download_url:APK}]});
 let RESP={status:200,body:REL()},calls=0,lastReq=null,NET=false,OPENED=[],OPENFAIL=false,COPIED=[];
 const ctx={document:doc,localStorage:{getItem:k=>store[k]||null,setItem:(k,v)=>{store[k]=v}},matchMedia:()=>({matches:true,addEventListener(){}}),navigator:{clipboard:{writeText:async x=>{COPIED.push(x)}}},console,
  setTimeout:(f,ms)=>{const t=setTimeout(f,ms>10000?1e9:ms<=250?ms:ms/40);if(ms>10000)t.unref();return t},clearTimeout,URL,Image:function(){},
@@ -41,12 +41,12 @@ const reset=()=>{t('S.up={}');t('UP.info=null;UP.busy=false');delete els['#modal
  // ---------- newer release ----------
  reset();
  let r=await t('upCheck()');
- ok(r.ok&&r.newer&&r.ver==='1.52000.0'&&r.apk&&r.url===APK,'newer release found with apk link');
+ ok(r.ok&&r.newer&&r.ver==='1.99000.0'&&r.apk&&r.url===APK,'newer release found with apk link');
  ok(lastReq.u==='https://api.github.com/repos/CHAMANRK/ChamanNap/releases/latest'&&/vnd\.github/.test(lastReq.o.headers.Accept),'asks the latest-release API of the repo, no token');
  ok(!/Authorization/i.test(JSON.stringify(lastReq.o.headers)),'no auth header (public repo)');
- ok(t('S.up.seen')==='v1.52000.0'&&t('S.up.last')>0,'seen tag and check time saved');
- ok(/Step 52/.test(r.notes)&&!/\*\*/.test(r.notes),'release notes are shown as plain text');
- ok(/Naya version hai: v1\.52000\.0/.test(t('upLine(UP.info)')),'settings line says a new version exists');
+ ok(t('S.up.seen')==='v1.99000.0'&&t('S.up.last')>0,'seen tag and check time saved');
+ ok(/Step 99/.test(r.notes)&&!/\*\*/.test(r.notes),'release notes are shown as plain text');
+ ok(/Naya version hai: v1\.99000\.0/.test(t('upLine(UP.info)')),'settings line says a new version exists');
  // ---------- same / older / not a version ----------
  reset();RESP.body.tag_name='v1.51000.0';r=await t('upCheck()');
  ok(r.ok&&!r.newer&&/latest pe ho/.test(t('upLine(UP.info)')),'same version = latest');
@@ -76,14 +76,14 @@ const reset=()=>{t('S.up={}');t('UP.info=null;UP.busy=false');delete els['#modal
  r=await t('upAuto()');
  ok(r&&r.newer&&els['#modal#open']===1,'auto check opens the popup for a newer version');
  const card=els['#mcard'].innerHTML;
- ok(/v1\.52000\.0/.test(card)&&/v1\.51000\.\d/.test(card)&&/APK download karo/.test(card)&&/Baad me/.test(card)&&/Step 52/.test(card),'popup shows new + current version, notes, Download and Baad me');
+ ok(/v1\.99000\.0/.test(card)&&/v1\.\d{5}\.\d/.test(card)&&/APK download karo/.test(card)&&/Baad me/.test(card)&&/Step 99/.test(card),'popup shows new + current version, notes, Download and Baad me');
  await handlers['#upd:click']();await sleepR(5);
  ok(OPENED.length===1&&OPENED[0]===APK,'Download opens the apk link of our repo');
  ok(!els['#modal#open'],'popup closes after Download');
  // Baad me
  reset();await t('upAuto()');
  await handlers['#upl:click']();
- ok(!els['#modal#open']&&t('S.up.skip')==='v1.52000.0','Baad me closes and remembers this tag');
+ ok(!els['#modal#open']&&t('S.up.skip')==='v1.99000.0','Baad me closes and remembers this tag');
  t('S.up.last=0');delete els['#modal#open'];
  await t('upAuto()');
  ok(!els['#modal#open'],'same tag is not shown again after Baad me');
@@ -118,7 +118,7 @@ const reset=()=>{t('S.up={}');t('UP.info=null;UP.busy=false');delete els['#modal
  const h=t('upSettingsHtml()');
  ok(/App update/.test(h)&&/id="upc"/.test(h)&&/id="up_on"/.test(h)&&/id="upt"/.test(h)&&/id="upg" hidden/.test(h),'Settings section has check, auto switch, popup test, hidden download');
  const sh=t('sheet(),$("#sbody").innerHTML');
- ok(/App update/.test(sh)&&/Chaman v1\.51000\.\d/.test(sh),'section is inside the real Settings sheet, version line intact');
+ ok(/App update/.test(sh)&&/Chaman v1\.\d{5}\.\d/.test(sh),'section is inside the real Settings sheet, version line intact');
  ok(typeof handlers['#upc:click']==='function','sheet binds the check button');
  await handlers['#upc:click']();await sleepR(10);
  ok(/Naya version hai/.test(els['#ups'].textContent)&&els['#upg'].hidden===false,'manual check shows the new version and the Download button');

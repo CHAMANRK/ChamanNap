@@ -4,6 +4,7 @@ function kind(label){
   const l=(label||'').toLowerCase();
   if(/url|space|host/.test(l))return'url';
   if(/(^|[^a-z])hf([^a-z]|$)|hugging/.test(l))return'hf';
+  if(l.includes('eleven'))return'eleven';
   if(l.includes('chaman'))return'chkey';
   if(l.includes('nvapi'))return'nvidia';
   for(const p of PROV)if(l.includes(p))return p;
@@ -17,6 +18,7 @@ function vkind(v){
   if(/^nvapi-/.test(v))return'nvidia';
   if(/^sk-[A-Za-z0-9]{24,}$/.test(v))return'deepseek';
   if(/^hf_/.test(v))return'hf';
+  if(/^sk_[A-Za-z0-9]{20,}$/.test(v))return'eleven';
   return'';
 }
 function addKV(o,k,v){
@@ -25,6 +27,7 @@ function addKV(o,k,v){
   if(k==='url'){o.ch.url=v;return}
   if(k==='hf'){o.ch.hf=v;return}
   if(k==='chkey'){o.ch.key=v;return}
+  if(k==='eleven'){if(v.length>=16)(o.el=o.el||[]).push(v);else o.skip++;return}
   if(PROV.includes(k)&&v.length>=8){(o.keys[k]=o.keys[k]||[]).push(v);return}
   o.skip++;
 }
@@ -43,7 +46,7 @@ function parseKeys(text){
   const o={keys:{},ch:{},skip:0};
   const t=String(text).replace(/^\uFEFF/,'').trim();
   try{walk(o,JSON.parse(t),'');return o}catch(e){}
-  o.keys={};o.ch={};o.skip=0;
+  o.keys={};o.ch={};o.skip=0;o.el=[];
   t.split(/\r?\n/).forEach(line=>{
     line=line.trim();
     if(!line||/^(#|\/\/)/.test(line))return;
@@ -56,12 +59,14 @@ function parseKeys(text){
 function sumr(o){
   const a=[];
   PROV.forEach(id=>{const n=(o.keys[id]||[]).length;if(n)a.push(P.find(p=>p.id===id).name.replace(' (optional)','')+': '+n+(n>1?' keys':' key'))});
+  if(o.el&&o.el.length)a.push('ElevenLabs: '+o.el.length+(o.el.length>1?' keys':' key'));
   if(o.ch.key)a.push('Chaman key');if(o.ch.hf)a.push('HF token');if(o.ch.url)a.push('Space URL');
   return a;
 }
 const mergeKeys=(old,add)=>{const set=[];(String(old||'').split(/[\s,]+/).filter(Boolean).concat(add)).forEach(k=>{if(set.indexOf(k)<0)set.push(k)});return set.join(', ')};
 function applyKeys(o){
   PROV.forEach(id=>{if(o.keys[id])S.keys[id]=mergeKeys(S.keys[id],o.keys[id])});
+  if(o.el&&o.el.length)S.vc=Object.assign({},typeof vcCfg==='function'?vcCfg():{},S.vc||{},{keys:mergeKeys((S.vc||{}).keys,o.el)});
   Object.assign(S.ch,o.ch);S.ptr={};sv('nap_s',S);
 }
 function modal(state,list){
@@ -84,6 +89,7 @@ $('#ki').onchange=async e=>{
     const msg=$('#imsg');if(!msg)return;
     if(!a.length){msg.textContent='Is file me koi key nahi mili.';return}
     PROV.forEach(id=>{const ta=$('#k_'+id);if(ta&&o.keys[id])ta.value=mergeKeys(ta.value,o.keys[id])});
+    if(o.el&&o.el.length){const ta=$('#vc_keys');if(ta)ta.value=mergeKeys(ta.value,o.el)}
     if(o.ch.url)$('#c_url').value=o.ch.url;
     if(o.ch.key)$('#c_key').value=o.ch.key;
     if(o.ch.hf)$('#c_hf').value=o.ch.hf;

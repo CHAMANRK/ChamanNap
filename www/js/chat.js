@@ -156,6 +156,7 @@ $('#f').addEventListener('submit',async e=>{
   logAdd('you',t+(PEND.length?' [files: '+PEND.map(a=>a.name).join(', ')+']':''));
   const pl=PEND.slice(),um={role:'user',content:t,files:pl.map(a=>({name:a.name,size:a.size,kind:a.kind,body:a.body,cut:a.cut})),imgs:pl.filter(a=>a.kind==='img').map(a=>a.img)};
   if(typeof UI_CHIP!=='undefined'&&UI_CHIP){um.chip=UI_CHIP;UI_CHIP=''}
+  if(typeof vcOnSend==='function')vcOnSend(um);
   H.push(um);
   PEND=[];rendP();render();
   lnBegin('Message bhej raha hu','wait');
@@ -175,6 +176,7 @@ const r=await turnWait(tn,ask());
   const lnWas=LN.on;lnEnd();if(lnWas)NS('finish',finOpt({open:false})).catch(()=>{});
   H=H.slice(-100);persist();TURN=null;setBusy(false);render();logFlush();
   if(typeof bubTurnEnd==='function')bubTurnEnd();
+  if(typeof vcTurnEnd==='function')vcTurnEnd();
 });
 $('#in').addEventListener('input',e=>{e.target.style.height='auto';e.target.style.height=e.target.scrollHeight+'px'});
 $('#newb').onclick=()=>{if(!H.length)return;H=[];sv('nap_h',H);render()}; // replaced by sessions.js (sesNew)
