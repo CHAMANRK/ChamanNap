@@ -34,7 +34,7 @@ def run(theme):
         ok(bx is not None and bx['n']>300, t+': dots are drawn ('+str(bx and bx['n'])+' samples)')
         ok(bx is not None and abs(bx['w']-bx['h'])<12 and bx['w']>100, t+': round (w %.0f x h %.0f px)' % (bx['w'], bx['h']))
         ok(bx is not None and abs(bx['cx']-bx['cw']/2)<10 and abs(bx['cy']-bx['ch']*.45)<14, t+': sits in the middle of the chat area (cx %.0f cy %.0f of %.0f x %.0f)' % (bx['cx'],bx['cy'],bx['cw'],bx['ch']))
-        ok(bx is not None and bx['mid']<bx['n']*.03, t+': hollow ring, nothing in the centre')
+        ok(bx is not None and bx['mid']>bx['n']*.15, t+': filled disc, dots in the centre too (%s of %s)' % (bx['mid'], bx['n']))
         ok(pg.evaluate("parseFloat(getComputedStyle(document.getElementById('chat')).opacity)")<0.6, t+': chat text is dimmed behind the ring')
         pg.screenshot(path="/tmp/shots/live-listen-%s.png" % t)
         # beat while the AI works: the ring size changes visibly

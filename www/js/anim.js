@@ -1,4 +1,4 @@
-// 1.53000.0: Live voice mode shows one round ring of dots in the middle (cwLive); works even while Settings > Waiting animation is Off.
+// 1.53000.0: Live voice mode shows one filled round disc of dots (1.53000.1: filled, was a ring) in the middle (cwLive); works even while Settings > Waiting animation is Off.
 // step27 (1.35000.0): waiting animation v1. 1.36000.0 (v2): long waits also show small acts and /anim previews them. 1.36002.0: 14 acts (clock, bolt, smiley, tick + 4 more texts, 2-line text).
 // Fine dots form the word "Chaman": in the middle of an empty chat, and in the status row (where the old dot was) while the AI works.
 // On send the dots scatter over the CHAT AREA only, now and then regroup into "Chaman", and settle when the answer arrives.
@@ -140,10 +140,10 @@ function cwActAnchor(){
 function cwDemo(name){CW.demo=++CW.did;CW.force=name||'';return CW.demo}
 function cwDemoEnd(id){if(!id||CW.demo===id){CW.demo=0;CW.force=''}}
 function animList(){return CW_ACTS.map(a=>a.n).join(', ')}
-// ---- live voice mode (1.53000.0): the dots form one round ring in the middle of the chat area. voice.js calls cwLive(state) every 250 ms.
+// ---- live voice mode (1.53000.0): the dots form one filled round disc in the middle of the chat area. voice.js calls cwLive(state) every 250 ms.
 // state: '' (live is off) | 'listen' (slow breathing) | 'think' (heart-like beat while the AI works) | 'speak' (soft rhythm).
 // It runs even when Settings > Waiting animation is Off (parked); when live ends the ring fades out and that setting applies again.
-function cwOrb(x,y){const r=Math.hypot(x,y);return r>=.78&&r<=1}
+function cwOrb(x,y){return Math.hypot(x,y)<=1} // a filled disc
 function cwLiveFx(st,t){
   if(st==='think'){const ph=(t*1.25)%1;const pu=ph<.14?Math.sin(ph/.14*Math.PI):(ph>.22&&ph<.34?.55*Math.sin((ph-.22)/.12*Math.PI):0);return 1+.28*pu}
   if(st==='speak')return 1+.07*Math.sin(t*5.5)+.03*Math.sin(t*9.1);

@@ -141,7 +141,7 @@ ok(ev("cwActive()")===false,'live off + animation parked -> not active');
 let lt=false;try{ev("cwLive('listen')")}catch(e){lt=true}
 ok(!lt,'cwLive does not throw when classList.toggle is missing');
 ok(ev("cwActive()")===true&&ev("cwUser()")===false&&ev("CW.live")==='listen','live voice mode makes it active while Settings > Waiting animation stays Off');
-ok(ev("(()=>{const t=cwShapeTpl({f:cwOrb});return !!t&&t.pts.length===CW.N&&t.pts.every(q=>{const r=Math.hypot(q[0]*2-1,q[1]*2-1);return r>=.76&&r<=1.01})})()"),'ring template: N dots, all on a round ring');
+ok(ev("(()=>{const t=cwShapeTpl({f:cwOrb});return !!t&&t.pts.length===CW.N&&t.pts.every(q=>{const r=Math.hypot(q[0]*2-1,q[1]*2-1);return r<=1.01})})()"),'disc template: N dots, all inside one round disc');
 const fxs=st=>ev("(()=>{const o=[];for(let i=0;i<400;i++)o.push(cwLiveFx('"+st+"',i*.01));return[Math.min(...o),Math.max(...o)]})()");
 const fl=fxs('listen'),ft=fxs('think'),fs2=fxs('speak');
 ok(fl[1]<=1.021&&fl[0]>=.979,'listen: only a slow breath ('+fl.map(x=>x.toFixed(3))+')');
@@ -153,7 +153,8 @@ ev("cwSpawn('rand',cwLiveAnchor());CW.needSpawn=null;cwUseTpl(CW.orbTpl,'orb')")
 const runL=sec=>ev("for(let i=0;i<"+Math.round(sec/.033)+";i++)cwAdvance(.033,cwLiveAnchor())");
 runL(3);
 const rg=ev("(()=>{const A=cwLiveAnchor(),R=A.w/2,rs=CW.P.map(p=>Math.hypot(p.x-A.x,p.y-A.y)/R);return[Math.min(...rs),Math.max(...rs),CW.al,CW.mode]})()");
-ok(rg[0]>=.66&&rg[1]<=1.14&&rg[2]===1&&rg[3]==='live','all dots gather into the ring ('+rg.slice(0,2).map(x=>x.toFixed(2))+'), fully visible, mode stays live');
+ok(rg[1]<=1.14&&rg[2]===1&&rg[3]==='live','all dots gather into the disc ('+rg.slice(0,2).map(x=>x.toFixed(2))+'), fully visible, mode stays live');
+ok(ev("(()=>{const A=cwLiveAnchor(),R=A.w/2;let c=0;for(const p of CW.P)if(Math.hypot(p.x-A.x,p.y-A.y)<R*.5)c++;return c>CW.P.length*.15})()"),'disc is filled: dots also in the middle');
 ok(ev("(()=>{const A=cwLiveAnchor();return A.x===180&&A.y===270&&A.w===A.h&&A.w<=230&&A.w>=60})()"),'ring sits in the middle of the chat area');
 const beat=st=>ev("(()=>{CW.live='"+st+"';let mn=1e9,mx=0;for(let i=0;i<150;i++){const A=cwLiveAnchor();cwAdvance(.033,A);const r=CW.P.reduce((s,p)=>s+Math.hypot(p.x-A.x,p.y-A.y),0)/CW.P.length;if(i>40){mn=Math.min(mn,r);mx=Math.max(mx,r)}}return mx/mn})()");
 const bt=beat('think'),bl=beat('listen');
